@@ -102,16 +102,16 @@ async function createUpdaterFixture(options: {
   const artifactExt = platform === "win" ? "exe" : "dmg";
   const arch = platform === "win" ? "x64" : "arm64";
   const artifactName = platform === "win"
-    ? `open-design-${version}-win-x64-setup.exe`
-    : `open-design-${version}-mac-arm64.dmg`;
+    ? `composer-design-${version}-win-x64-setup.exe`
+    : `composer-design-${version}-mac-arm64.dmg`;
   const artifactPath = `/artifact.${artifactExt}`;
-  const artifactBody = Buffer.from(options.artifactBody ?? "open design updater fixture");
+  const artifactBody = Buffer.from(options.artifactBody ?? "composer design updater fixture");
   const digest = createHash("sha256").update(artifactBody).digest("hex");
   const payloadName = platform === "win"
-    ? `open-design-${version}-win-x64-payload.7z`
-    : `open-design-${version}-mac-arm64-payload.zip`;
+    ? `composer-design-${version}-win-x64-payload.7z`
+    : `composer-design-${version}-mac-arm64-payload.zip`;
   const payloadPath = platform === "win" ? "/payload.7z" : "/payload.zip";
-  const payloadBody = Buffer.from(options.payloadBody ?? "open design updater payload fixture");
+  const payloadBody = Buffer.from(options.payloadBody ?? "composer design updater payload fixture");
   const payloadDigest = createHash("sha256").update(payloadBody).digest("hex");
   const artifactRanges: string[] = [];
   let artifactRequests = 0;
@@ -259,10 +259,10 @@ function metadataResponse(version: string): Response {
         enabled: true,
         artifacts: {
           dmg: {
-            name: `open-design-${version}-mac-arm64.dmg`,
+            name: `composer-design-${version}-mac-arm64.dmg`,
             sha256: "0".repeat(64),
             size: 1,
-            url: `https://example.invalid/open-design-${version}-mac-arm64.dmg`,
+            url: `https://example.invalid/composer-design-${version}-mac-arm64.dmg`,
           },
         },
       },
@@ -319,7 +319,7 @@ describe("desktop updater", () => {
 
       await updater.checkForUpdates({ autoDownload: false });
 
-      expect(logger.info).toHaveBeenCalledWith("[open-design updater] lifecycle", expect.objectContaining({
+      expect(logger.info).toHaveBeenCalledWith("[composer-design updater] lifecycle", expect.objectContaining({
         enabled: true,
         event: "session-start",
         metadataUrl: fixture.metadataUrl,
@@ -327,7 +327,7 @@ describe("desktop updater", () => {
         sessionId: "2026-06-09T07:50:51.000Z-12345",
         source: SIDECAR_SOURCES.PACKAGED,
       }));
-      expect(logger.info).toHaveBeenCalledWith("[open-design updater] lifecycle", expect.objectContaining({
+      expect(logger.info).toHaveBeenCalledWith("[composer-design updater] lifecycle", expect.objectContaining({
         event: "check-start",
         metadataUrl: fixture.metadataUrl,
         namespace: "release-beta",
@@ -360,7 +360,7 @@ describe("desktop updater", () => {
       expect(checked.paths?.manifestPath).toBe(join(root, "metadata.json"));
       expect(checked.active?.path).toBe(checked.downloadPath);
       expect(relative(await realpath(root), checked.downloadPath ?? "")).not.toMatch(/^\.\./);
-      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("open design updater fixture");
+      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("composer design updater fixture");
 
       const restored = await updater.status();
       expect(restored.state).toBe(DESKTOP_UPDATE_STATES.DOWNLOADED);
@@ -395,7 +395,7 @@ describe("desktop updater", () => {
       expect(checked.artifact?.platformKey).toBe("win");
       expect(checked.artifact?.type).toBe("installer");
       expect(checked.downloadPath).toEqual(expect.stringMatching(/\.exe$/));
-      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("open design updater fixture");
+      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("composer design updater fixture");
 
       const installed = await updater.installUpdate();
       expect(installed.state).toBe(DESKTOP_UPDATE_STATES.DOWNLOADED);
@@ -411,7 +411,7 @@ describe("desktop updater", () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture({
       includePayload: true,
-      payloadBody: "open design windows payload fixture",
+      payloadBody: "composer design windows payload fixture",
       platform: "win",
     });
     try {
@@ -426,7 +426,7 @@ describe("desktop updater", () => {
 
       expect(checked.state).toBe(DESKTOP_UPDATE_STATES.DOWNLOADED);
       expect(checked.artifact?.type).toBe("installer");
-      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("open design updater fixture");
+      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("composer design updater fixture");
     } finally {
       await fixture.close();
       rmSync(root, { force: true, recursive: true });
@@ -436,13 +436,13 @@ describe("desktop updater", () => {
   it("falls back to the installer when launcher context is valid but metadata has no payload artifact", async () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture({
-      artifactBody: "open design windows installer fixture",
+      artifactBody: "composer design windows installer fixture",
       channel: "beta",
       platform: "win",
       version: "1.0.0-beta.3",
     });
     const launcherRuntimePath = join(root, "launcher", "runtime.json");
-    const launcherLaunchPath = join(root, "installed", "Open Design Beta.exe");
+    const launcherLaunchPath = join(root, "installed", "Composer Design Beta.exe");
     try {
       await mkdir(join(root, "installed"), { recursive: true });
       await writeFile(launcherLaunchPath, "");
@@ -479,7 +479,7 @@ describe("desktop updater", () => {
 
       expect(checked.state).toBe(DESKTOP_UPDATE_STATES.DOWNLOADED);
       expect(checked.artifact?.type).toBe("installer");
-      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("open design windows installer fixture");
+      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("composer design windows installer fixture");
     } finally {
       await fixture.close();
       rmSync(root, { force: true, recursive: true });
@@ -489,17 +489,17 @@ describe("desktop updater", () => {
   it("downloads and applies launcher payload only when launcher runtime context validates", async () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture({
-      artifactBody: "open design windows installer fixture",
+      artifactBody: "composer design windows installer fixture",
       channel: "beta",
       includePayload: true,
-      payloadBody: "open design windows payload fixture",
+      payloadBody: "composer design windows payload fixture",
       platform: "win",
       version: "1.0.0-beta.2",
     });
     const launcherRuntimePath = join(root, "launcher", "runtime.json");
     const launcherRoot = root;
     const versionRoot = join(root, "launcher", "channels", "beta", "namespaces", "release-beta-win", "versions");
-    const launcherLaunchPath = join(root, "installed", "Open Design Beta.exe");
+    const launcherLaunchPath = join(root, "installed", "Composer Design Beta.exe");
     const launches: Array<{ appPid: number; launchPath: string; root: string }> = [];
     let extractCount = 0;
     try {
@@ -535,15 +535,15 @@ describe("desktop updater", () => {
       }, {
         extractLauncherPayloadArchive: async ({ destinationRoot }) => {
           extractCount += 1;
-          await mkdir(join(destinationRoot, "payload", "resources", "open-design"), { recursive: true });
-          await writeFile(join(destinationRoot, "payload", "Open Design.exe"), "");
+          await mkdir(join(destinationRoot, "payload", "resources", "composer-design"), { recursive: true });
+          await writeFile(join(destinationRoot, "payload", "Composer Design.exe"), "");
           await writeFile(
             join(destinationRoot, "manifest.json"),
             `${JSON.stringify({
               channel: "beta",
               entry: {
                 cwd: "payload",
-                executable: "payload/Open Design.exe",
+                executable: "payload/Composer Design.exe",
               },
               namespace: "release-beta-win",
               payloadRoot: "payload",
@@ -552,7 +552,7 @@ describe("desktop updater", () => {
               version: "1.0.0-beta.2",
             })}\n`,
           );
-          await writeFile(join(destinationRoot, "payload", "resources", "open-design-config.json"), "{}\n");
+          await writeFile(join(destinationRoot, "payload", "resources", "composer-design-config.json"), "{}\n");
         },
         launchAppAfterQuit: async (input) => {
           launches.push({
@@ -562,7 +562,7 @@ describe("desktop updater", () => {
           });
           return { helperLogPath: join(root, "updates", "helpers", "open-app-after-quit-test.log") };
         },
-        processExecPath: "C:\\Program Files\\Open Design Beta\\Open Design Beta.exe",
+        processExecPath: "C:\\Program Files\\Composer Design Beta\\Composer Design Beta.exe",
         processPid: 4242,
       });
 
@@ -570,11 +570,11 @@ describe("desktop updater", () => {
 
       expect(checked.state).toBe(DESKTOP_UPDATE_STATES.DOWNLOADED);
       expect(checked.artifact?.type).toBe("payload");
-      expect(checked.artifact?.name).toBe("open-design-1.0.0-beta.2-win-x64-payload.7z");
+      expect(checked.artifact?.name).toBe("composer-design-1.0.0-beta.2-win-x64-payload.7z");
       expect(checked.capabilities.canApplyInPlace).toBe(true);
       expect(checked.capabilities.canOpenInstaller).toBe(false);
       expect(checked.capabilities.requiresManualInstall).toBe(false);
-      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("open design windows payload fixture");
+      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("composer design windows payload fixture");
       expect(extractCount).toBe(1);
       expect(await readFile(join(root, "launcher", "channels", "beta", "namespaces", "release-beta-win", "versions", "1.0.0-beta.2", "manifest.json"), "utf8")).toContain("1.0.0-beta.2");
       expect(JSON.parse(await readFile(launcherRuntimePath, "utf8"))).toMatchObject({
@@ -617,17 +617,17 @@ describe("desktop updater", () => {
   it("rejects launcher payloads that change before activation", async () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture({
-      artifactBody: "open design windows installer fixture",
+      artifactBody: "composer design windows installer fixture",
       channel: "beta",
       includePayload: true,
-      payloadBody: "open design windows payload fixture",
+      payloadBody: "composer design windows payload fixture",
       platform: "win",
       version: "1.0.0-beta.2",
     });
     const launcherRuntimePath = join(root, "launcher", "runtime.json");
     const launcherRoot = root;
     const versionRoot = join(root, "launcher", "channels", "beta", "namespaces", "release-beta-win", "versions");
-    const launcherLaunchPath = join(root, "installed", "Open Design Beta.exe");
+    const launcherLaunchPath = join(root, "installed", "Composer Design Beta.exe");
     const launches: Array<{ appPid: number; launchPath: string; root: string }> = [];
     let extractCount = 0;
     try {
@@ -662,15 +662,15 @@ describe("desktop updater", () => {
       }, {
         extractLauncherPayloadArchive: async ({ destinationRoot }) => {
           extractCount += 1;
-          await mkdir(join(destinationRoot, "payload", "resources", "open-design"), { recursive: true });
-          await writeFile(join(destinationRoot, "payload", "Open Design.exe"), "");
+          await mkdir(join(destinationRoot, "payload", "resources", "composer-design"), { recursive: true });
+          await writeFile(join(destinationRoot, "payload", "Composer Design.exe"), "");
           await writeFile(
             join(destinationRoot, "manifest.json"),
             `${JSON.stringify({
               channel: "beta",
               entry: {
                 cwd: "payload",
-                executable: "payload/Open Design.exe",
+                executable: "payload/Composer Design.exe",
               },
               namespace: "release-beta-win",
               payloadRoot: "payload",
@@ -679,7 +679,7 @@ describe("desktop updater", () => {
               version: "1.0.0-beta.2",
             })}\n`,
           );
-          await writeFile(join(destinationRoot, "payload", "resources", "open-design-config.json"), "{}\n");
+          await writeFile(join(destinationRoot, "payload", "resources", "composer-design-config.json"), "{}\n");
         },
         launchAppAfterQuit: async (input) => {
           launches.push({
@@ -689,7 +689,7 @@ describe("desktop updater", () => {
           });
           return { helperLogPath: join(root, "updates", "helpers", "open-app-after-quit-test.log") };
         },
-        processExecPath: "C:\\Program Files\\Open Design Beta\\Open Design Beta.exe",
+        processExecPath: "C:\\Program Files\\Composer Design Beta\\Composer Design Beta.exe",
         processPid: 4242,
       });
 
@@ -720,13 +720,13 @@ describe("desktop updater", () => {
     const fixture = await createUpdaterFixture({
       channel: "beta",
       includePayload: true,
-      payloadBody: "open design payload without packaged config",
+      payloadBody: "composer design payload without packaged config",
       platform: "win",
       version: "1.0.0-beta.2",
     });
     const namespaceRoot = join(root, "launcher", "channels", "beta", "namespaces", "release-beta-win");
     const launcherRuntimePath = join(root, "launcher", "runtime.json");
-    const launcherLaunchPath = join(root, "installed", "Open Design Beta.exe");
+    const launcherLaunchPath = join(root, "installed", "Composer Design Beta.exe");
     try {
       await mkdir(join(root, "installed"), { recursive: true });
       await writeFile(launcherLaunchPath, "");
@@ -758,14 +758,14 @@ describe("desktop updater", () => {
       }, {
         extractLauncherPayloadArchive: async ({ destinationRoot }) => {
           await mkdir(join(destinationRoot, "payload", "resources"), { recursive: true });
-          await writeFile(join(destinationRoot, "payload", "Open Design.exe"), "");
+          await writeFile(join(destinationRoot, "payload", "Composer Design.exe"), "");
           await writeFile(
             join(destinationRoot, "manifest.json"),
             `${JSON.stringify({
               channel: "beta",
               entry: {
                 cwd: "payload",
-                executable: "payload/Open Design.exe",
+                executable: "payload/Composer Design.exe",
               },
               namespace: "release-beta-win",
               payloadRoot: "payload",
@@ -781,7 +781,7 @@ describe("desktop updater", () => {
 
       expect(checked.state).toBe(DESKTOP_UPDATE_STATES.ERROR);
       expect(checked.error?.code).toBe("launcher-payload-prepare-failed");
-      expect(checked.error?.message).toContain("open-design-config.json");
+      expect(checked.error?.message).toContain("composer-design-config.json");
       expect(existsSync(join(namespaceRoot, "versions", "1.0.0-beta.2"))).toBe(false);
       expect(JSON.parse(await readFile(launcherRuntimePath, "utf8"))).toMatchObject({
         active: { generation: 0, version: "1.0.0-beta.1" },
@@ -796,15 +796,15 @@ describe("desktop updater", () => {
   it("keeps using the installer when launcher context has a missing installed launch path", async () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture({
-      artifactBody: "open design windows installer fixture",
+      artifactBody: "composer design windows installer fixture",
       channel: "beta",
       includePayload: true,
-      payloadBody: "open design windows payload fixture",
+      payloadBody: "composer design windows payload fixture",
       platform: "win",
       version: "1.0.0-beta.2",
     });
     const launcherRuntimePath = join(root, "launcher", "runtime.json");
-    const launcherLaunchPath = join(root, "missing", "Open Design Beta.exe");
+    const launcherLaunchPath = join(root, "missing", "Composer Design Beta.exe");
     try {
       await mkdir(join(root, "launcher"), { recursive: true });
       await mkdir(join(root, "launcher", "channels", "beta", "namespaces", "release-beta-win", "versions", "1.0.0-beta.1"), { recursive: true });
@@ -832,14 +832,14 @@ describe("desktop updater", () => {
         namespace: "release-beta-win",
         source: SIDECAR_SOURCES.PACKAGED,
       }, {
-        processExecPath: "C:\\Users\\runneradmin\\AppData\\Roaming\\Open Design Beta\\launcher\\channels\\beta\\namespaces\\release-beta-win\\versions\\1.0.0-beta.1\\payload\\Open Design.exe",
+        processExecPath: "C:\\Users\\runneradmin\\AppData\\Roaming\\Composer Design Beta\\launcher\\channels\\beta\\namespaces\\release-beta-win\\versions\\1.0.0-beta.1\\payload\\Composer Design.exe",
       });
 
       const checked = await updater.checkForUpdates();
 
       expect(checked.state).toBe(DESKTOP_UPDATE_STATES.DOWNLOADED);
       expect(checked.artifact?.type).toBe("installer");
-      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("open design windows installer fixture");
+      expect(await readFile(checked.downloadPath ?? "", "utf8")).toBe("composer design windows installer fixture");
     } finally {
       await fixture.close();
       rmSync(root, { force: true, recursive: true });
@@ -849,16 +849,16 @@ describe("desktop updater", () => {
   it("relaunches mac launcher payloads through the installed app bundle from a payload-backed process", async () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture({
-      artifactBody: "open design mac dmg fixture",
+      artifactBody: "composer design mac dmg fixture",
       channel: "beta",
       includePayload: true,
-      payloadBody: "open design mac payload fixture",
+      payloadBody: "composer design mac payload fixture",
       platform: "mac",
       version: "1.0.0-beta.3",
     });
     const launcherRuntimePath = join(root, "launcher", "runtime.json");
     const launcherRoot = root;
-    const launcherLaunchPath = join(root, "installed", "Open Design Beta.app");
+    const launcherLaunchPath = join(root, "installed", "Composer Design Beta.app");
     const launches: Array<{ appPid: number; launchPath: string; root: string }> = [];
     try {
       await mkdir(launcherLaunchPath, { recursive: true });
@@ -890,17 +890,17 @@ describe("desktop updater", () => {
         source: SIDECAR_SOURCES.PACKAGED,
       }, {
         extractLauncherPayloadArchive: async ({ destinationRoot }) => {
-          await mkdir(join(destinationRoot, "payload", "Open Design Beta.app", "Contents", "MacOS"), { recursive: true });
-          await mkdir(join(destinationRoot, "payload", "Open Design Beta.app", "Contents", "Resources", "open-design"), { recursive: true });
-          await writeFile(join(destinationRoot, "payload", "Open Design Beta.app", "Contents", "MacOS", "Open Design Beta"), "");
-          await writeFile(join(destinationRoot, "payload", "Open Design Beta.app", "Contents", "Resources", "open-design-config.json"), "{}\n");
+          await mkdir(join(destinationRoot, "payload", "Composer Design Beta.app", "Contents", "MacOS"), { recursive: true });
+          await mkdir(join(destinationRoot, "payload", "Composer Design Beta.app", "Contents", "Resources", "composer-design"), { recursive: true });
+          await writeFile(join(destinationRoot, "payload", "Composer Design Beta.app", "Contents", "MacOS", "Composer Design Beta"), "");
+          await writeFile(join(destinationRoot, "payload", "Composer Design Beta.app", "Contents", "Resources", "composer-design-config.json"), "{}\n");
           await writeFile(
             join(destinationRoot, "manifest.json"),
             `${JSON.stringify({
               channel: "beta",
               entry: {
-                cwd: "payload/Open Design Beta.app",
-                executable: "payload/Open Design Beta.app/Contents/MacOS/Open Design Beta",
+                cwd: "payload/Composer Design Beta.app",
+                executable: "payload/Composer Design Beta.app/Contents/MacOS/Composer Design Beta",
               },
               namespace: "release-beta",
               payloadRoot: "payload",
@@ -918,7 +918,7 @@ describe("desktop updater", () => {
           });
           return {};
         },
-        processExecPath: join(root, "launcher", "channels", "beta", "namespaces", "release-beta", "versions", "1.0.0-beta.2", "payload", "Open Design Beta.app", "Contents", "MacOS", "Open Design Beta"),
+        processExecPath: join(root, "launcher", "channels", "beta", "namespaces", "release-beta", "versions", "1.0.0-beta.2", "payload", "Composer Design Beta.app", "Contents", "MacOS", "Composer Design Beta"),
         processPid: 4243,
       });
 
@@ -949,16 +949,16 @@ describe("desktop updater", () => {
   it("relaunches Windows launcher payloads through the installed executable from a payload-backed process", async () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture({
-      artifactBody: "open design windows installer fixture",
+      artifactBody: "composer design windows installer fixture",
       channel: "beta",
       includePayload: true,
-      payloadBody: "open design windows payload fixture",
+      payloadBody: "composer design windows payload fixture",
       platform: "win",
       version: "1.0.0-beta.3",
     });
     const launcherRuntimePath = join(root, "launcher", "runtime.json");
     const launcherRoot = root;
-    const launcherLaunchPath = join(root, "installed", "Open Design.exe");
+    const launcherLaunchPath = join(root, "installed", "Composer Design.exe");
     const launches: Array<{ appPid: number; launchPath: string; root: string }> = [];
     try {
       await mkdir(join(root, "installed"), { recursive: true });
@@ -991,16 +991,16 @@ describe("desktop updater", () => {
         source: SIDECAR_SOURCES.PACKAGED,
       }, {
         extractLauncherPayloadArchive: async ({ destinationRoot }) => {
-          await mkdir(join(destinationRoot, "payload", "resources", "open-design"), { recursive: true });
-          await writeFile(join(destinationRoot, "payload", "Open Design.exe"), "");
-          await writeFile(join(destinationRoot, "payload", "resources", "open-design-config.json"), "{}\n");
+          await mkdir(join(destinationRoot, "payload", "resources", "composer-design"), { recursive: true });
+          await writeFile(join(destinationRoot, "payload", "Composer Design.exe"), "");
+          await writeFile(join(destinationRoot, "payload", "resources", "composer-design-config.json"), "{}\n");
           await writeFile(
             join(destinationRoot, "manifest.json"),
             `${JSON.stringify({
               channel: "beta",
               entry: {
                 cwd: "payload",
-                executable: "payload/Open Design.exe",
+                executable: "payload/Composer Design.exe",
               },
               namespace: "release-beta-win",
               payloadRoot: "payload",
@@ -1018,7 +1018,7 @@ describe("desktop updater", () => {
           });
           return {};
         },
-        processExecPath: "C:\\Users\\runneradmin\\AppData\\Roaming\\Open Design Beta\\launcher\\channels\\beta\\namespaces\\release-beta-win\\versions\\1.0.0-beta.2\\payload\\Open Design.exe",
+        processExecPath: "C:\\Users\\runneradmin\\AppData\\Roaming\\Composer Design Beta\\launcher\\channels\\beta\\namespaces\\release-beta-win\\versions\\1.0.0-beta.2\\payload\\Composer Design.exe",
         processPid: 4244,
       });
 
@@ -1049,16 +1049,16 @@ describe("desktop updater", () => {
   it("fails launcher payload relaunch when the stable launcher entry is unavailable", async () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture({
-      artifactBody: "open design windows installer fixture",
+      artifactBody: "composer design windows installer fixture",
       channel: "beta",
       includePayload: true,
-      payloadBody: "open design windows payload fixture",
+      payloadBody: "composer design windows payload fixture",
       platform: "win",
       version: "1.0.0-beta.3",
     });
     const launcherRuntimePath = join(root, "launcher", "runtime.json");
     const launcherRoot = root;
-    const launcherLaunchPath = join(root, "installed", "Open Design.exe");
+    const launcherLaunchPath = join(root, "installed", "Composer Design.exe");
     const launches: Array<{ appPid: number; launchPath: string; root: string }> = [];
     try {
       await mkdir(join(root, "installed"), { recursive: true });
@@ -1091,16 +1091,16 @@ describe("desktop updater", () => {
         source: SIDECAR_SOURCES.PACKAGED,
       }, {
         extractLauncherPayloadArchive: async ({ destinationRoot }) => {
-          await mkdir(join(destinationRoot, "payload", "resources", "open-design"), { recursive: true });
-          await writeFile(join(destinationRoot, "payload", "Open Design.exe"), "");
-          await writeFile(join(destinationRoot, "payload", "resources", "open-design-config.json"), "{}\n");
+          await mkdir(join(destinationRoot, "payload", "resources", "composer-design"), { recursive: true });
+          await writeFile(join(destinationRoot, "payload", "Composer Design.exe"), "");
+          await writeFile(join(destinationRoot, "payload", "resources", "composer-design-config.json"), "{}\n");
           await writeFile(
             join(destinationRoot, "manifest.json"),
             `${JSON.stringify({
               channel: "beta",
               entry: {
                 cwd: "payload",
-                executable: "payload/Open Design.exe",
+                executable: "payload/Composer Design.exe",
               },
               namespace: "release-beta-win",
               payloadRoot: "payload",
@@ -1129,7 +1129,7 @@ describe("desktop updater", () => {
 
       expect(installed.state).toBe(DESKTOP_UPDATE_STATES.ERROR);
       expect(installed.error?.code).toBe("payload-relaunch-failed");
-      expect(installed.error?.message).toContain("Open Design.exe");
+      expect(installed.error?.message).toContain("Composer Design.exe");
       expect(launches).toEqual([]);
     } finally {
       await fixture.close();
@@ -1140,16 +1140,16 @@ describe("desktop updater", () => {
   it("starts the stable Windows launcher in after-quit mode for payload installs", async () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture({
-      artifactBody: "open design windows installer fixture",
+      artifactBody: "composer design windows installer fixture",
       channel: "beta",
       includePayload: true,
-      payloadBody: "open design windows payload fixture",
+      payloadBody: "composer design windows payload fixture",
       platform: "win",
       version: "1.0.0-beta.3",
     });
     const launcherRuntimePath = join(root, "launcher", "runtime.json");
     const launcherRoot = root;
-    const launcherLaunchPath = join(root, "installed", "Open Design.exe");
+    const launcherLaunchPath = join(root, "installed", "Composer Design.exe");
     const spawned: Array<{ args: string[]; command: string; options: unknown }> = [];
     const unref = vi.fn();
     try {
@@ -1183,16 +1183,16 @@ describe("desktop updater", () => {
         source: SIDECAR_SOURCES.PACKAGED,
       }, {
         extractLauncherPayloadArchive: async ({ destinationRoot }) => {
-          await mkdir(join(destinationRoot, "payload", "resources", "open-design"), { recursive: true });
-          await writeFile(join(destinationRoot, "payload", "Open Design.exe"), "");
-          await writeFile(join(destinationRoot, "payload", "resources", "open-design-config.json"), "{}\n");
+          await mkdir(join(destinationRoot, "payload", "resources", "composer-design"), { recursive: true });
+          await writeFile(join(destinationRoot, "payload", "Composer Design.exe"), "");
+          await writeFile(join(destinationRoot, "payload", "resources", "composer-design-config.json"), "{}\n");
           await writeFile(
             join(destinationRoot, "manifest.json"),
             `${JSON.stringify({
               channel: "beta",
               entry: {
                 cwd: "payload",
-                executable: "payload/Open Design.exe",
+                executable: "payload/Composer Design.exe",
               },
               namespace: "release-beta-win",
               payloadRoot: "payload",
@@ -1239,14 +1239,14 @@ describe("desktop updater", () => {
     const fixture = await createUpdaterFixture({
       channel: "beta",
       includePayload: true,
-      payloadBody: "open design bad windows payload fixture",
+      payloadBody: "composer design bad windows payload fixture",
       platform: "win",
       version: "1.0.0-beta.2",
     });
     const namespaceRoot = join(root, "launcher", "channels", "beta", "namespaces", "release-beta-win");
     const launcherRuntimePath = join(root, "launcher", "runtime.json");
     const existingVersionRoot = join(namespaceRoot, "versions", "1.0.0-beta.2");
-    const launcherLaunchPath = join(root, "installed", "Open Design Beta.exe");
+    const launcherLaunchPath = join(root, "installed", "Composer Design Beta.exe");
     try {
       await mkdir(join(root, "installed"), { recursive: true });
       await writeFile(launcherLaunchPath, "");
@@ -1279,12 +1279,12 @@ describe("desktop updater", () => {
       }, {
         extractLauncherPayloadArchive: async ({ destinationRoot }) => {
           await mkdir(join(destinationRoot, "payload"), { recursive: true });
-          await writeFile(join(destinationRoot, "payload", "Open Design.exe"), "");
+          await writeFile(join(destinationRoot, "payload", "Composer Design.exe"), "");
           await writeFile(
             join(destinationRoot, "manifest.json"),
             `${JSON.stringify({
               channel: "beta",
-              entry: { cwd: "payload", executable: "payload/Open Design.exe" },
+              entry: { cwd: "payload", executable: "payload/Composer Design.exe" },
               namespace: "release-beta-win",
               payloadRoot: "payload",
               platform: "win32",
@@ -1315,7 +1315,7 @@ describe("desktop updater", () => {
   it("resumes an interrupted artifact download before surfacing an error", async () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture({
-      artifactBody: "open design updater fixture with retry",
+      artifactBody: "composer design updater fixture with retry",
       failFirstArtifactWithTerminated: true,
       platform: "win",
     });
@@ -1347,7 +1347,7 @@ describe("desktop updater", () => {
   it("does not expose raw terminated transport errors when update download retries are exhausted", async () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture({
-      artifactBody: "open design updater fixture that keeps failing",
+      artifactBody: "composer design updater fixture that keeps failing",
       failArtifactAttempts: 3,
       platform: "win",
     });
@@ -1667,8 +1667,8 @@ describe("desktop updater", () => {
     const root = makeRoot();
     const fixture = await createUpdaterFixture();
     try {
-      await writeFile(join(root, ".open-design-updater-root.json"), JSON.stringify({
-        owner: "open-design-updater",
+      await writeFile(join(root, ".composer-design-updater-root.json"), JSON.stringify({
+        owner: "composer-design-updater",
         version: 1,
       }));
       await writeFile(join(root, "state.json"), "{}");
@@ -2053,7 +2053,7 @@ describe("desktop updater", () => {
         checkInitialDelayMs: 5_000,
         checkIntervalMs: 15 * 60 * 1000,
         currentVersion: "1.0.0",
-        downloadRoot: "/tmp/open-design-updates",
+        downloadRoot: "/tmp/composer-design-updates",
         enabled: true,
         metadataUrl: "https://example.invalid/metadata.json",
         mode: "package-launcher" as const,
@@ -2241,10 +2241,10 @@ describe("desktop updater", () => {
         incoming: {
           arch: "x64",
           artifact: {
-            name: "open-design-1.0.1-win-x64-setup.exe",
+            name: "composer-design-1.0.1-win-x64-setup.exe",
             platformKey: "win",
             type: "installer",
-            url: "https://fixture.test/open-design-1.0.1-win-x64-setup.exe",
+            url: "https://fixture.test/composer-design-1.0.1-win-x64-setup.exe",
           },
           channel: "stable",
           cycleId,
@@ -2483,7 +2483,7 @@ describe("desktop updater", () => {
         removedAt: "2026-06-09T07:50:51.000Z",
         state: "cleanup-removed",
       });
-      expect(logger.info).toHaveBeenCalledWith("[open-design updater] lifecycle", expect.objectContaining({
+      expect(logger.info).toHaveBeenCalledWith("[composer-design updater] lifecycle", expect.objectContaining({
         event: "launcher-lifecycle",
         removed: 1,
         retained: 1,
@@ -2667,7 +2667,7 @@ describe("desktop updater", () => {
       const checked = await updater.checkForUpdates();
       expect(checked.state).toBe(DESKTOP_UPDATE_STATES.ERROR);
       expect(checked.error?.code).toBe("update-root-not-owned");
-      expect(existsSync(join(realRoot, ".open-design-updater-root.json"))).toBe(false);
+      expect(existsSync(join(realRoot, ".composer-design-updater-root.json"))).toBe(false);
     } finally {
       await fixture.close();
       rmSync(linkParent, { force: true, recursive: true });

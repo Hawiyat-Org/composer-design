@@ -227,16 +227,16 @@ describe('resolvePackagedElectronNodeCommand', () => {
   it('uses the hidden Electron helper as the macOS Electron-as-Node command when available', async () => {
     const root = mkdtempSync(join(tmpdir(), 'od-packaged-electron-helper-'));
     try {
-      const appPath = posix.join(root.replaceAll('\\', '/'), 'Open Design.app');
-      const execPath = posix.join(appPath, 'Contents', 'MacOS', 'Open Design');
+      const appPath = posix.join(root.replaceAll('\\', '/'), 'Composer Design.app');
+      const execPath = posix.join(appPath, 'Contents', 'MacOS', 'Composer Design');
       const helperPath = posix.join(
         appPath,
         'Contents',
         'Frameworks',
-        'Open Design Helper.app',
+        'Composer Design Helper.app',
         'Contents',
         'MacOS',
-        'Open Design Helper',
+        'Composer Design Helper',
       );
 
       mkdirSync(posix.join(appPath, 'Contents', 'MacOS'), { recursive: true });
@@ -255,7 +255,7 @@ describe('resolvePackagedElectronNodeCommand', () => {
   it('falls back to the main executable when the macOS helper is unavailable', async () => {
     const root = mkdtempSync(join(tmpdir(), 'od-packaged-no-electron-helper-'));
     try {
-      const execPath = join(root, 'Open Design.app', 'Contents', 'MacOS', 'Open Design');
+      const execPath = join(root, 'Composer Design.app', 'Contents', 'MacOS', 'Composer Design');
       mkdirSync(dirname(execPath), { recursive: true });
       writeFileSync(execPath, '#!/bin/sh\n', 'utf8');
 
@@ -266,7 +266,7 @@ describe('resolvePackagedElectronNodeCommand', () => {
   });
 
   it('keeps the main executable on non-macOS platforms', async () => {
-    const execPath = '/opt/Open Design/open-design';
+    const execPath = '/opt/Composer Design/composer-design';
 
     await expect(resolvePackagedElectronNodeCommand(execPath, 'linux')).resolves.toBe(execPath);
   });

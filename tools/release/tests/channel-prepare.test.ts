@@ -176,15 +176,15 @@ function stablePrereleaseMetadata(publicOrigin: string, baseVersion: string): Re
     github: {
       branch: `release/v${baseVersion}`,
       commit: "0123456789abcdef0123456789abcdef01234567",
-      repository: "nexu-io/open-design",
+      repository: "hawiyat/composer-design",
       workflow: "release-prerelease",
     },
     platforms: {
       mac: {
         arch: "arm64",
         artifacts: {
-          dmg: artifact("Open Design.dmg"),
-          zip: artifact("Open Design-mac-arm64.zip"),
+          dmg: artifact("Composer Design.dmg"),
+          zip: artifact("Composer Design-mac-arm64.zip"),
         },
         enabled: true,
         signed: true,
@@ -192,8 +192,8 @@ function stablePrereleaseMetadata(publicOrigin: string, baseVersion: string): Re
       macIntel: {
         arch: "x64",
         artifacts: {
-          dmg: artifact("Open Design Intel.dmg"),
-          zip: artifact("Open Design-mac-x64.zip"),
+          dmg: artifact("Composer Design Intel.dmg"),
+          zip: artifact("Composer Design-mac-x64.zip"),
         },
         enabled: true,
         signed: true,
@@ -201,7 +201,7 @@ function stablePrereleaseMetadata(publicOrigin: string, baseVersion: string): Re
       win: {
         arch: "x64",
         artifacts: {
-          installer: artifact("Open Design Setup.exe"),
+          installer: artifact("Composer Design Setup.exe"),
         },
         enabled: true,
       },
@@ -240,7 +240,7 @@ describe("tools-release local channel prepare validation", () => {
     try {
       const fakeGh = await writeFakeGhScript(ghRoot);
       const commonEnv = {
-        GITHUB_REPOSITORY: "nexu-io/open-design",
+        GITHUB_REPOSITORY: "hawiyat/composer-design",
         GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
         OPEN_DESIGN_GH_NODE_SCRIPT: fakeGh,
         OPEN_DESIGN_STABLE_METADATA_URL: `${server.origin}/stable/latest/metadata.json`,
@@ -301,7 +301,7 @@ describe("tools-release local channel prepare validation", () => {
     try {
       const preview = await runPrepare("preview", {
         GITHUB_REF_NAME: "main",
-        GITHUB_REPOSITORY: "nexu-io/open-design",
+        GITHUB_REPOSITORY: "hawiyat/composer-design",
         GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
         OPEN_DESIGN_PREVIEW_METADATA_URL: `${server.origin}/preview/latest/metadata.json`,
       });
@@ -330,7 +330,7 @@ describe("tools-release local channel prepare validation", () => {
     try {
       const betas = await runPrepare("betas", {
         GITHUB_REF_NAME: "main",
-        GITHUB_REPOSITORY: "nexu-io/open-design",
+        GITHUB_REPOSITORY: "hawiyat/composer-design",
         GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
         OPEN_DESIGN_BETAS_METADATA_URL: `${server.origin}/betas/latest/metadata.json`,
         OPEN_DESIGN_STABLE_METADATA_URL: `${server.origin}/stable/latest/metadata.json`,
@@ -356,7 +356,7 @@ describe("tools-release local channel prepare validation", () => {
       const fakeGh = await writeFakeGhScript(ghRoot);
       const stable = await runPrepare("stable", {
         GITHUB_REF_NAME: `release/v${packagedVersion}`,
-        GITHUB_REPOSITORY: "nexu-io/open-design",
+        GITHUB_REPOSITORY: "hawiyat/composer-design",
         GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
         OPEN_DESIGN_GH_NODE_SCRIPT: fakeGh,
         OPEN_DESIGN_RELEASE_DRY_RUN: "true",
@@ -372,7 +372,7 @@ describe("tools-release local channel prepare validation", () => {
       expect(stable.outputs.github_release_enabled).toBe("false");
       expect(stable.outputs.publish_side_effects_enabled).toBe("false");
       expect(stable.outputs.run_prepublish_jobs).toBe("false");
-      expect(stable.outputs.version_tag).toBe(`open-design-v${packagedVersion}`);
+      expect(stable.outputs.version_tag).toBe(`composer-design-v${packagedVersion}`);
     } finally {
       await server.close();
       await rm(ghRoot, { force: true, recursive: true });
@@ -391,7 +391,7 @@ describe("tools-release local channel prepare validation", () => {
       const fakeGh = await writeFakeGhScript(ghRoot);
       const stable = await runPrepare("stable", {
         GITHUB_REF_NAME: `release/v${packagedVersion}`,
-        GITHUB_REPOSITORY: "nexu-io/open-design",
+        GITHUB_REPOSITORY: "hawiyat/composer-design",
         GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
         OPEN_DESIGN_GH_NODE_SCRIPT: fakeGh,
         OPEN_DESIGN_RELEASE_DRY_RUN: "prepublish",
@@ -421,7 +421,7 @@ describe("tools-release local channel prepare validation", () => {
       const fakeGh = await writeFakeGhScript(ghRoot);
       await expect(runPrepare("stable", {
         GITHUB_REF_NAME: `release/v${packagedVersion}`,
-        GITHUB_REPOSITORY: "nexu-io/open-design",
+        GITHUB_REPOSITORY: "hawiyat/composer-design",
         GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
         OPEN_DESIGN_GH_NODE_SCRIPT: fakeGh,
         OPEN_DESIGN_RELEASE_DRY_RUN: "metadata",
@@ -446,7 +446,7 @@ describe("tools-release local channel prepare validation", () => {
       const fakeGh = await writeFakeGhScript(ghRoot);
       await expect(runPrepare("stable", {
         GITHUB_REF_NAME: "main",
-        GITHUB_REPOSITORY: "nexu-io/open-design",
+        GITHUB_REPOSITORY: "hawiyat/composer-design",
         GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
         OPEN_DESIGN_GH_NODE_SCRIPT: fakeGh,
         OPEN_DESIGN_RELEASE_DRY_RUN: "metadata",
