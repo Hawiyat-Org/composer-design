@@ -50,7 +50,7 @@ concurrency:
 jobs:
   deploy:
     name: Deploy landing page to staging
-    if: github.repository == 'nexu-io/open-design'
+    if: github.repository == 'Hawiyat-Org/composer-design'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:

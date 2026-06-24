@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   cut:
-    if: github.repository == 'nexu-io/open-design'
+    if: github.repository == 'Hawiyat-Org/composer-design'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/create-github-app-token@v2
@@ -97,7 +97,7 @@ jobs:
         run: |
           set -euo pipefail
           gh label create "backport release/v$VERSION" \
-            --repo nexu-io/open-design \
+            --repo Hawiyat-Org/composer-design \
             --color 0E8A16 \
             --description "Backport this fix to release/v$VERSION" \
             --force

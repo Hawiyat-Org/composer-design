@@ -11,7 +11,7 @@ permissions:
 jobs:
   metrics:
     name: Generate issue and PR activity SVG
-    if: github.repository == 'nexu-io/open-design'
+    if: github.repository == 'Hawiyat-Org/composer-design'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,7 +23,7 @@ jobs:
         with:
           client-id: ${{ secrets.BOT_APP_CLIENT_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-          owner: nexu-io
+          owner: Hawiyat-Org
           repositories: open-design
           permission-administration: read
           permission-contents: read
@@ -49,7 +49,7 @@ jobs:
           # lowlighter/metrics infers the token owner and treats the target as an org.
           template: repository
           base: ''
-          user: nexu-io
+          user: Hawiyat-Org
           repo: open-design
 
           # Keep this README image focused on the maintenance signal that is not

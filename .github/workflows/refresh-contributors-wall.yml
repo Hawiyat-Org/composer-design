@@ -20,7 +20,7 @@ concurrency:
 jobs:
   refresh:
     name: Refresh contributors wall cache bust
-    if: github.repository == 'nexu-io/open-design'
+    if: github.repository == 'Hawiyat-Org/composer-design'
     runs-on: ubuntu-latest
 
     steps:
@@ -44,7 +44,7 @@ jobs:
         with:
           client-id: ${{ secrets.BOT_APP_CLIENT_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-          owner: nexu-io
+          owner: Hawiyat-Org
           repositories: open-design
           permission-contents: write
           permission-pull-requests: write

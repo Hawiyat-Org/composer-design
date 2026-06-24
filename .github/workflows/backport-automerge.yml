@@ -23,7 +23,7 @@ jobs:
   followup:
     # Only react to CI that ran for a *pull request* on a backport-* branch — never a push or
     # manual dispatch — so a non-PR run can't reach the App-token / Feishu steps below.
-    if: ${{ github.repository == 'nexu-io/open-design' && github.event.workflow_run.event == 'pull_request' && startsWith(github.event.workflow_run.head_branch, 'backport-') }}
+    if: ${{ github.repository == 'Hawiyat-Org/composer-design' && github.event.workflow_run.event == 'pull_request' && startsWith(github.event.workflow_run.head_branch, 'backport-') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/create-github-app-token@v2

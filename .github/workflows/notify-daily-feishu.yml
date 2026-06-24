@@ -40,7 +40,7 @@ concurrency:
 jobs:
   resolve:
     name: Resolve build ref
-    if: github.repository == 'nexu-io/open-design'
+    if: github.repository == 'Hawiyat-Org/composer-design'
     runs-on: ubuntu-latest
     outputs:
       ref: ${{ steps.pick.outputs.ref }}

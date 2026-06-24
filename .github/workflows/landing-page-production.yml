@@ -35,7 +35,7 @@ jobs:
     # the main ref so a dispatch from a feature branch/tag is skipped outright
     # (no deploy) instead of recording a non-main production run — which would
     # also dodge blog-indexing's `workflow_run` `branches: [main]` filter.
-    if: github.repository == 'nexu-io/open-design' && github.ref == 'refs/heads/main'
+    if: github.repository == 'Hawiyat-Org/composer-design' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:

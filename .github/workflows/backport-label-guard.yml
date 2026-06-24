@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   guard:
-    if: startsWith(github.event.label.name, 'backport ') && github.repository == 'nexu-io/open-design'
+    if: startsWith(github.event.label.name, 'backport ') && github.repository == 'Hawiyat-Org/composer-design'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/create-github-app-token@v2

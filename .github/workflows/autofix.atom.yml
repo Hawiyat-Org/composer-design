@@ -18,7 +18,7 @@ concurrency:
 jobs:
   autofix:
     name: Apply handoff fixes
-    if: ${{ github.repository == 'nexu-io/open-design' && github.event.workflow_run.event == 'pull_request' }}
+    if: ${{ github.repository == 'Hawiyat-Org/composer-design' && github.event.workflow_run.event == 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
@@ -108,7 +108,7 @@ jobs:
         with:
           client-id: ${{ secrets.BOT_APP_CLIENT_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-          owner: nexu-io
+          owner: Hawiyat-Org
           repositories: open-design
           permission-contents: write
 

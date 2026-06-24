@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   gate:
-    if: github.repository == 'nexu-io/open-design'
+    if: github.repository == 'Hawiyat-Org/composer-design'
     runs-on: ubuntu-latest
     steps:
       - name: Check for un-landed backports

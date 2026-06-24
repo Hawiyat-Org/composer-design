@@ -44,7 +44,7 @@ jobs:
   index:
     name: Index newly deployed blog posts
     if: >-
-      github.repository == 'nexu-io/open-design'
+      github.repository == 'Hawiyat-Org/composer-design'
       && (
         github.event_name == 'workflow_dispatch'
         || github.event.workflow_run.conclusion == 'success'
@@ -255,7 +255,7 @@ jobs:
         with:
           client-id: ${{ secrets.BOT_APP_CLIENT_ID }}
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-          owner: nexu-io
+          owner: Hawiyat-Org
           repositories: open-design
           permission-contents: write
           permission-pull-requests: write

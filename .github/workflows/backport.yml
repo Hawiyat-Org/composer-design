@@ -21,7 +21,7 @@ jobs:
     # adds so we don't spin up the release bot for every label on a merged PR.
     if: >-
       github.event.pull_request.merged == true
-      && github.repository == 'nexu-io/open-design'
+      && github.repository == 'Hawiyat-Org/composer-design'
       && (github.event.action == 'closed' || startsWith(github.event.label.name, 'backport '))
     runs-on: ubuntu-latest
     steps:
