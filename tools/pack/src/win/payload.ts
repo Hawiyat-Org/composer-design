@@ -124,10 +124,10 @@ export async function buildWinLauncherPayloadArchive(
     await mkdir(join(overlayRoot, "payload", "resources"), { recursive: true });
     await writeFile(join(overlayRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
     if (input.includeExecutable) {
-      await cp(join(builtApp.unpackedRoot, "Open Design.exe"), join(overlayRoot, "payload", "Open Design.exe"));
+      await cp(join(builtApp.unpackedRoot, "Composer Design.exe"), join(overlayRoot, "payload", "Composer Design.exe"));
     }
     await writeFile(
-      join(overlayRoot, "payload", "resources", "open-design-config.json"),
+      join(overlayRoot, "payload", "resources", "composer-design-config.json"),
       await readFile(paths.packagedConfigPath),
     );
     const packageJsonPath = join(builtApp.unpackedRoot, "resources", "app", "package.json");
