@@ -303,8 +303,8 @@ describe("packaged smoke workflow", () => {
     const visual = sectionBetween(workflow, "  playwright_visual:", "  docker_pr:");
 
     expect(workspaceUnitTests).toContain("runs-on: ubuntu-24.04");
-    expect(webWorkspaceTests).toContain("runs-on: blacksmith-4vcpu-ubuntu-2404");
-    expect(uiP0).toContain("runs-on: blacksmith-8vcpu-ubuntu-2404");
+    expect(webWorkspaceTests).toContain("runs-on: ubuntu-latest");
+    expect(uiP0).toContain("runs-on: ubuntu-latest");
     expect(uiP0).toContain("include: ${{ fromJSON(needs.scopes.outputs.ui_p0_matrix) }}");
     expect(uiP0CiMatrix.map((entry) => entry.name)).toEqual([
       "entry-settings",
@@ -319,7 +319,7 @@ describe("packaged smoke workflow", () => {
       "ui/project-management-flows.test.ts",
       "ui/workspace-keyboard-flows.test.ts",
     ]);
-    expect(visual).toContain("runs-on: blacksmith-8vcpu-ubuntu-2404");
+    expect(visual).toContain("runs-on: ubuntu-latest");
   });
 
   it("[P2] routes CI follow-ons through generic handoff workflows", async () => {
@@ -1526,8 +1526,8 @@ function stablePrereleaseMetadataFixture(baseVersion: string, prereleaseVersion:
       mac: {
         arch: "arm64",
         artifacts: {
-          dmg: artifact("Open Design.dmg"),
-          zip: artifact("Open Design-mac-arm64.zip"),
+          dmg: artifact("Composer Design.dmg"),
+          zip: artifact("Composer Design-mac-arm64.zip"),
         },
         enabled: true,
         signed: true,
@@ -1535,8 +1535,8 @@ function stablePrereleaseMetadataFixture(baseVersion: string, prereleaseVersion:
       macIntel: {
         arch: "x64",
         artifacts: {
-          dmg: artifact("Open Design Intel.dmg"),
-          zip: artifact("Open Design-mac-x64.zip"),
+          dmg: artifact("Composer Design Intel.dmg"),
+          zip: artifact("Composer Design-mac-x64.zip"),
         },
         enabled: true,
         signed: true,
@@ -1544,7 +1544,7 @@ function stablePrereleaseMetadataFixture(baseVersion: string, prereleaseVersion:
       win: {
         arch: "x64",
         artifacts: {
-          installer: artifact("Open Design Setup.exe"),
+          installer: artifact("Composer Design Setup.exe"),
         },
         enabled: true,
       },
