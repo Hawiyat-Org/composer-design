@@ -28,7 +28,7 @@ export function registerOpenDesignPublicMetadataRoutes(
     try {
       const stats = await openDesignPublicMetadata.readGithubRepoStats();
       const payload: OpenDesignGithubRepoResponse = {
-        repo: 'nexu-io/open-design',
+        repo: 'hawiyat/composer-design',
         stargazers_count: stats.stargazersCount,
         fetchedAt: stats.fetchedAt,
         stale: stats.stale,
@@ -43,7 +43,7 @@ export function registerOpenDesignPublicMetadataRoutes(
     try {
       const release = await openDesignPublicMetadata.readLatestReleaseInfo();
       const payload: OpenDesignGithubLatestReleaseResponse = {
-        repo: 'nexu-io/open-design',
+        repo: 'hawiyat/composer-design',
         tag_name: release.tagName,
         html_url: release.htmlUrl,
         fetchedAt: release.fetchedAt,

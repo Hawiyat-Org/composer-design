@@ -1,10 +1,8 @@
-<h1 align="center">Open Design: The open-source Claude Design alternative</h1>
+<h1 align="center">Composer Design by Hawiyat Team: Design, Compose, Create</h1>
 
-> 🔥 **Open Design 0.10.0 is here: the all-in-one Agentic design workspace.** The whole craft now lives in one window — go from a vague idea to discovering references, gathering material, editing interactively, queuing comments, polishing motion, and handing off to an editor or a Code Agent — without leaving the app. With parallel sessions, it stops feeling like one assistant and starts feeling like a local design team working for you. [Download 0.10.0](https://github.com/nexu-io/open-design/releases) · [Join the discussion](https://github.com/nexu-io/open-design/discussions/4153)
+> 🔥 **Composer Design — your AI-native design workspace in your coding agent.** Go from a vague idea to discovering references, gathering material, editing interactively, queuing comments, polishing motion, and handing off — without leaving your CLI.
 >
-> ⚡ **Open Design AMR (Agentic Model Router) — the official model service.** One recharge to use GPT, Claude, Gemini, and DeepSeek inside Open Design: 20+ flagship models, zero config, billed by real token usage. [Try AMR](https://open-design.ai/amr/)
->
-> 🏅 **The Open Design Fellow program is now open.** If you also believe design should be open — become an Open Design Fellow, shape the product alongside the core team, and help more people take part in defining the future of design. Details → [`MAINTAINERS.md`](MAINTAINERS.md) and [Discord](https://discord.gg/9ptkbbqRu).
+> ⚡ **Forked from [Open Design](https://github.com/nexu-io/open-design) — the leading open-source AI design platform.**
 
 <p align="center">
   <img src="https://repo-assets.open-design.ai/resources/images/hero.png" alt="Open Design — The open-source Claude Design alternative · 150 Design Systems · 261 Plugins · 21 Coding Agents · 14 Media Providers" width="100%" />
@@ -19,7 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/nexu-io/open-design/releases"><img alt="release" src="https://img.shields.io/github/v/release/nexu-io/open-design?style=flat&color=blueviolet&label=release&include_prereleases&display_name=tag" /></a>
+  <a href="https://github.com/hawiyat/composer-design/releases"><img alt="release" src="https://img.shields.io/github/v/release/hawiyat/composer-design?style=flat&color=blueviolet&label=release&include_prereleases&display_name=tag" /></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat" /></a>
   <a href="https://discord.gg/9ptkbbqRu"><img alt="discord" src="https://img.shields.io/discord/1479002485040480266?style=flat&logo=discord&logoColor=white&label=discord&color=5865F2&cacheSeconds=3600" /></a>
   <a href="QUICKSTART.md"><img alt="quickstart" src="https://img.shields.io/badge/quickstart-3%20commands-green?style=flat" /></a>
@@ -322,7 +320,7 @@ The agent reads `skills/`, picks the right `SKILL.md`, binds the `DESIGN.md` you
 ### 🐳 Run with Docker
 
 ```bash
-git clone https://github.com/nexu-io/open-design.git
+git clone https://github.com/hawiyat/composer-design.git
 cd open-design/deploy
 cp .env.example .env
 echo "OD_API_TOKEN=$(openssl rand -hex 32)" >> .env
@@ -341,7 +339,7 @@ The Sealos App Store template runs the published Open Design Docker image with p
 ### 🧑‍💻 Run from source
 
 ```bash
-git clone https://github.com/nexu-io/open-design.git
+git clone https://github.com/hawiyat/composer-design.git
 cd open-design
 corepack enable && pnpm install
 pnpm tools-dev run web
@@ -630,7 +628,7 @@ If *you are the agent reading this*, the fastest path is:
 
 ```bash
 # 1. Boot locally
-git clone https://github.com/nexu-io/open-design.git
+git clone https://github.com/hawiyat/composer-design.git
 cd open-design && corepack enable && pnpm install
 pnpm tools-dev run web
 
@@ -690,8 +688,8 @@ Maintainer rules, promotion criteria, and the exit protocol → [`MAINTAINERS.md
 
 Thanks to everyone who has taken part — code, docs, feedback, a sharp issue, a new skill, a new design system.
 
-<a href="https://github.com/nexu-io/open-design/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=nexu-io/open-design&max=500&columns=20&anon=1&cache_bust=2026-06-23" alt="Open Design contributors" />
+  <a href="https://github.com/hawiyat/composer-design/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=hawiyat/composer-design&max=500&columns=20&anon=1&cache_bust=2026-06-23" alt="Composer Design contributors" />
 </a>
 
 ---
@@ -714,7 +712,7 @@ The SVG above is regenerated daily by [`.github/workflows/metrics.yml`](.github/
 
 If this saved you thirty minutes, give it a ★. Stars don't pay rent — but they tell the next designer, agent, and contributor that this experiment is worth their attention. One click, three seconds, a real signal.
 
-<a href="https://star-history.com/#nexu-io/open-design&Date">
+<a href="https://star-history.com/#hawiyat/composer-design&Date">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=nexu-io/open-design&type=Date&theme=dark&cache_bust=2026-06-23" />
     <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=nexu-io/open-design&type=Date&cache_bust=2026-06-23" />

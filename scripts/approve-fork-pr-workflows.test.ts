@@ -24,7 +24,7 @@ test("isPendingApprovalRun matches approval-gated fork PR runs from GitHub's cap
     base: {
       ref: "main",
       sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
@@ -55,7 +55,7 @@ test("isPendingApprovalRun also accepts action_required runs reported only in st
     base: {
       ref: "main",
       sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
@@ -86,7 +86,7 @@ test("isPendingApprovalRun rejects runs outside the allowlist or without action_
     base: {
       ref: "main",
       sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
@@ -138,7 +138,7 @@ test("runTargetsPullRequest accepts empty run.pull_requests only when the head S
     base: {
       ref: "main",
       sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
@@ -169,7 +169,7 @@ test("runTargetsPullRequest accepts fork PR runs with no GitHub PR association w
     base: {
       ref: "main",
       sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
@@ -202,7 +202,7 @@ test("runTargetsPullRequest rejects ambiguous empty run.pull_requests associatio
     base: {
       ref: "main",
       sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
@@ -212,7 +212,7 @@ test("runTargetsPullRequest rejects ambiguous empty run.pull_requests associatio
     base: {
       ref: "release",
       sha: "8db117d728f967d108f6fdd64cb8d921d057f7f6",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
@@ -243,7 +243,7 @@ test("runTargetsPullRequest rejects fork PR runs when multiple open PRs share th
     base: {
       ref: "main",
       sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
@@ -253,7 +253,7 @@ test("runTargetsPullRequest rejects fork PR runs when multiple open PRs share th
     base: {
       ref: "release",
       sha: "8db117d728f967d108f6fdd64cb8d921d057f7f6",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
@@ -286,7 +286,7 @@ test("runTargetsPullRequest rejects empty associations when fork head identity d
     base: {
       ref: "main",
       sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
@@ -319,7 +319,7 @@ test("runTargetsPullRequest rejects runs that GitHub already associates to a dif
     base: {
       ref: "main",
       sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
@@ -338,7 +338,7 @@ test("runTargetsPullRequest rejects runs that GitHub already associates to a dif
         base: {
           ref: "release",
           sha: "8db117d728f967d108f6fdd64cb8d921d057f7f6",
-          repo: { full_name: "nexu-io/open-design" },
+          repo: { full_name: "hawiyat/composer-design" },
         },
       },
     ],
@@ -360,7 +360,7 @@ test("runTargetsPullRequest approves only the run that GitHub associates to the 
     base: {
       ref: "main",
       sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
@@ -370,7 +370,7 @@ test("runTargetsPullRequest approves only the run that GitHub associates to the 
     base: {
       ref: "release",
       sha: "8db117d728f967d108f6fdd64cb8d921d057f7f6",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
@@ -408,7 +408,7 @@ test("runTargetsPullRequest ignores base tip churn for the same PR association",
     base: {
       ref: "main",
       sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
@@ -448,12 +448,12 @@ test("listPendingApprovalRuns paginates all pull_request runs for the head SHA a
     base: {
       ref: "main",
       sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 
   const requestedPaths: string[] = [];
-  const pendingRuns = await listPendingApprovalRuns("nexu-io/open-design", pull, {
+  const pendingRuns = await listPendingApprovalRuns("hawiyat/composer-design", pull, {
     loadWorkflowRunsResponsePage: async (path) => {
       requestedPaths.push(path);
       if (path.endsWith("page=1")) {
@@ -507,8 +507,8 @@ test("listPendingApprovalRuns paginates all pull_request runs for the head SHA a
   });
 
   assert.deepEqual(requestedPaths, [
-    "/repos/nexu-io/open-design/actions/runs?event=pull_request&head_sha=734076155c44e569304856590019cea54506fdab&per_page=100&page=1",
-    "/repos/nexu-io/open-design/actions/runs?event=pull_request&head_sha=734076155c44e569304856590019cea54506fdab&per_page=100&page=2",
+    "/repos/hawiyat/composer-design/actions/runs?event=pull_request&head_sha=734076155c44e569304856590019cea54506fdab&per_page=100&page=1",
+    "/repos/hawiyat/composer-design/actions/runs?event=pull_request&head_sha=734076155c44e569304856590019cea54506fdab&per_page=100&page=2",
   ]);
   assert.equal(requestedPaths.some((path) => path.includes("status=action_required")), false);
   assert.deepEqual(
@@ -530,7 +530,7 @@ test("listPendingApprovalRuns only approves the unified CI workflow", async () =
     base: {
       ref: "main",
       sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
   const workflowRuns = [
@@ -553,12 +553,12 @@ test("listPendingApprovalRuns only approves the unified CI workflow", async () =
   };
 
   assert.deepEqual(
-    (await listPendingApprovalRuns("nexu-io/open-design", pull, [{ filename: "README.md", status: "modified" }], deps)).map((run) => run.id),
+    (await listPendingApprovalRuns("hawiyat/composer-design", pull, [{ filename: "README.md", status: "modified" }], deps)).map((run) => run.id),
     [26273463769],
   );
   assert.deepEqual(
     (await listPendingApprovalRuns(
-      "nexu-io/open-design",
+      "hawiyat/composer-design",
       pull,
       [{ filename: "apps/web/src/components/Button.tsx", status: "modified" }],
       deps,
@@ -580,7 +580,7 @@ test("hasPullApprovalStateDrift ignores base tip churn but still rejects base re
     base: {
       ref: "main",
       sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
-      repo: { full_name: "nexu-io/open-design" },
+      repo: { full_name: "hawiyat/composer-design" },
     },
   };
 

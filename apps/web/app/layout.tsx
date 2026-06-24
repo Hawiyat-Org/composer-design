@@ -6,10 +6,10 @@ import '../src/index.css';
 import '../src/styles/home/index.css';
 
 export const metadata: Metadata = {
-  title: 'Open Design',
+  title: 'Composer Design',
   icons: {
-    icon: '/app-icon.png',
-    apple: '/app-icon.png',
+    icon: '/app-icon.svg',
+    apple: '/app-icon.svg',
   },
 };
 

@@ -34,8 +34,8 @@ import { processWebSourcemaps } from "./web-sourcemaps.js";
 
 const execFileAsync = promisify(execFile);
 
-const PRODUCT_NAME = "Open Design";
-const APP_IMAGE_PRODUCT_NAME = "Open-Design";
+const PRODUCT_NAME = "Composer Design";
+const APP_IMAGE_PRODUCT_NAME = "Composer-Design";
 const DESKTOP_LOG_ECHO_ENV = "OD_DESKTOP_LOG_ECHO";
 // The containerized build sets this to the standalone pnpm binary fetched by
 // buildDockerArgs; runProductionInstall reads it to avoid invoking `npm` inside
@@ -304,11 +304,11 @@ function appImageInstallName(namespace: string): string {
 }
 
 function desktopFileName(namespace: string): string {
-  return `open-design-${sanitizeNamespace(namespace)}.desktop`;
+  return `composer-design-${sanitizeNamespace(namespace)}.desktop`;
 }
 
 function iconFileName(namespace: string): string {
-  return `open-design-${sanitizeNamespace(namespace)}.png`;
+  return `composer-design-${sanitizeNamespace(namespace)}.png`;
 }
 
 function resolveLinuxPaths(config: ToolPackConfig): LinuxPaths {
@@ -502,7 +502,7 @@ async function writeAssembledApp(
     author: "Open Design Team",
     repository: {
       type: "git",
-      url: "https://github.com/nexu-io/open-design.git"
+      url: "https://github.com/hawiyat/composer-design.git"
     }
   };
   await writeFile(paths.assembledPackageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`, "utf8");
@@ -541,7 +541,7 @@ async function writeLinuxBuilderConfig(config: ToolPackConfig, paths: LinuxPaths
   const packageVersion = electronBuilderVersionForAppVersion(packagedVersion);
 
   const builderConfig: Record<string, unknown> = {
-    appId: "io.open-design.desktop",
+    appId: "com.hawiyat.composer-design",
     artifactName: `${PRODUCT_NAME}-${namespaceToken}.\${ext}`,
     asar: false,
     buildDependenciesFromSource: false,
@@ -558,14 +558,14 @@ async function writeLinuxBuilderConfig(config: ToolPackConfig, paths: LinuxPaths
     executableName: PRODUCT_NAME,
     extraMetadata: {
       main: "./main.cjs",
-      name: "open-design-packaged-app",
+      name: "composer-design-packaged-app",
       productName: PRODUCT_NAME,
       version: packageVersion,
       ...(config.portable ? {} : { odToolsPackRuntimeRoot: config.roots.runtime.namespaceBaseRoot }),
     },
     extraResources: [
-      { from: paths.resourceRoot, to: "open-design" },
-      { from: paths.packagedConfigPath, to: "open-design-config.json" },
+      { from: paths.resourceRoot, to: "composer-design" },
+      { from: paths.packagedConfigPath, to: "composer-design-config.json" },
     ],
     files: ["**/*", "!**/node_modules/.bin", "!**/node_modules/electron{,/**/*}"],
     icon: linuxResources.icon,
@@ -573,8 +573,8 @@ async function writeLinuxBuilderConfig(config: ToolPackConfig, paths: LinuxPaths
       target,
       icon: linuxResources.icon,
       category: "Development",
-      synopsis: "Open Design",
-      maintainer: "Open Design Contributors",
+      synopsis: "Composer Design",
+      maintainer: "Hawiyat Team",
     },
     nodeGypRebuild: false,
     npmRebuild: false,

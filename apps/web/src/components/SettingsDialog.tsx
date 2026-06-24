@@ -1468,7 +1468,7 @@ export function SettingsDialog({
     } finally {
       setVersionChecking(false);
     }
-    window.open('https://github.com/nexu-io/open-design/releases', '_blank', 'noopener,noreferrer');
+    window.open('https://github.com/hawiyat/composer-design/releases', '_blank', 'noopener,noreferrer');
   }, [versionChecking, appVersionInfo, t]);
 
   // Precise inverse of App.handleCompleteOnboarding: flip

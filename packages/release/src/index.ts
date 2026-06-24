@@ -51,12 +51,12 @@ export const RELEASE_PLATFORM_NAMESPACE_SUFFIXES = Object.freeze({
   win: "win",
 } as const satisfies Record<ReleasePlatform, string>);
 
-const PRODUCT_NAME = "Open Design";
-const DEFAULT_NAMESPACE = "open-design";
+const PRODUCT_NAME = "Composer Design";
+const DEFAULT_NAMESPACE = "composer-design";
 
 const descriptors: Record<ReleaseChannel, ReleaseChannelDescriptor> = {
   beta: {
-    appId: "io.open-design.desktop.beta",
+    appId: "com.hawiyat.composer-design.beta",
     baseVersionField: "baseVersion",
     channel: "beta",
     displayLabel: "Beta",
@@ -68,7 +68,7 @@ const descriptors: Record<ReleaseChannel, ReleaseChannelDescriptor> = {
     storagePrefix: "beta",
   },
   betas: {
-    appId: "io.open-design.desktop.betas",
+    appId: "com.hawiyat.composer-design.betas",
     baseVersionField: "baseVersion",
     channel: "betas",
     counterField: "releaseNumber",
@@ -80,7 +80,7 @@ const descriptors: Record<ReleaseChannel, ReleaseChannelDescriptor> = {
     storagePrefix: "betas",
   },
   prerelease: {
-    appId: "io.open-design.desktop.prerelease",
+    appId: "com.hawiyat.composer-design.prerelease",
     baseVersionField: "baseVersion",
     channel: "prerelease",
     counterField: "releaseNumber",
@@ -92,7 +92,7 @@ const descriptors: Record<ReleaseChannel, ReleaseChannelDescriptor> = {
     storagePrefix: "prerelease",
   },
   preview: {
-    appId: "io.open-design.desktop.preview",
+    appId: "com.hawiyat.composer-design.preview",
     baseVersionField: "baseVersion",
     channel: "preview",
     counterField: "releaseNumber",
@@ -104,7 +104,7 @@ const descriptors: Record<ReleaseChannel, ReleaseChannelDescriptor> = {
     storagePrefix: "preview",
   },
   stable: {
-    appId: "io.open-design.desktop",
+    appId: "com.hawiyat.composer-design",
     baseVersionField: "baseVersion",
     channel: "stable",
     counterField: null,

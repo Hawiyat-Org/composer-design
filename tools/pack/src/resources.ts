@@ -47,7 +47,7 @@ export const winResources = {
 
 export const linuxResources = {
   icon: join(resourcesRoot, "linux", "icon.png"),
-  desktopTemplate: join(resourcesRoot, "linux", "open-design.desktop.template"),
+  desktopTemplate: join(resourcesRoot, "linux", "composer-design.desktop.template"),
 } as const;
 
 const BUNDLED_RESOURCE_TREES = [

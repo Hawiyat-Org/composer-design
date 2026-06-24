@@ -5,7 +5,7 @@ export interface GithubRepoMeta {
   versionLabel: string;
 }
 
-const REPO_API = 'https://api.github.com/repos/nexu-io/open-design';
+const REPO_API = 'https://api.github.com/repos/hawiyat/composer-design';
 const FALLBACK_META: GithubRepoMeta = {
   starsLabel: '40K+',
   // Build-time fallback when the GitHub releases API is unavailable / rate
@@ -80,7 +80,7 @@ export function getGithubRepoMeta(): Promise<GithubRepoMeta> {
  * Mirrors the asset-name conventions used by header-enhancer.astro.
  * ------------------------------------------------------------------ */
 
-const REPO_RELEASES = 'https://github.com/nexu-io/open-design/releases';
+const REPO_RELEASES = 'https://github.com/hawiyat/composer-design/releases';
 
 export interface ReleaseAsset {
   name: string;

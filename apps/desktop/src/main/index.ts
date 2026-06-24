@@ -456,26 +456,26 @@ function installDesktopMenu(
           {
             label: "Documentation",
             click() {
-              void shell.openExternal("https://github.com/nexu-io/open-design#readme");
+              void shell.openExternal("https://github.com/hawiyat/composer-design#readme");
             },
           },
           { type: "separator" },
           {
             label: "Contact Us",
             click() {
-              void shell.openExternal("https://x.com/OpenDesignHQ");
+              void shell.openExternal("https://x.com/hawiyatHQ");
             },
           },
           {
             label: "Report Issue",
             click() {
-              void shell.openExternal("https://github.com/nexu-io/open-design/issues/new");
+              void shell.openExternal("https://github.com/hawiyat/composer-design/issues/new");
             },
           },
           {
             label: "Join Discord",
             click() {
-              void shell.openExternal("https://discord.gg/9ptkbbqRu");
+              void shell.openExternal("https://discord.gg/hawiyat");
             },
           },
           { type: "separator" },

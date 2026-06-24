@@ -1,5 +1,8 @@
-<svg width="444" height="444" viewBox="0 0 444 444" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M212.059 291.897L166.327 171.549C164.847 167.654 168.651 163.836 172.52 165.333L292.925 211.915C297.88 213.832 296.514 221.229 291.205 221.229H221.322V290.177C221.322 295.523 213.957 296.891 212.059 291.897Z" fill="currentColor"/>
-<path d="M72 222C72 304.843 139.157 372 222 372H82C76.4772 372 72 367.523 72 362V222Z" fill="currentColor"/>
-<path d="M222 87C296.558 87 357 147.442 357 222C357 296.558 296.558 357 222 357C147.442 357 87 296.558 87 222C87 147.442 147.442 87 222 87Z" stroke="currentColor" stroke-width="30"/>
+<svg width="844" height="714" viewBox="0 0 844 714" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="421.765" y="124.73" width="482.63" height="64.7585" transform="rotate(29.0068 421.765 124.73)" fill="black"/>
+<rect x="630.399" y="241.451" width="461" height="65" transform="rotate(90 630.399 241.451)" fill="black"/>
+<rect x="610.929" y="483.48" width="462.925" height="65" transform="rotate(150.137 610.929 483.48)" fill="black"/>
+<rect x="429.301" y="587.641" width="489.891" height="65" transform="rotate(-151.201 429.301 587.641)" fill="black"/>
+<rect x="220.399" y="461.82" width="454" height="65" transform="rotate(-90 220.399 461.82)" fill="black"/>
+<rect x="234.399" y="232.82" width="465.641" height="65" transform="rotate(-30 234.399 232.82)" fill="black"/>
 </svg>

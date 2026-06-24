@@ -27,12 +27,12 @@ Before starting:
 Then pull and start the service:
 
 ```bash
-OPEN_DESIGN_IMAGE=ghcr.io/nexu-io/od:latest docker compose pull
-OPEN_DESIGN_IMAGE=ghcr.io/nexu-io/od:latest docker compose up -d --no-build
+OPEN_DESIGN_IMAGE=ghcr.io/hawiyat/composer-design:latest docker compose pull
+OPEN_DESIGN_IMAGE=ghcr.io/hawiyat/composer-design:latest docker compose up -d --no-build
 ```
 
-Use `ghcr.io/nexu-io/od:latest` for the latest stable image, or
-`ghcr.io/nexu-io/od:<version>` to pin a supported release.
+Use `ghcr.io/hawiyat/composer-design:latest` for the latest stable image, or
+`ghcr.io/hawiyat/composer-design:<version>` to pin a supported release.
 
 Defaults:
 
@@ -71,7 +71,7 @@ Compose variable maps to daemon env `OD_DISABLE_API_AUTH`.
 Pin a specific published image with a digest instead of the mutable `latest` tag:
 
 ```bash
-OPEN_DESIGN_IMAGE=ghcr.io/nexu-io/od@sha256:<digest> docker compose up -d --no-build
+OPEN_DESIGN_IMAGE=ghcr.io/hawiyat/composer-design@sha256:<digest> docker compose up -d --no-build
 ```
 The image intentionally does not bundle Claude/Codex/Gemini CLI binaries. Keep
 those outside the image, or build a separate private runtime layer if a server
@@ -106,7 +106,7 @@ deploy/scripts/publish-images.sh --image ghcr.io/your-org/od:0.1.0
 
 The script defaults to:
 
-- `ghcr.io/nexu-io/od:<tag>`
+- `ghcr.io/hawiyat/composer-design:<tag>`
 - `linux/amd64,linux/arm64`
 - `skopeo` push strategy with registry credentials read from `~/.docker/config.json`
 - preloading base images through `skopeo` to reduce Docker Hub pull flakiness
