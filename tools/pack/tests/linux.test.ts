@@ -560,7 +560,7 @@ MimeType=x-scheme-handler/od;
     });
     expect(out).toContain("Name=Composer Design (default)");
     expect(out).toContain(
-      "Exec=env OD_PACKAGED_NAMESPACE=default /home/u/.local/bin/Open-Design.default.AppImage --appimage-extract-and-run %U",
+      "Exec=env OD_PACKAGED_NAMESPACE=default /home/u/.local/bin/Composer-Design.default.AppImage --appimage-extract-and-run %U",
     );
     expect(out).toContain("Icon=open-design-default");
   });
