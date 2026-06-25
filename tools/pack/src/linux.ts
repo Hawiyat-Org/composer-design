@@ -499,7 +499,7 @@ async function writeAssembledApp(
     main: "main.cjs",
     dependencies,
     description: "Local-first design product: detects your installed code-agent CLI, runs design skills + design systems, streams artifacts into a sandboxed preview.",
-    author: "Open Design Team",
+    author: "Hawiyat Team",
     repository: {
       type: "git",
       url: "https://github.com/hawiyat/composer-design.git"
@@ -1439,7 +1439,7 @@ export async function installPackedLinuxHeadless(config: ToolPackConfig): Promis
   const dataDir = dirname(config.roots.runtime.namespaceBaseRoot);
   const script = [
     "#!/bin/sh",
-    `# Open Design headless launcher — namespace: ${config.namespace}`,
+    `# Composer Design headless launcher — namespace: ${config.namespace}`,
     `OD_PACKAGED_NAMESPACE=${JSON.stringify(config.namespace)} OD_DATA_DIR=${JSON.stringify(dataDir)} OD_RESOURCE_ROOT=${JSON.stringify(paths.resourceRoot)} exec ${JSON.stringify(nodePath)} ${JSON.stringify(entryPath)} "$@"`,
   ].join("\n") + "\n";
 
