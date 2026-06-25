@@ -43,8 +43,12 @@ jobs:
       - run: pnpm --filter @open-design/desktop build
       - run: pnpm --filter @open-design/packaged build
       - run: pnpm --filter @open-design/tools-pack build
-      - name: Build Linux AppImage (containerized)
-        run: pnpm tools-pack linux build --to appimage --containerized
+      - name: Install AppImage dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libfuse2 desktop-file-utils
+      - name: Build Linux AppImage
+        run: pnpm tools-pack linux build --to appimage
         env:
           CI: true
       - name: Upload Linux AppImage
@@ -83,6 +87,8 @@ jobs:
       - run: pnpm --filter @open-design/desktop build
       - run: pnpm --filter @open-design/packaged build
       - run: pnpm --filter @open-design/tools-pack build
+      - name: Install NSIS
+        run: choco install nsis -y
       - name: Build Windows NSIS installer
         run: pnpm tools-pack win build --to nsis
         env:
