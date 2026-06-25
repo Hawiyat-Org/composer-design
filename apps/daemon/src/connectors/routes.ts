@@ -296,11 +296,11 @@ function renderConnectorConnectedHtml(connectorId: string): string {
     <title>${connectorLabelHtml} connected · Composer Design</title>
     <style>
       :root {
-        --bg: #faf9f7;
+        --bg: #f7f7f7;
         --bg-panel: #ffffff;
-        --bg-subtle: #f4f2ed;
-        --border: #ebe8e1;
-        --border-strong: #d8d4cb;
+        --bg-subtle: #f2f2f2;
+        --border: #e5e5e5;
+        --border-strong: #d0d0d0;
         --text: #1a1916;
         --text-strong: #0d0c0a;
         --text-muted: #74716b;
@@ -429,7 +429,7 @@ function renderConnectorConnectedHtml(connectorId: string): string {
         padding: 8px 14px;
         color: white;
         background: var(--accent);
-        box-shadow: 0 1px 0 rgba(180, 90, 59, 0.18) inset, var(--shadow-xs);
+        box-shadow: 0 1px 0 rgba(120, 120, 120, 0.15) inset, var(--shadow-xs);
         font: 500 13px/1.4 var(--sans);
         cursor: pointer;
         transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;

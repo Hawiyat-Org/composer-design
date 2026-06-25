@@ -3,11 +3,11 @@
    over POST. Fills the body so the terminal owns the scroll. */
 
 .root {
-  --terminal-bg: #fbfaf8;
+  --terminal-bg: #f8f8f8;
   --terminal-fg: #1f2328;
   --terminal-muted-fg: rgba(31, 35, 40, 0.68);
   --terminal-cursor: #1f2328;
-  --terminal-cursor-accent: #fbfaf8;
+  --terminal-cursor-accent: #f8f8f8;
   --terminal-selection-bg: rgba(37, 99, 235, 0.24);
   --terminal-selection-fg: #0f172a;
   --terminal-selection-inactive-bg: rgba(100, 116, 139, 0.18);
@@ -47,7 +47,7 @@
 :global([data-theme='dark']) .root {
   --terminal-bg: #1e1e1e;
   --terminal-fg: #e6e1d9;
-  --terminal-muted-fg: rgba(230, 225, 217, 0.72);
+  --terminal-muted-fg: rgba(180, 180, 180, 0.72);
   --terminal-cursor: #f2ede4;
   --terminal-cursor-accent: #1e1e1e;
   --terminal-selection-bg: rgba(96, 165, 250, 0.32);
@@ -82,7 +82,7 @@
   :global(html:not([data-theme])) .root {
     --terminal-bg: #1e1e1e;
     --terminal-fg: #e6e1d9;
-    --terminal-muted-fg: rgba(230, 225, 217, 0.72);
+    --terminal-muted-fg: rgba(180, 180, 180, 0.72);
     --terminal-cursor: #f2ede4;
     --terminal-cursor-accent: #1e1e1e;
     --terminal-selection-bg: rgba(96, 165, 250, 0.32);

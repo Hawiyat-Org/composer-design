@@ -574,10 +574,10 @@
   background: var(--bg-muted);
   color: var(--text-muted);
 }
-.routines-status-running { background: #f3eddc; color: #8a6a1a; }
+.routines-status-running { background: #f2f2f2; color: #787878; }
 .routines-status-queued { background: #ece9e2; color: var(--text-muted); }
 .routines-status-succeeded { background: #e3efe6; color: #2e7d5b; }
-.routines-status-failed { background: #f6dfdc; color: #b3382b; }
+.routines-status-failed { background: #f2f2f2; color: #9c2a25; }
 .routines-status-canceled { background: #ece9e2; color: var(--text-muted); }
 
 /* ============================================================

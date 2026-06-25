@@ -653,8 +653,8 @@
 }
 
 .automations-template-tab.is-active .automations-template-tab__count {
-  background: color-mix(in srgb, var(--accent, #d77757) 18%, var(--bg-subtle));
-  color: color-mix(in srgb, var(--accent, #d77757) 70%, var(--text-strong));
+  background: color-mix(in srgb, var(--accent, #787878) 18%, var(--bg-subtle));
+  color: color-mix(in srgb, var(--accent, #787878) 70%, var(--text-strong));
 }
 
 .automations-templates__empty {
@@ -751,8 +751,8 @@
 }
 
 .automation-template-card.is-orbit .automation-template-card__icon {
-  background: color-mix(in srgb, #d77757 20%, var(--bg-subtle));
-  color: color-mix(in srgb, #f2a282 82%, var(--text-strong));
+  background: color-mix(in srgb, #787878 20%, var(--bg-subtle));
+  color: color-mix(in srgb, #a0a0a0 82%, var(--text-strong));
 }
 
 .automation-template-card.is-live-artifact .automation-template-card__icon {
@@ -1415,8 +1415,8 @@
 }
 
 .automation-template-option__icon.is-orbit {
-  background: color-mix(in srgb, #d77757 18%, var(--bg-subtle));
-  color: #f2a282;
+  background: color-mix(in srgb, #787878 18%, var(--bg-subtle));
+  color: #a0a0a0;
 }
 
 .automation-template-option__icon.is-live-artifact {

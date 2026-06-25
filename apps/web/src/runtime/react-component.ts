@@ -32,10 +32,10 @@ export function buildReactComponentSrcdoc(
       .od-react-error {
         margin: 16px;
         padding: 14px 16px;
-        border: 1px solid #fecaca;
+        border: 1px solid #e5e5e5;
         border-radius: 8px;
-        background: #fff1f2;
-        color: #991b1b;
+        background: #f7f7f7;
+        color: #787878;
         font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
         white-space: pre-wrap;
       }

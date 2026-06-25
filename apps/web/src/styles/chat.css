@@ -2002,13 +2002,13 @@
 }
 
 .preview-draw-note-input::placeholder {
-  color: rgba(255, 225, 210, 0.86);
+  color: rgba(180, 180, 180, 0.86);
 }
 
 .preview-draw-note-input:focus {
-  background: rgba(218, 97, 56, 0.26) !important;
-  border-color: rgba(255, 184, 140, 0.95) !important;
-  box-shadow: 0 0 0 3px rgba(218, 97, 56, 0.34), 0 0 18px rgba(218, 97, 56, 0.24) !important;
+  background: rgba(120, 120, 120, 0.26) !important;
+  border-color: rgba(180, 180, 180, 0.95) !important;
+  box-shadow: 0 0 0 3px rgba(120, 120, 120, 0.34), 0 0 18px rgba(120, 120, 120, 0.24) !important;
 }
 
 /* -------- Staged attachments -------------------------------------- */

@@ -2541,10 +2541,10 @@ type GeneratedPalette = {
 function normalizeSwatches(body: string): GeneratedPalette {
   const [background, border, foreground, accent] = extractSwatches(body);
   return {
-    background: background ?? '#fbfaf7',
-    border: border ?? '#ddd8d0',
+    background: background ?? '#f7f7f7',
+    border: border ?? '#d0d0d0',
     foreground: foreground ?? '#1f1d1b',
-    accent: accent ?? '#d66f4d',
+    accent: accent ?? '#787878',
     muted: '#706b65',
     success: '#5d8f5a',
   };
@@ -2717,7 +2717,7 @@ function renderCssTokens(input: { title: string; palette: GeneratedPalette }): s
   return `:root {
   --${slug}-background: ${input.palette.background};
   --${slug}-surface: #ffffff;
-  --${slug}-surface-muted: #f4f1ec;
+  --${slug}-surface-muted: #f2f2f2;
   --${slug}-foreground: ${input.palette.foreground};
   --${slug}-muted: ${input.palette.muted};
   --${slug}-border: ${input.palette.border};
@@ -2827,7 +2827,7 @@ function renderColorPreviewHtml(title: string, palette: GeneratedPalette): strin
     ['Border', palette.border],
     ['Accent', palette.accent],
     ['Success', palette.success],
-    ['Subtle', '#f4f1ec'],
+    ['Subtle', '#f2f2f2'],
   ];
   return renderHtmlDocument(
     title,
@@ -3008,7 +3008,7 @@ function renderHtmlDocument(title: string, body: string, palette: GeneratedPalet
     .logo-frame { padding: 34px; margin: 20px 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
     .logo-frame.dark { background: var(--fg); }
     .component-preview { display: grid; grid-template-columns: 240px 1fr; min-height: calc(100vh - 96px); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-    .component-preview aside { display: grid; align-content: start; gap: 10px; padding: 20px; background: #f3f1ec; border-right: 1px solid var(--border); }
+    .component-preview aside { display: grid; align-content: start; gap: 10px; padding: 20px; background: #f0f0f0; border-right: 1px solid var(--border); }
     button { border: 1px solid var(--border); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 10px 14px; font-weight: 700; }
     button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
     .component-preview section { padding: 48px; }

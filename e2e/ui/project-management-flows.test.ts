@@ -2208,7 +2208,7 @@ async function seedAdoptedPet(page: Page) {
           custom: {
             name: 'Original Buddy',
             glyph: '🦄',
-            accent: '#c96442',
+            accent: '#787878',
             greeting: 'Ready to pair.',
           },
         },

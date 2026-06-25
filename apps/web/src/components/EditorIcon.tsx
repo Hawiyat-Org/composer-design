@@ -82,7 +82,7 @@ function qoderLogo(size: number) {
   const s = size * 0.76;
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" aria-hidden="true">
-      <rect width="24" height="24" rx="5" fill="#ffb15e" />
+      <rect width="24" height="24" rx="5" fill="#787878" />
       <path d="M12 4 20 12l-8 8-8-8 8-8Z" fill="#667085" />
       <path d="M12 8.2 15.8 12 12 15.8 8.2 12 12 8.2Z" fill="#1f2937" opacity=".2" />
     </svg>
@@ -115,7 +115,7 @@ const EDITORS: Record<string, EditorVisual> = {
   cursor: { bg: '#0a0a0a', fg: '#ffffff', glyph: simplePath(cursorPath) },
   windsurf: { bg: '#f7fffb', fg: '#0b100f', glyph: simplePath(windsurfPath) },
   zed: { bg: '#1348DC', fg: '#ffffff', glyph: simplePath(zedPath) },
-  qoder: { bg: '#ffb15e', fg: '#1f2937', glyph: qoderLogo },
+  qoder: { bg: '#787878', fg: '#1f2937', glyph: qoderLogo },
   antigravity: { bg: '#ffffff', fg: '#1f2937', glyph: antigravityLogo },
   webstorm: { bg: '#000000', fg: '#ffffff', glyph: simplePath(webstormPath) },
   idea: { bg: '#000000', fg: '#ffffff', glyph: simplePath(ideaPath) },

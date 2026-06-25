@@ -217,7 +217,7 @@
 .sketch-preview.loading {
   background:
     radial-gradient(circle at 8px 8px, #d7d4ce 1px, transparent 1px),
-    #f7f5f1;
+    #f5f5f5;
   background-size: 16px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);

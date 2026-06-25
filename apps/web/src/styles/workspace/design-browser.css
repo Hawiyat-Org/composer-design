@@ -689,12 +689,12 @@
   font-weight: 700;
 }
 .db-comment-marker.active {
-  border-color: #da6138;
-  background: rgba(218, 97, 56, 0.14);
+  border-color: #787878;
+  background: rgba(120, 120, 120, 0.14);
 }
 .db-comment-marker.active span {
-  background: #da6138;
-  box-shadow: 0 4px 12px rgba(218, 97, 56, 0.34);
+  background: #787878;
+  box-shadow: 0 4px 12px rgba(120, 120, 120, 0.34);
 }
 .design-browser .comment-popover,
 .db-comment-popover {

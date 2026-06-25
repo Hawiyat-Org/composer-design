@@ -15,7 +15,7 @@ export const ACCENT_SWATCHES = [
   '#7c3aed',
   '#059669',
   '#dc2626',
-  '#d97706',
+  '#6b7280',
   '#0891b2',
   '#db2777',
 ] as const;
