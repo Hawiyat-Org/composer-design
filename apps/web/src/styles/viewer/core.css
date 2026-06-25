@@ -1193,7 +1193,7 @@
   padding: 0;
   border: 3px solid #fff;
   border-radius: 50% 50% 50% 10px;
-  background: #d96a46;
+  background: #787878;
   color: white;
   font-size: 18px;
   font-weight: 800;
@@ -1508,7 +1508,7 @@
   writing-mode: horizontal-tb;
 }
 .comment-side-panel {
-  --comment-accent: #ff5a3c;
+  --comment-accent: #888888;
   --comment-accent-strong: color-mix(in srgb, var(--comment-accent) 78%, var(--text));
   --comment-accent-surface: color-mix(in srgb, var(--comment-accent) 10%, var(--bg-panel));
   --comment-accent-surface-strong: color-mix(in srgb, var(--comment-accent) 18%, var(--bg-panel));
@@ -1630,7 +1630,7 @@
   justify-content: center;
   padding: 0 4px;
   border-radius: var(--radius-pill);
-  background: #ff5a3c;
+  background: #888888;
   color: #fff;
   font-size: 10px;
   font-weight: 700;
