@@ -255,11 +255,11 @@ async function resolvePayloadConfig(
     ? raw.webOutputMode
     : config.webOutputMode;
   const resourceRoot = raw.resourceRoot == null || raw.resourceRoot.length === 0
-    ? join(resourcesPath, "open-design")
+    ? join(resourcesPath, "composer-design")
     : raw.resourceRoot;
   const relativeNodeCommand =
     raw.nodeCommandRelative == null || raw.nodeCommandRelative.length === 0
-      ? join("open-design", "bin", process.platform === "win32" ? "node.exe" : "node")
+      ? join("composer-design", "bin", process.platform === "win32" ? "node.exe" : "node")
       : raw.nodeCommandRelative;
   const nodeCommand = await resolveOptionalPayloadEntry(resourcesPath, relativeNodeCommand);
   const electronNodeCommand = manifest.platform === "win32"

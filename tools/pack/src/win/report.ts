@@ -90,7 +90,7 @@ export async function collectWinSizeReport(
     installerBytes: await sizeExistingFileBytes(paths.setupPath),
     outputRootBytes: namespaceSizeIndex.sizePathBytes(config.roots.output.namespaceRoot),
     portableZipBytes: await sizeExistingFileBytes(paths.setupZipPath),
-    resourceRootBytes: sizeIndex.sizePathBytes(join(appResourcesRoot, "open-design")),
+    resourceRootBytes: sizeIndex.sizePathBytes(join(appResourcesRoot, "composer-design")),
     runtimeNamespaceRoot: config.roots.runtime.namespaceRoot,
     topLevel: {
       appResourcesBytes: sizeIndex.sizePathBytes(join(appResourcesRoot, "app")),

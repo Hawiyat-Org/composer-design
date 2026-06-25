@@ -1176,7 +1176,7 @@ async function assertLauncherPayloadBootConfig(input: {
   if (!isRecord(rawConfig)) throw new Error("launcher payload config must be a JSON object");
   const resourceRoot = typeof rawConfig.resourceRoot === "string" && rawConfig.resourceRoot.length > 0
     ? rawConfig.resourceRoot
-    : join(resourcesPath, "open-design");
+    : join(resourcesPath, "composer-design");
   const resourceRootEntry = await lstat(resourceRoot);
   if (!resourceRootEntry.isDirectory() || resourceRootEntry.isSymbolicLink()) {
     throw new Error("launcher payload resource root must be a plain directory");

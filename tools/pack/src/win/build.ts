@@ -144,7 +144,7 @@ export async function packWin(config: ToolPackConfig): Promise<WinPackResult> {
     outputRoot: config.roots.output.namespaceRoot,
     payloadPath: (await pathExists(paths.launcherPayloadPath)) ? paths.launcherPayloadPath : null,
     portableZipPath: hasZipTarget && await pathExists(paths.setupZipPath) ? paths.setupZipPath : null,
-    resourceRoot: builtApp == null ? paths.resourceRoot : join(builtApp.unpackedRoot, "resources", "open-design"),
+    resourceRoot: builtApp == null ? paths.resourceRoot : join(builtApp.unpackedRoot, "resources", "composer-design"),
     runtimeNamespaceRoot: config.roots.runtime.namespaceRoot,
     cacheReport: cache.report(),
     segments,
