@@ -1701,7 +1701,7 @@ export const en: Dict = {
   'browserUse.action.terminal_read.output': 'Recent shared terminal output.',
   'chat.designToolbox.title': 'Design toolbox',
   'chat.designToolbox.tooltip': 'Design toolbox',
-  'chat.designToolbox.aria': 'Open design toolbox',
+  'chat.designToolbox.aria': 'Composer design toolbox',
   'chat.designToolbox.searchPlaceholder': 'Search skills / MCP / plugins / connectors / design files...',
   'chat.designToolbox.searchAria': 'Search design toolbox resources',
   'chat.designToolbox.followupSection': 'Follow-up',
