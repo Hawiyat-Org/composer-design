@@ -26,29 +26,31 @@ jobs:
         with:
           node-version: '24'
           cache: 'pnpm'
-      - run: pnpm install
-      - run: pnpm --filter @open-design/release build
-      - run: pnpm --filter @open-design/contracts build
-      - run: pnpm --filter @open-design/sidecar-proto build
-      - run: pnpm --filter @open-design/platform build
-      - run: pnpm --filter @open-design/sidecar build
-      - run: pnpm --filter @open-design/host build
-      - run: pnpm --filter @open-design/metatool build
-      - run: pnpm --filter @open-design/plugin-runtime build
-      - run: pnpm --filter @open-design/download build
-      - run: pnpm --filter @open-design/launcher-proto build
-      - run: pnpm --filter @open-design/components build
-      - run: pnpm --filter @open-design/web build
-      - run: pnpm --filter @open-design/daemon build
-      - run: pnpm --filter @open-design/desktop build
-      - run: pnpm --filter @open-design/packaged build
-      - run: pnpm --filter @open-design/tools-pack build
+      - run: pnpm install --frozen-lockfile
+      - name: Build all dependencies
+        run: |
+          pnpm --filter @open-design/release build && \
+          pnpm --filter @open-design/contracts build && \
+          pnpm --filter @open-design/sidecar-proto build && \
+          pnpm --filter @open-design/platform build && \
+          pnpm --filter @open-design/sidecar build && \
+          pnpm --filter @open-design/host build && \
+          pnpm --filter @open-design/metatool build && \
+          pnpm --filter @open-design/plugin-runtime build && \
+          pnpm --filter @open-design/download build && \
+          pnpm --filter @open-design/launcher-proto build && \
+          pnpm --filter @open-design/components build && \
+          pnpm --filter @open-design/web build && \
+          pnpm --filter @open-design/daemon build && \
+          pnpm --filter @open-design/desktop build && \
+          pnpm --filter @open-design/packaged build && \
+          pnpm --filter @open-design/tools-pack build
       - name: Install AppImage dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq libfuse2 desktop-file-utils
       - name: Build Linux AppImage
-        run: pnpm tools-pack linux build --to appimage
+        run: pnpm tools-pack linux build --to appimage --portable
         env:
           CI: true
       - name: Upload Linux AppImage
@@ -70,27 +72,29 @@ jobs:
         with:
           node-version: '24'
           cache: 'pnpm'
-      - run: pnpm install
-      - run: pnpm --filter @open-design/release build
-      - run: pnpm --filter @open-design/contracts build
-      - run: pnpm --filter @open-design/sidecar-proto build
-      - run: pnpm --filter @open-design/platform build
-      - run: pnpm --filter @open-design/sidecar build
-      - run: pnpm --filter @open-design/host build
-      - run: pnpm --filter @open-design/metatool build
-      - run: pnpm --filter @open-design/plugin-runtime build
-      - run: pnpm --filter @open-design/download build
-      - run: pnpm --filter @open-design/launcher-proto build
-      - run: pnpm --filter @open-design/components build
-      - run: pnpm --filter @open-design/web build
-      - run: pnpm --filter @open-design/daemon build
-      - run: pnpm --filter @open-design/desktop build
-      - run: pnpm --filter @open-design/packaged build
-      - run: pnpm --filter @open-design/tools-pack build
+      - run: pnpm install --frozen-lockfile
+      - name: Build all dependencies
+        run: |
+          pnpm --filter @open-design/release build && \
+          pnpm --filter @open-design/contracts build && \
+          pnpm --filter @open-design/sidecar-proto build && \
+          pnpm --filter @open-design/platform build && \
+          pnpm --filter @open-design/sidecar build && \
+          pnpm --filter @open-design/host build && \
+          pnpm --filter @open-design/metatool build && \
+          pnpm --filter @open-design/plugin-runtime build && \
+          pnpm --filter @open-design/download build && \
+          pnpm --filter @open-design/launcher-proto build && \
+          pnpm --filter @open-design/components build && \
+          pnpm --filter @open-design/web build && \
+          pnpm --filter @open-design/daemon build && \
+          pnpm --filter @open-design/desktop build && \
+          pnpm --filter @open-design/packaged build && \
+          pnpm --filter @open-design/tools-pack build
       - name: Install NSIS
         run: choco install nsis -y
       - name: Build Windows NSIS installer
-        run: pnpm tools-pack win build --to nsis
+        run: pnpm tools-pack win build --to nsis --portable
         env:
           CI: true
       - name: Upload Windows installer
@@ -112,25 +116,27 @@ jobs:
         with:
           node-version: '24'
           cache: 'pnpm'
-      - run: pnpm install
-      - run: pnpm --filter @open-design/release build
-      - run: pnpm --filter @open-design/contracts build
-      - run: pnpm --filter @open-design/sidecar-proto build
-      - run: pnpm --filter @open-design/platform build
-      - run: pnpm --filter @open-design/sidecar build
-      - run: pnpm --filter @open-design/host build
-      - run: pnpm --filter @open-design/metatool build
-      - run: pnpm --filter @open-design/plugin-runtime build
-      - run: pnpm --filter @open-design/download build
-      - run: pnpm --filter @open-design/launcher-proto build
-      - run: pnpm --filter @open-design/components build
-      - run: pnpm --filter @open-design/web build
-      - run: pnpm --filter @open-design/daemon build
-      - run: pnpm --filter @open-design/desktop build
-      - run: pnpm --filter @open-design/packaged build
-      - run: pnpm --filter @open-design/tools-pack build
+      - run: pnpm install --frozen-lockfile
+      - name: Build all dependencies
+        run: |
+          pnpm --filter @open-design/release build && \
+          pnpm --filter @open-design/contracts build && \
+          pnpm --filter @open-design/sidecar-proto build && \
+          pnpm --filter @open-design/platform build && \
+          pnpm --filter @open-design/sidecar build && \
+          pnpm --filter @open-design/host build && \
+          pnpm --filter @open-design/metatool build && \
+          pnpm --filter @open-design/plugin-runtime build && \
+          pnpm --filter @open-design/download build && \
+          pnpm --filter @open-design/launcher-proto build && \
+          pnpm --filter @open-design/components build && \
+          pnpm --filter @open-design/web build && \
+          pnpm --filter @open-design/daemon build && \
+          pnpm --filter @open-design/desktop build && \
+          pnpm --filter @open-design/packaged build && \
+          pnpm --filter @open-design/tools-pack build
       - name: Build macOS DMG
-        run: pnpm tools-pack mac build --to dmg
+        run: pnpm tools-pack mac build --to dmg --portable
         env:
           CI: true
       - name: Upload macOS DMG

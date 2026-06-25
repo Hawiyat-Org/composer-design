@@ -49,25 +49,7 @@ jobs:
           pnpm -C e2e exec tsx scripts/playwright.ts clean
           pnpm -C e2e exec playwright test -c playwright.visual.config.ts
 
-      - name: Upload baseline screenshots to R2
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_PUBLIC_ORIGIN: ${{ vars.R2_PUBLIC_ORIGIN }}
-          CLOUDFLARE_R2_RELEASES_AK: ${{ secrets.CLOUDFLARE_R2_RELEASES_AK }}
-          CLOUDFLARE_R2_RELEASES_SK: ${{ secrets.CLOUDFLARE_R2_RELEASES_SK }}
-          CLOUDFLARE_R2_RELEASES_BUCKET: ${{ secrets.CLOUDFLARE_R2_RELEASES_BUCKET }}
-          CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ vars.CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN }}
-          CLOUDFLARE_R2_RELEASES_URL: ${{ secrets.CLOUDFLARE_R2_RELEASES_URL }}
-        run: |
-          pnpm -C e2e exec tsx scripts/visual-report.ts upload-baseline \
-            --sha "${{ github.sha }}" \
-            --screenshots ui/reports/visual-screenshots \
-            --manifest-out ui/reports/visual-report/baseline-manifest.json
-
-      - name: Upload baseline debug artifact
+      - name: Upload baseline screenshots as artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
@@ -78,3 +60,5 @@ jobs:
             e2e/ui/reports/visual-report/baseline-manifest.json
           if-no-files-found: ignore
           retention-days: 7
+
+
