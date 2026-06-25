@@ -1,6 +1,6 @@
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 /**
  * ICO directory entry:
@@ -44,7 +44,7 @@ async function parseIco(filePath: string): Promise<{
   fileSize: number;
 }> {
   const data = await readFile(filePath);
-  const { size: fileSize } = await stat(filePath);
+  const fileSize = data.length;
 
   if (data.length < 6) throw new Error("File too small for ICO header");
 
@@ -66,12 +66,12 @@ async function parseIco(filePath: string): Promise<{
 
     const w = data.readUInt8(dirOffset);
     const h = data.readUInt8(dirOffset + 1);
-    const imgType = data.readUInt16LE(dirOffset + 4);
+    const planes = data.readUInt16LE(dirOffset + 4);
     const imgSize = data.readUInt32LE(dirOffset + 8);
     const imgOffset = data.readUInt32LE(dirOffset + 12);
 
-    if (imgType !== 1) {
-      throw new Error(`Icon ${i}: expected 1 color plane, got ${imgType}`);
+    if (planes !== 1) {
+      throw new Error(`Icon ${i}: expected 1 color plane, got ${planes}`);
     }
 
     const pngSize = readPngSize(data, imgOffset);
@@ -95,31 +95,30 @@ async function parseIco(filePath: string): Promise<{
 const ICON_PATH = fileURLToPath(new URL("../resources/win/icon.ico", import.meta.url));
 
 describe("Windows NSIS installer icon (icon.ico)", () => {
-  it("is a valid MS Windows ICO resource with 4 icon entries", async () => {
-    const ico = await parseIco(ICON_PATH);
+  let ico: Awaited<ReturnType<typeof parseIco>>;
+
+  beforeAll(async () => {
+    ico = await parseIco(ICON_PATH);
+  });
+
+  it("is a valid MS Windows ICO resource with 4 icon entries", () => {
     expect(ico.count).toBe(4);
   });
 
-  it("contains one icon each at 16x16, 32x32, 48x48, and 256x256 (PNG interior dimensions)", async () => {
-    const ico = await parseIco(ICON_PATH);
-    const keys = ico.entries.map((e) => `${e.pngWidth}x${e.pngHeight}`).sort((a, b) => {
-      const aw = Number.parseInt(a, 10);
-      const bw = Number.parseInt(b, 10);
-      return aw - bw;
-    });
-    expect(keys).toEqual(["16x16", "32x32", "48x48", "256x256"]);
+  it("contains one icon each at 16x16, 32x32, 48x48, and 256x256 (PNG interior dimensions)", () => {
+    const dimensions = ico.entries.map((e) => `${e.pngWidth}x${e.pngHeight}`);
+    expect(new Set(dimensions)).toEqual(new Set(["16x16", "32x32", "48x48", "256x256"]));
+    expect(dimensions.length).toBe(4);
   });
 
-  it("has ICO directory entry dimensions matching PNG interior dimensions for every icon", async () => {
-    const ico = await parseIco(ICON_PATH);
+  it("has ICO directory entry dimensions matching PNG interior dimensions for every icon", () => {
     for (const entry of ico.entries) {
       expect(entry.icoWidth).toBe(entry.pngWidth);
       expect(entry.icoHeight).toBe(entry.pngHeight);
     }
   });
 
-  it("has a file size under 10 KB (hexagonal logo is ~7 KB, not the old 66 KB Open Design icon)", async () => {
-    const ico = await parseIco(ICON_PATH);
+  it("has a file size under 10 KB", () => {
     expect(ico.fileSize).toBeLessThan(10_000);
   });
 });
