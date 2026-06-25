@@ -32,7 +32,7 @@ function downloadedStatus(overrides: Partial<OpenDesignHostUpdaterStatusSnapshot
   return {
     ...idleStatus(),
     availableVersion: '1.2.3-beta.4',
-    downloadPath: '/tmp/open-design-updater/Open Design Beta.dmg',
+    downloadPath: '/tmp/open-design-updater/Composer Design Beta.dmg',
     state: 'downloaded',
     ...overrides,
   };
@@ -126,7 +126,7 @@ describe('UpdaterPopup', () => {
     fireEvent.click(button);
 
     expect(await screen.findByRole('dialog', { name: 'Update ready' })).toBeTruthy();
-    expect(screen.getByText('Open Design 1.2.3-beta.4 is ready. Open Design will close and open the installer.')).toBeTruthy();
+    expect(screen.getByText('Composer Design 1.2.3-beta.4 is ready. Composer Design will close and open the installer.')).toBeTruthy();
     expect(screen.getByTestId('updater-install-button').textContent).toBe('Install update');
   });
 
@@ -149,7 +149,7 @@ describe('UpdaterPopup', () => {
 
     expect(await screen.findByRole('dialog', { name: '更新已就绪' })).toBeTruthy();
     expect(screen.getByTestId('updater-install-button').textContent).toBe('安装更新');
-    expect(screen.getByText('Open Design 1.2.3-beta.4 已就绪。Open Design 会关闭并打开安装器。')).toBeTruthy();
+    expect(screen.getByText('Composer Design 1.2.3-beta.4 已就绪。Composer Design 会关闭并打开安装器。')).toBeTruthy();
   });
 
   it('uses install-and-restart copy for payload updates', async () => {
@@ -173,7 +173,7 @@ describe('UpdaterPopup', () => {
 
     expect(await screen.findByRole('dialog', { name: '更新已就绪' })).toBeTruthy();
     expect(screen.getByTestId('updater-install-button').textContent).toBe('安装并重启');
-    expect(screen.getByText('Open Design 1.2.3-beta.4 已就绪。Open Design 会关闭并自动重启。')).toBeTruthy();
+    expect(screen.getByText('Composer Design 1.2.3-beta.4 已就绪。Composer Design 会关闭并自动重启。')).toBeTruthy();
   });
 
   it('dismisses the confirmation prompt before installation starts', async () => {
@@ -229,7 +229,7 @@ describe('UpdaterPopup', () => {
         installResult: {
           dryRun: true,
           openedAt: '2026-05-19T00:00:00.000Z',
-          path: '/tmp/open-design-updater/Open Design Beta.dmg',
+          path: '/tmp/open-design-updater/Composer Design Beta.dmg',
         },
       });
       resolveInstall(status);
@@ -249,7 +249,7 @@ describe('UpdaterPopup', () => {
       installResult: {
         dryRun: true,
         openedAt: '2026-05-19T00:00:00.000Z',
-        path: '/tmp/open-design-updater/Open Design Beta.dmg',
+        path: '/tmp/open-design-updater/Composer Design Beta.dmg',
       },
     }));
     const quit = vi.fn(async () => ({ ok: true as const }));

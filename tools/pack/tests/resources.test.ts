@@ -161,7 +161,7 @@ describe("copyBundledResourceTrees", () => {
 describe("copyOptionalVelaCliBinary", () => {
   it("copies the installed Vela CLI through the default npm resolver", async () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-vela-installed-"));
-    const resourceRoot = join(root, "resources", "open-design");
+    const resourceRoot = join(root, "resources", "composer-design");
     const platform = process.platform === "win32" ? "win" : process.platform === "darwin" ? "mac" : "linux";
 
     try {
@@ -184,7 +184,7 @@ describe("copyOptionalVelaCliBinary", () => {
   it("copies a configured Vela CLI binary into the POSIX resource bin", async () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-vela-"));
     const source = join(root, "source", "vela");
-    const resourceRoot = join(root, "resources", "open-design");
+    const resourceRoot = join(root, "resources", "composer-design");
 
     try {
       await mkdir(join(root, "source"), { recursive: true });
@@ -219,7 +219,7 @@ describe("copyOptionalVelaCliBinary", () => {
   it("fails strict mode when the OpenCode companion tree is missing", async () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-vela-strict-"));
     const source = join(root, "source", "vela");
-    const resourceRoot = join(root, "resources", "open-design");
+    const resourceRoot = join(root, "resources", "composer-design");
 
     try {
       await mkdir(join(root, "source"), { recursive: true });
@@ -241,7 +241,7 @@ describe("copyOptionalVelaCliBinary", () => {
   it("copies the Vela CLI binary without a companion tree in non-strict mode", async () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-vela-nonstrict-"));
     const source = join(root, "source", "vela");
-    const resourceRoot = join(root, "resources", "open-design");
+    const resourceRoot = join(root, "resources", "composer-design");
 
     try {
       await mkdir(join(root, "source"), { recursive: true });
@@ -267,7 +267,7 @@ describe("copyOptionalVelaCliBinary", () => {
   it("copies a configured Vela CLI binary into the Windows resource bin", async () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-vela-win-"));
     const source = join(root, "source", "vela.exe");
-    const resourceRoot = join(root, "resources", "open-design");
+    const resourceRoot = join(root, "resources", "composer-design");
 
     try {
       await mkdir(join(root, "source"), { recursive: true });
@@ -293,7 +293,7 @@ describe("copyOptionalVelaCliBinary", () => {
   it("copies a Vela CLI binary resolved from the npm package", async () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-vela-npm-"));
     const source = join(root, "source", "vela");
-    const resourceRoot = join(root, "resources", "open-design");
+    const resourceRoot = join(root, "resources", "composer-design");
 
     try {
       await mkdir(join(root, "source"), { recursive: true });
@@ -325,7 +325,7 @@ describe("copyOptionalVelaCliBinary", () => {
 
   it("skips copying when the npm resolver reports an unsupported non-strict platform", async () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-vela-skip-"));
-    const resourceRoot = join(root, "resources", "open-design");
+    const resourceRoot = join(root, "resources", "composer-design");
 
     try {
       const copied = await copyOptionalVelaCliBinary({

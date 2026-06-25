@@ -21,14 +21,14 @@ test('[P2] captures the onboarding cloud sign-in surface', async ({ page }) => {
   });
 
   await page.goto('/onboarding', { waitUntil: 'domcontentloaded' });
-  // The connect step is now the centered Open Design Cloud sign-in landing.
+  // The connect step is now the centered Composer Design Cloud sign-in landing.
   await expect(
-    page.getByRole('heading', { name: /Sign in to Open Design|登录 Open Design/i }),
+    page.getByRole('heading', { name: /Sign in to Composer Design|登录 Composer Design/i }),
   ).toBeVisible();
   // vela/status is mocked signed-out, so the primary CTA resolves to the
   // signed-out cloud sign-in copy (past the transient loading state).
   await expect(
-    page.getByRole('button', { name: /Sign in to Open Design Cloud|登录 Open Design 云端/i }),
+    page.getByRole('button', { name: /Sign in to Composer Design Cloud|登录 Composer Design 云端/i }),
   ).toBeVisible();
   // The secondary runtime links remain available beneath the cloud CTA.
   await expect(

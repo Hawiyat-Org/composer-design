@@ -199,7 +199,7 @@ describe('error-tracking', () => {
     const error = new Error('scrub-target');
     error.stack = [
       'Error: scrub-target',
-      '    at handleClick (file:///Applications/Open Design.app/Contents/Resources/apps/web/src/FileViewer.tsx:147:23)',
+      '    at handleClick (file:///Applications/Composer Design.app/Contents/Resources/apps/web/src/FileViewer.tsx:147:23)',
       '    at /Users/jane/dev/checkout/apps/web/src/index.tsx:12:1',
     ].join('\n');
     reportHandledException(error);
@@ -215,7 +215,7 @@ describe('error-tracking', () => {
       const filename = frame.filename;
       if (typeof filename === 'string') {
         expect(filename).toMatch(/^app:\/\/apps\/web\//);
-        expect(filename).not.toContain('Applications/Open Design.app');
+        expect(filename).not.toContain('Applications/Composer Design.app');
         expect(filename).not.toContain('/Users/jane');
       }
     }
@@ -344,7 +344,7 @@ describe('error-tracking', () => {
     const bundled = new TypeError('Failed to fetch');
     bundled.stack = [
       'TypeError: Failed to fetch',
-      '    at fetchProjects (file:///Applications/Open Design.app/Contents/Resources/apps/web/src/state/projects.ts:88:14)',
+      '    at fetchProjects (file:///Applications/Composer Design.app/Contents/Resources/apps/web/src/state/projects.ts:88:14)',
     ].join('\n');
     reportHandledException(bundled);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -353,7 +353,7 @@ describe('error-tracking', () => {
     const beta = new TypeError('Failed to fetch');
     beta.stack = [
       'TypeError: Failed to fetch',
-      '    at fetchProjects (file:///Applications/Open Design Beta.app/Contents/Resources/apps/web/src/state/projects.ts:88:14)',
+      '    at fetchProjects (file:///Applications/Composer Design Beta.app/Contents/Resources/apps/web/src/state/projects.ts:88:14)',
     ].join('\n');
     reportHandledException(beta);
     expect(fetchMock).not.toHaveBeenCalled();

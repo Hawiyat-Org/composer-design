@@ -65,7 +65,7 @@ async function runReleaseStableForFailure(env: Record<string, string>): Promise<
       cwd: workspaceRoot,
       env: {
         ...process.env,
-        GITHUB_REPOSITORY: "nexu-io/open-design",
+        GITHUB_REPOSITORY: "hawiyat/composer-design",
         GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
         OPEN_DESIGN_RELEASE_CHANNEL: "stable",
         ...env,
@@ -109,7 +109,7 @@ if (${JSON.stringify(changedFiles.length > 0)}) process.stdout.write("\\n");
         ...process.env,
         GITHUB_EVENT_NAME: eventName,
         GITHUB_EVENT_PATH: eventPath,
-        GITHUB_REPOSITORY: "nexu-io/open-design",
+        GITHUB_REPOSITORY: "hawiyat/composer-design",
         GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
         OPEN_DESIGN_GH_NODE_SCRIPT: ghPath,
         Path: fakePath,
@@ -656,7 +656,7 @@ describe("packaged smoke workflow", () => {
         env: {
           ...process.env,
           GITHUB_REF_NAME: `release/v${baseVersion}`,
-          GITHUB_REPOSITORY: "nexu-io/open-design",
+          GITHUB_REPOSITORY: "hawiyat/composer-design",
           GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
           NODE_TLS_REJECT_UNAUTHORIZED: "0",
           OPEN_DESIGN_RELEASE_CHANNEL: "stable",
@@ -880,7 +880,7 @@ describe("packaged smoke workflow", () => {
           {
         artifacts: {
           dmg: {
-            url: "https://releases.open-design.ai/betas/versions/1.2.3-beta.3.unsigned/Open Design Beta.dmg",
+            url: "https://releases.open-design.ai/betas/versions/1.2.3-beta.3.unsigned/Composer Design Beta.dmg",
           },
         },
         channel: "beta",
@@ -964,7 +964,7 @@ describe("packaged smoke workflow", () => {
           {
         artifacts: {
           dmg: {
-            url: "https://releases.open-design.ai/betas/versions/1.2.3-beta.4.unsigned/Open Design Beta.dmg",
+            url: "https://releases.open-design.ai/betas/versions/1.2.3-beta.4.unsigned/Composer Design Beta.dmg",
           },
         },
         channel: "beta",
@@ -1048,7 +1048,7 @@ describe("packaged smoke workflow", () => {
           {
         artifacts: {
           dmg: {
-            url: "https://releases.open-design.ai/betas/versions/1.2.3-beta.4.unsigned/Open Design Beta.dmg",
+            url: "https://releases.open-design.ai/betas/versions/1.2.3-beta.4.unsigned/Composer Design Beta.dmg",
           },
         },
         channel: "beta",
@@ -1517,7 +1517,7 @@ function stablePrereleaseMetadataFixture(baseVersion: string, prereleaseVersion:
     github: {
       branch: `release/v${baseVersion}`,
       commit: "0123456789abcdef0123456789abcdef01234567",
-      repository: "nexu-io/open-design",
+      repository: "hawiyat/composer-design",
       workflow: "release-prerelease",
     },
     prereleaseNumber: 12,

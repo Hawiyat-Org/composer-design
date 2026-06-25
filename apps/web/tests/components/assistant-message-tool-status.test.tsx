@@ -216,7 +216,7 @@ describe('AssistantMessage tool status', () => {
           {
             kind: 'status',
             label: 'publish repo',
-            detail: '{"url":"https://github.com/nexu-io/example-plugin","nameWithOwner":"nexu-io/example-plugin"}',
+            detail: '{"url":"https://github.com/hawiyat/example-plugin","nameWithOwner":"hawiyat/example-plugin"}',
           },
         ])}
         streaming={false}
@@ -225,8 +225,8 @@ describe('AssistantMessage tool status', () => {
     );
 
     const link = container.querySelector('.status-detail a.md-link');
-    expect(link?.getAttribute('href')).toBe('https://github.com/nexu-io/example-plugin');
-    expect(link?.textContent).toBe('https://github.com/nexu-io/example-plugin');
+    expect(link?.getAttribute('href')).toBe('https://github.com/hawiyat/example-plugin');
+    expect(link?.textContent).toBe('https://github.com/hawiyat/example-plugin');
     expect(container.querySelector('.status-detail')?.textContent).toContain('"}');
   });
 });

@@ -112,7 +112,7 @@ beforeEach(() => {
             name: 'open-design/official-plugin',
             title: 'Official Plugin',
             title_i18n: { 'zh-CN': '官方看板' },
-            source: 'github:nexu-io/open-design@main/plugins/_official/examples/official-plugin',
+            source: 'github:hawiyat/composer-design@main/plugins/_official/examples/official-plugin',
             version: '1.0.0',
             description: 'Bundled official plugin.',
             description_i18n: { 'zh-CN': '内置官方插件。' },
@@ -230,14 +230,14 @@ describe('PluginsView', () => {
         url: 'https://open-design.ai/marketplace/open-design-marketplace.json',
         trust: 'official',
         manifest: {
-          name: 'Open Design Official',
+          name: 'Composer Design Official',
           version: '1.0.0',
           plugins: [
             {
               name: 'open-design/official-plugin',
               title: 'Official Plugin',
               title_i18n: { 'zh-CN': '官方看板' },
-              source: 'github:nexu-io/open-design@main/plugins/_official/examples/official-plugin',
+              source: 'github:hawiyat/composer-design@main/plugins/_official/examples/official-plugin',
               version: '1.0.0',
               description: 'Bundled official plugin.',
               description_i18n: { 'zh-CN': '内置官方插件。' },
@@ -374,7 +374,7 @@ describe('PluginsView', () => {
     fireEvent.click(await screen.findByTestId('plugins-import-button'));
     expect(screen.getByRole('dialog', { name: 'Import a plugin' })).toBeTruthy();
     expect(screen.queryByText('Create from template')).toBeNull();
-    const source = 'github:nexu-io/open-design@garnet-hemisphere/plugins/community/registry-starter';
+    const source = 'github:hawiyat/composer-design@garnet-hemisphere/plugins/community/registry-starter';
     fireEvent.change(screen.getByLabelText('GitHub, archive, or marketplace source'), {
       target: { value: source },
     });
@@ -632,12 +632,12 @@ describe('PluginsView', () => {
         url: 'https://open-design.ai/marketplace/open-design-marketplace.json',
         trust: 'official',
         manifest: {
-          name: 'Open Design Official',
+          name: 'Composer Design Official',
           version: '0.1.0',
           plugins: [{
             name: 'open-design/official-plugin',
             title: 'Official Plugin',
-            source: 'github:nexu-io/open-design@main/plugins/_official/scenarios/official-plugin',
+            source: 'github:hawiyat/composer-design@main/plugins/_official/scenarios/official-plugin',
             version: '1.0.0',
             description: 'Bundled official starter.',
             tags: ['official'],
@@ -660,7 +660,7 @@ describe('PluginsView', () => {
     render(<PluginsView />);
 
     const sourceUrl =
-      'https://raw.githubusercontent.com/nexu-io/open-design/main/plugins/registry/community/open-design-marketplace.json';
+      'https://raw.githubusercontent.com/hawiyat/composer-design/main/plugins/registry/community/open-design-marketplace.json';
     fireEvent.click(await screen.findByTestId('plugins-tab-sources'));
     fireEvent.change(screen.getByLabelText('Source URL'), {
       target: { value: sourceUrl },
@@ -722,14 +722,14 @@ describe('PluginsView', () => {
         'bundled',
         'bundled',
         'Publish Plugin to GitHub',
-        'Creates a public GitHub repository for a local Open Design plugin using the GitHub CLI.',
+        'Creates a public GitHub repository for a local Composer Design plugin using the GitHub CLI.',
       ),
       makePlugin(
         'od-plugin-contribute-open-design',
         'bundled',
         'bundled',
-        'Contribute Plugin to Open Design',
-        'Opens a pull request that adds a local Open Design plugin to the Open Design community catalog.',
+        'Contribute Plugin to Composer Design',
+        'Opens a pull request that adds a local Composer Design plugin to the Composer Design community catalog.',
       ),
     ]);
     const onCreatePluginShareProject = vi.fn(async (): Promise<PluginShareProjectOutcome> => ({

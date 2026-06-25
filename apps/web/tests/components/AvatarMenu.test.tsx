@@ -225,7 +225,7 @@ describe('AvatarMenu', () => {
       agents: [
         {
           id: 'amr',
-          name: 'Open Design AMR',
+          name: 'Composer Design AMR',
           bin: 'vela',
           available: true,
           models: [{ id: 'default', label: 'Default (CLI config)' }],
@@ -242,7 +242,7 @@ describe('AvatarMenu', () => {
     ).toBe('https://vela.powerformer.net/wallet?source=open_design');
   });
 
-  it('adds Open Design attribution to the AMR account shortcut on click', () => {
+  it('adds Composer Design attribution to the AMR account shortcut on click', () => {
     const fetchMock = vi.fn(async () => new Response('{}', { status: 202 }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -261,7 +261,7 @@ describe('AvatarMenu', () => {
       agents: [
         {
           id: 'amr',
-          name: 'Open Design AMR',
+          name: 'Composer Design AMR',
           bin: 'vela',
           available: true,
           models: [{ id: 'default', label: 'Default (CLI config)' }],

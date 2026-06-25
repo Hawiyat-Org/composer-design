@@ -325,8 +325,8 @@ describe("web standalone afterPack hook", () => {
         expect.arrayContaining([
           expect.stringMatching(/Electron Framework\.framework\/Versions\/Current$/),
           expect.stringMatching(/ReactiveObjC\.framework$/),
-          expect.stringMatching(/Open Design Helper\.app$/),
-          expect.stringMatching(/Open Design\.app$/),
+          expect.stringMatching(/Composer Design Helper\.app$/),
+          expect.stringMatching(/Composer Design\.app$/),
         ]),
       );
       expect(signedTargets).not.toContainEqual(expect.stringMatching(/Electron Framework\.framework$/));

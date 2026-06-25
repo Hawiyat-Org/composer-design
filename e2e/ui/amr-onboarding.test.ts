@@ -40,12 +40,12 @@ test('[P0] @critical onboarding lets AMR Cloud sign in and complete setup after 
 
   await gotoOnboarding(page);
 
-  // Signed-out cloud landing: the primary button reads "Sign in to Open Design
+  // Signed-out cloud landing: the primary button reads "Sign in to Composer Design
   // Cloud" and IS the AMR sign-in trigger (it replaced the old "Sign in to
   // continue" AMR-card CTA).
   const primary = cloudPrimaryButton(page);
   await expect(primary).toBeVisible();
-  await expect(primary).toHaveText(/Sign in to Open Design Cloud|登录 Open Design 云端/i);
+  await expect(primary).toHaveText(/Sign in to Composer Design Cloud|登录 Composer Design 云端/i);
   const statusCallsBeforeLogin = await page.evaluate(() => window.__amrOnboardingStatusCalls ?? 0);
   await clickCloudPrimary(page);
 
@@ -83,7 +83,7 @@ test('[P0] onboarding signed-out AMR authorization cannot be skipped or bypassed
 
   const primary = cloudPrimaryButton(page);
   await expect(primary).toBeVisible();
-  await expect(primary).toHaveText(/Sign in to Open Design Cloud|登录 Open Design 云端/i);
+  await expect(primary).toHaveText(/Sign in to Composer Design Cloud|登录 Composer Design 云端/i);
   await expect(page.getByText(/Optional details for better defaults/i)).toHaveCount(0);
 
   // Trigger sign-in: it stays pending (login never completes), so we remain on
@@ -229,7 +229,7 @@ test('[P0] onboarding signed-in AMR status failure stays gated instead of bypass
   await expect(page.getByRole('button', { name: /About you|了解你/i })).toHaveCount(0);
   const primary = cloudPrimaryButton(page);
   await expect(primary).toBeVisible();
-  await expect(primary).toHaveText(/Sign in to Open Design Cloud|登录 Open Design 云端/i);
+  await expect(primary).toHaveText(/Sign in to Composer Design Cloud|登录 Composer Design 云端/i);
   await expect(page.getByText(/Optional details for better defaults/i)).toHaveCount(0);
 
   await page.goto('/', { waitUntil: 'domcontentloaded' });
@@ -259,7 +259,7 @@ test('[P0] onboarding lets the user cancel an incomplete AMR sign-in and retry',
   await expect(cancelSignIn).toBeVisible();
   await cancelSignIn.click();
 
-  await expect(primary).toHaveText(/Sign in to Open Design Cloud|登录 Open Design 云端/i);
+  await expect(primary).toHaveText(/Sign in to Composer Design Cloud|登录 Composer Design 云端/i);
   await expect(page.getByRole('button', { name: /Cancel sign-in/i })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.__amrOnboardingCancelCalls ?? 0)).toBe(1);
   await expect.poll(() => page.evaluate(() => window.__amrOnboardingLoginCalls ?? 0)).toBe(1);
@@ -295,7 +295,7 @@ test('[P0] onboarding cancel during a slow AMR status check does not start login
   await cancelSignIn.click();
 
   const primary = cloudPrimaryButton(page);
-  await expect(primary).toHaveText(/Sign in to Open Design Cloud|登录 Open Design 云端/i);
+  await expect(primary).toHaveText(/Sign in to Composer Design Cloud|登录 Composer Design 云端/i);
   await expect.poll(() => page.evaluate(() => window.__amrOnboardingCancelCalls ?? 0)).toBe(1);
   await expect
     .poll(() => page.evaluate(() => window.__amrOnboardingSlowStatusResolved ?? false))
@@ -1020,10 +1020,10 @@ async function gotoOnboarding(page: Page) {
   await waitForLoadingToClear(page);
   await dismissPrivacyDialog(page);
   // The runtime-picker "Choose a runtime" heading was removed. The Connect
-  // step now opens on a centered Open Design Cloud sign-in landing whose
+  // step now opens on a centered Composer Design Cloud sign-in landing whose
   // heading is the stable marker that onboarding has rendered.
   await expect(
-    page.getByRole('heading', { name: /Sign in to Open Design|登录 Open Design/i }),
+    page.getByRole('heading', { name: /Sign in to Composer Design|登录 Composer Design/i }),
   ).toBeVisible();
 }
 
@@ -1044,7 +1044,7 @@ async function clickCloudPrimary(page: Page) {
 // The connect landing heading — the stable "we're still on the cloud sign-in
 // landing" marker that replaced the old "Choose a runtime" heading.
 function connectLandingHeading(page: Page): Locator {
-  return page.getByRole('heading', { name: /Sign in to Open Design|登录 Open Design/i });
+  return page.getByRole('heading', { name: /Sign in to Composer Design|登录 Composer Design/i });
 }
 
 async function seedOnboardingConfig(page: Page, config: OnboardingConfig) {

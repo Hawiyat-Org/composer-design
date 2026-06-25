@@ -118,7 +118,7 @@ function fakePackagedConfig(root: string, namespace: PlatformCase["namespace"]):
     nodeCommand: null,
     posthogHost: null,
     posthogKey: null,
-    resourceRoot: join(root, "installed", "resources", "open-design"),
+    resourceRoot: join(root, "installed", "resources", "composer-design"),
     telemetryRelayUrl: null,
     webOutputMode: "server",
     webSidecarEntry: null,
@@ -200,11 +200,11 @@ async function createPayloadMetadataFixture(options: PlatformCase): Promise<Fixt
 }
 
 async function writeExtractedWindowsPayload(destinationRoot: string, namespace: string): Promise<void> {
-  await mkdir(join(destinationRoot, "payload", "resources", "open-design", "bin"), { recursive: true });
+  await mkdir(join(destinationRoot, "payload", "resources", "composer-design", "bin"), { recursive: true });
   await mkdir(join(destinationRoot, "payload", "resources", "prebundled", "daemon"), { recursive: true });
   await mkdir(join(destinationRoot, "payload", "resources", "prebundled", "web"), { recursive: true });
-  await writeFile(join(destinationRoot, "payload", "Open Design.exe"), "");
-  await writeFile(join(destinationRoot, "payload", "resources", "open-design", "bin", "node.exe"), "");
+  await writeFile(join(destinationRoot, "payload", "Composer Design.exe"), "");
+  await writeFile(join(destinationRoot, "payload", "resources", "composer-design", "bin", "node.exe"), "");
   await writeFile(join(destinationRoot, "payload", "resources", "prebundled", "daemon", "daemon-sidecar.mjs"), "");
   await writeFile(join(destinationRoot, "payload", "resources", "prebundled", "web", "web-sidecar.mjs"), "");
   await writeFile(
@@ -221,7 +221,7 @@ async function writeExtractedWindowsPayload(destinationRoot: string, namespace: 
     join(destinationRoot, "manifest.json"),
     `${JSON.stringify({
       channel: "beta",
-      entry: { cwd: "payload", executable: "payload/Open Design.exe" },
+      entry: { cwd: "payload", executable: "payload/Composer Design.exe" },
       namespace,
       payloadRoot: "payload",
       platform: "win32",
@@ -232,13 +232,13 @@ async function writeExtractedWindowsPayload(destinationRoot: string, namespace: 
 }
 
 async function writeExtractedMacPayload(destinationRoot: string, namespace: string): Promise<void> {
-  const resourcesRoot = join(destinationRoot, "payload", "Open Design Beta.app", "Contents", "Resources");
-  await mkdir(join(resourcesRoot, "open-design", "bin"), { recursive: true });
+  const resourcesRoot = join(destinationRoot, "payload", "Composer Design Beta.app", "Contents", "Resources");
+  await mkdir(join(resourcesRoot, "composer-design", "bin"), { recursive: true });
   await mkdir(join(resourcesRoot, "prebundled", "daemon"), { recursive: true });
   await mkdir(join(resourcesRoot, "prebundled", "web"), { recursive: true });
-  await mkdir(join(destinationRoot, "payload", "Open Design Beta.app", "Contents", "MacOS"), { recursive: true });
-  await writeFile(join(destinationRoot, "payload", "Open Design Beta.app", "Contents", "MacOS", "Open Design Beta"), "");
-  await writeFile(join(resourcesRoot, "open-design", "bin", "node"), "");
+  await mkdir(join(destinationRoot, "payload", "Composer Design Beta.app", "Contents", "MacOS"), { recursive: true });
+  await writeFile(join(destinationRoot, "payload", "Composer Design Beta.app", "Contents", "MacOS", "Composer Design Beta"), "");
+  await writeFile(join(resourcesRoot, "composer-design", "bin", "node"), "");
   await writeFile(join(resourcesRoot, "prebundled", "daemon", "daemon-sidecar.mjs"), "");
   await writeFile(join(resourcesRoot, "prebundled", "web", "web-sidecar.mjs"), "");
   await writeFile(
@@ -256,8 +256,8 @@ async function writeExtractedMacPayload(destinationRoot: string, namespace: stri
     `${JSON.stringify({
       channel: "beta",
       entry: {
-        cwd: "payload/Open Design Beta.app",
-        executable: "payload/Open Design Beta.app/Contents/MacOS/Open Design Beta",
+        cwd: "payload/Composer Design Beta.app",
+        executable: "payload/Composer Design Beta.app/Contents/MacOS/Composer Design Beta",
       },
       namespace,
       payloadRoot: "payload",
@@ -273,7 +273,7 @@ const platformCases: PlatformCase[] = [
     arch: "x64",
     currentVersion: "1.2.3-beta.4",
     expectedResourceRoot: (root, namespace) =>
-      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "resources", "open-design"),
+      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "resources", "composer-design"),
     fixturePlatformKey: "win",
     namespace: "release-beta-win",
     payloadArchiveName: "open-design-1.2.3-beta.5-win-x64-payload.7z",
@@ -286,7 +286,7 @@ const platformCases: PlatformCase[] = [
     arch: "arm64",
     currentVersion: "1.2.3-beta.4",
     expectedResourceRoot: (root, namespace) =>
-      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "Open Design Beta.app", "Contents", "Resources", "open-design"),
+      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "Composer Design Beta.app", "Contents", "Resources", "composer-design"),
     fixturePlatformKey: "mac",
     namespace: "release-beta",
     payloadArchiveName: "open-design-1.2.3-beta.5-mac-arm64-payload.zip",
