@@ -1,0 +1,157 @@
+name: build-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.11.1-composer.1)'
+        required: true
+        type: string
+        default: '0.11.1-composer.1'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build-linux:
+    name: Build Linux package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install
+      - run: pnpm --filter @open-design/release build
+      - run: pnpm --filter @open-design/contracts build
+      - run: pnpm --filter @open-design/sidecar-proto build
+      - run: pnpm --filter @open-design/platform build
+      - run: pnpm --filter @open-design/sidecar build
+      - run: pnpm --filter @open-design/host build
+      - run: pnpm --filter @open-design/metatool build
+      - run: pnpm --filter @open-design/plugin-runtime build
+      - run: pnpm --filter @open-design/download build
+      - run: pnpm --filter @open-design/launcher-proto build
+      - run: pnpm --filter @open-design/components build
+      - run: pnpm --filter @open-design/web build
+      - run: pnpm --filter @open-design/daemon build
+      - run: pnpm --filter @open-design/desktop build
+      - run: pnpm --filter @open-design/packaged build
+      - run: pnpm --filter @open-design/tools-pack build
+      - name: Build Linux AppImage (containerized)
+        run: pnpm tools-pack linux build --to appimage --containerized
+        env:
+          CI: true
+      - name: Upload Linux AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: .tmp/tools-pack/out/linux/namespaces/default/builder/*.AppImage
+          if-no-files-found: warn
+
+  build-windows:
+    name: Build Windows package
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install
+      - run: pnpm --filter @open-design/release build
+      - run: pnpm --filter @open-design/contracts build
+      - run: pnpm --filter @open-design/sidecar-proto build
+      - run: pnpm --filter @open-design/platform build
+      - run: pnpm --filter @open-design/sidecar build
+      - run: pnpm --filter @open-design/host build
+      - run: pnpm --filter @open-design/metatool build
+      - run: pnpm --filter @open-design/plugin-runtime build
+      - run: pnpm --filter @open-design/download build
+      - run: pnpm --filter @open-design/launcher-proto build
+      - run: pnpm --filter @open-design/components build
+      - run: pnpm --filter @open-design/web build
+      - run: pnpm --filter @open-design/daemon build
+      - run: pnpm --filter @open-design/desktop build
+      - run: pnpm --filter @open-design/packaged build
+      - run: pnpm --filter @open-design/tools-pack build
+      - name: Build Windows NSIS installer
+        run: pnpm tools-pack win build --to nsis
+        env:
+          CI: true
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: .tmp\tools-pack\out\win\namespaces\default\builder\*.exe
+          if-no-files-found: warn
+
+  build-macos:
+    name: Build macOS package
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install
+      - run: pnpm --filter @open-design/release build
+      - run: pnpm --filter @open-design/contracts build
+      - run: pnpm --filter @open-design/sidecar-proto build
+      - run: pnpm --filter @open-design/platform build
+      - run: pnpm --filter @open-design/sidecar build
+      - run: pnpm --filter @open-design/host build
+      - run: pnpm --filter @open-design/metatool build
+      - run: pnpm --filter @open-design/plugin-runtime build
+      - run: pnpm --filter @open-design/download build
+      - run: pnpm --filter @open-design/launcher-proto build
+      - run: pnpm --filter @open-design/components build
+      - run: pnpm --filter @open-design/web build
+      - run: pnpm --filter @open-design/daemon build
+      - run: pnpm --filter @open-design/desktop build
+      - run: pnpm --filter @open-design/packaged build
+      - run: pnpm --filter @open-design/tools-pack build
+      - name: Build macOS DMG
+        run: pnpm tools-pack mac build --to dmg
+        env:
+          CI: true
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: .tmp/tools-pack/out/mac/namespaces/default/builder/*.dmg
+          if-no-files-found: warn
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ inputs.version }}
+        run: |
+          gh release create "$TAG" \
+            --title "Composer Design v${{ inputs.version }}" \
+            --notes "Composer Design by Hawiyat Team — fork of Open Design v0.11.1" \
+            --generate-notes \
+            linux-appimage/* \
+            windows-installer/* \
+            macos-dmg/* \
+            || echo "Some artifacts missing, creating release anyway"
