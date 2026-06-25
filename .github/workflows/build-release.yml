@@ -137,7 +137,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos-dmg
-          path: .tmp/tools-pack/out/mac/namespaces/default/builder/*.dmg
+          path: .tmp/tools-pack/out/mac/namespaces/default/dmg/*.dmg
           if-no-files-found: warn
 
   create-release:
@@ -152,12 +152,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: v${{ inputs.version }}
+        shell: bash
         run: |
+          shopt -s nullglob
+          FILES=(linux-appimage/* windows-installer/* macos-dmg/*)
+          echo "Found ${#FILES[@]} artifact files to upload"
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "ERROR: No artifact files found to upload!" >&2
+            exit 1
+          fi
           gh release create "$TAG" \
             --title "Composer Design v${{ inputs.version }}" \
             --notes "Composer Design by Hawiyat Team — fork of Open Design v0.11.1" \
             --generate-notes \
-            linux-appimage/* \
-            windows-installer/* \
-            macos-dmg/* \
-            || echo "Some artifacts missing, creating release anyway"
+            "${FILES[@]}"
