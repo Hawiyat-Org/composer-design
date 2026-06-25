@@ -159,7 +159,7 @@
 }
 .deploy-result-block.protected,
 .deploy-result-block.failed {
-  border-color: color-mix(in srgb, #5b7fa5 38%, var(--border));
+  border-color: color-mix(in srgb, #787878 38%, var(--border));
 }
 .deploy-result-summary {
   display: flex;
@@ -210,8 +210,8 @@
 .deploy-result-link-state.protected,
 .deploy-result-link-state.failed {
   color: #a34828;
-  background: color-mix(in srgb, #5b7fa5 14%, transparent);
-  border: 1px solid color-mix(in srgb, #5b7fa5 30%, var(--border));
+  background: color-mix(in srgb, #787878 14%, transparent);
+  border: 1px solid color-mix(in srgb, #787878 30%, var(--border));
 }
 .deploy-result-label {
   font-size: 12px;
@@ -938,9 +938,9 @@
 .qf-card:hover { border-color: var(--border-strong); }
 .qf-card:active { transform: translateY(1px); }
 .qf-card-on {
-  border-color: var(--accent, #5b7fa5);
-  background: color-mix(in oklch, var(--accent, #5b7fa5) 4%, var(--bg));
-  box-shadow: 0 0 0 1px var(--accent, #5b7fa5) inset;
+  border-color: var(--accent, #787878);
+  background: color-mix(in oklch, var(--accent, #787878) 4%, var(--bg));
+  box-shadow: 0 0 0 1px var(--accent, #787878) inset;
 }
 .qf-card-disabled { cursor: not-allowed; opacity: 0.6; }
 .qf-card-head {
@@ -962,7 +962,7 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 2px 6px;
-  background: var(--accent, #5b7fa5);
+  background: var(--accent, #787878);
   color: #fff;
   border-radius: var(--radius-pill);
   flex-shrink: 0;
@@ -2077,7 +2077,7 @@ button.filter-pill:hover:not(:disabled) .filter-pill-count,
 }
 .example-preview:hover {
   border-color: var(--accent);
-  box-shadow: 0 6px 18px rgba(91, 127, 165, 0.10);
+  box-shadow: 0 6px 18px rgba(120, 120, 120, 0.10);
 }
 .example-preview:focus-visible {
   outline: none;

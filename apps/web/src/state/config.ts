@@ -43,7 +43,7 @@ export const DEFAULT_PET: PetConfig = {
   custom: {
     name: 'Buddy',
     glyph: '🦄',
-    accent: '#5b7fa5',
+    accent: '#787878',
     greeting: 'Hi! I am here whenever you need me.',
   },
 };

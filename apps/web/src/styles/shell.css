@@ -1216,7 +1216,7 @@ a.avatar-item:visited {
 .env-pill:hover { background: var(--bg-panel); border-color: var(--border-strong); }
 .env-pill-dot {
   width: 22px; height: 22px; border-radius: 50%;
-  background: linear-gradient(135deg, #d97757 0%, #b85a3b 100%);
+  background: linear-gradient(135deg, #888888 0%, #666666 100%);
   flex-shrink: 0;
 }
 .env-pill-dot[data-mode="api"] {
