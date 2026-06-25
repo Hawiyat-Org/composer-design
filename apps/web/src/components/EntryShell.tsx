@@ -1760,7 +1760,7 @@ function OnboardingView({
   }
 
   // Cloud-landing primary CTA: pick the AMR cloud runtime and kick off the
-  // Open Design Cloud sign-in in one gesture. Mirrors the AMR card's
+  // Composer Design Cloud sign-in in one gesture. Mirrors the AMR card's
   // selection side effects (mode/agent) followed by the AMR-sign-in path that
   // the runtime chooser's gated Continue uses, so a successful login advances
   // to the next onboarding step exactly the same way.
@@ -2162,7 +2162,7 @@ function OnboardingView({
       ? t('settings.onboardingFinish')
       : t('settings.onboardingContinue');
 
-  // Connect step, default face: a minimal, centered Open Design Cloud sign-in
+  // Connect step, default face: a minimal, centered Composer Design Cloud sign-in
   // landing. No stepper, no runtime cards — just the cloud CTA, a secondary
   // link into the full runtime chooser, and a top-left language/theme bar.
   if (step === 0 && connectExpanded === null) {
@@ -2204,7 +2204,7 @@ function OnboardingView({
           <span
             className="onboarding-cloud__logo"
             role="img"
-            aria-label="Open Design"
+            aria-label="Composer Design"
           />
           <h1 className="onboarding-cloud__title">{t('settings.onboardingCloudTitle')}</h1>
           <p className="onboarding-cloud__body">{t('settings.onboardingCloudBody')}</p>
@@ -2305,7 +2305,7 @@ function OnboardingView({
           )}
         </div>
         <footer className="onboarding-cloud__footer">
-          © {new Date().getFullYear()} Open Design · {t('settings.onboardingCloudRights')}
+          © {new Date().getFullYear()} Composer Design · {t('settings.onboardingCloudRights')}
         </footer>
       </section>
     );

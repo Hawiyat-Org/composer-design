@@ -466,7 +466,7 @@ function historyWithWorkspaceContext(
     '',
     '',
     '<active-workspace-context>',
-    'Open Design selected the currently focused workspace tab as the default context for this turn.',
+    'Composer Design selected the currently focused workspace tab as the default context for this turn.',
     ...items.map((item, index) => {
       const details = [
         item.path ? `path: ${item.path}` : null,
@@ -4974,7 +4974,7 @@ export function ProjectView({
     ],
   );
 
-  // "Share to Open Design" — kicks off the bundled `od-share-to-community`
+  // "Share to Composer Design" — kicks off the bundled `od-share-to-community`
   // scenario in the active conversation. We just inject the trigger prompt
   // through the standard chat-send path; the agent then loads SKILL.md and
   // drives the rest. Keep this preparing state alive for the resulting chat
@@ -6768,7 +6768,7 @@ function latestDesignSystemActivityEvents(messages: ChatMessage[]): AgentEvent[]
 }
 
 function pluginWorkflowTitle(action: PluginFolderAgentAction): string {
-  return action === 'publish' ? 'Publish repo' : 'Open Design PR';
+  return action === 'publish' ? 'Publish repo' : 'Composer Design PR';
 }
 
 function pluginWorkflowCliCommand(action: PluginFolderAgentAction, relativePath: string): string {
@@ -6787,7 +6787,7 @@ function pluginWorkflowPlannedSteps(action: PluginFolderAgentAction): string[] {
     ];
   }
   return [
-    'Ensure the Open Design fork exists',
+    'Ensure the Composer Design fork exists',
     'Clone the fork and prepare a branch',
     'Copy the plugin into plugins/community',
     'Push the branch and open the PR form',

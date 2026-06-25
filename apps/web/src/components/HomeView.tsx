@@ -192,9 +192,9 @@ interface PendingPluginUseHandoff {
 }
 
 const AUTHORING_DEFAULT_SCENARIO_INPUTS = {
-  artifactKind: 'Open Design plugin',
-  audience: 'Open Design plugin authors',
-  topic: 'packaging a reusable workflow as an Open Design plugin',
+  artifactKind: 'Composer Design plugin',
+  audience: 'Composer Design plugin authors',
+  topic: 'packaging a reusable workflow as an Composer Design plugin',
 };
 
 
@@ -1127,7 +1127,7 @@ export function HomeView({
       // auth gate and surface as a confusing late create-time failure.
       // Surface the host error instead and keep the existing working dir.
       setError(
-        `Couldn't open the folder picker (${'reason' in result ? result.reason : 'host unavailable'}). Please update Open Design and try again.`,
+        `Couldn't open the folder picker (${'reason' in result ? result.reason : 'host unavailable'}). Please update Composer Design and try again.`,
       );
       return;
     }
