@@ -305,9 +305,9 @@ function renderConnectorConnectedHtml(connectorId: string): string {
         --text-strong: #0d0c0a;
         --text-muted: #74716b;
         --text-soft: #989590;
-        --accent: #c96442;
-        --accent-hover: #b45a3b;
-        --accent-tint: #fbeee5;
+        --accent: #787878;
+        --accent-hover: #5e5e5e;
+        --accent-tint: #f2f2f2;
         --green: #1f7a3a;
         --green-bg: #e8f7ee;
         --green-border: #c6ead2;
@@ -327,7 +327,7 @@ function renderConnectorConnectedHtml(connectorId: string): string {
         padding: 32px;
         color: var(--text);
         background:
-          radial-gradient(circle at 50% 0%, rgba(201, 100, 66, 0.11), transparent 34rem),
+          radial-gradient(circle at 50% 0%, rgba(120, 120, 120, 0.11), transparent 34rem),
           linear-gradient(180deg, #ffffff 0%, var(--bg) 42%, var(--bg) 100%);
         font: 13.5px/1.5 var(--sans);
         -webkit-font-smoothing: antialiased;
@@ -357,7 +357,7 @@ function renderConnectorConnectedHtml(connectorId: string): string {
         height: 24px;
         border-radius: 50%;
         color: var(--accent);
-        background: linear-gradient(135deg, #fbeee5 0%, #f5d8cb 100%);
+        background: linear-gradient(135deg, #f2f2f2 0%, #e8e8e8 100%);
         font-family: var(--serif);
         font-size: 11px;
         font-weight: 700;

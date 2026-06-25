@@ -874,7 +874,7 @@
   text-overflow: ellipsis;
 }
 .prompt-template-thumb-provider.is-hyperframes {
-  background: linear-gradient(135deg, #ff5e3a 0%, #f0c14b 100%);
+  background: linear-gradient(135deg, #787878 0%, #a0a0a0 100%);
   color: #1a1410;
 }
 .prompt-template-meta {

@@ -69,7 +69,7 @@ export const DECK_SKELETON_HTML = `<!doctype html>
       --bg: #ffffff;
       --fg: #1c1b1a;
       --muted: #6b6964;
-      --accent: #c96442;
+      --accent: #787878;
       --surface: #ffffff;
       --shell: #08090d;
     }
