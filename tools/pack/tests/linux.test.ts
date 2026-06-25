@@ -556,7 +556,7 @@ MimeType=x-scheme-handler/od;
     const out = renderDesktopTemplate(template, {
       namespace: "default",
       execPath: "/home/u/.local/bin/Composer-Design.default.AppImage",
-      iconName: "composer-design-default",
+      iconName: "open-design-default",
     });
     expect(out).toContain("Name=Composer Design (default)");
     expect(out).toContain(
