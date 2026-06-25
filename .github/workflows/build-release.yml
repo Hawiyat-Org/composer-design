@@ -28,6 +28,7 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - name: Build all dependencies
+        shell: bash
         run: |
           pnpm --filter @open-design/release build && \
           pnpm --filter @open-design/contracts build && \
@@ -74,6 +75,7 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - name: Build all dependencies
+        shell: bash
         run: |
           pnpm --filter @open-design/release build && \
           pnpm --filter @open-design/contracts build && \
