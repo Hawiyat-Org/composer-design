@@ -335,7 +335,7 @@ function resolveLinuxPaths(config: ToolPackConfig): LinuxPaths {
       iconFileName(config.namespace),
     ),
     packagedConfigPath: join(namespaceRoot, "open-design-config.json"),
-    resourceRoot: join(namespaceRoot, "resources", "open-design"),
+    resourceRoot: join(namespaceRoot, "resources", "composer-design"),
     tarballsRoot: join(namespaceRoot, "tarballs"),
   };
 }

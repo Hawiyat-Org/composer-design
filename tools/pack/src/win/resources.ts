@@ -76,7 +76,7 @@ export async function prepareResourceTree(
         requireBundled: config.requireVelaCli,
         resourceRoot,
       });
-      return { resourceName: "open-design" };
+      return { resourceName: "composer-design" };
     },
   };
   const manifest = await cache.acquire({

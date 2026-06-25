@@ -187,7 +187,7 @@ async function runElectronBuilderRaw(
       version: packageVersion,
     },
     extraResources: [
-      { from: paths.resourceRoot, to: "open-design" },
+      { from: paths.resourceRoot, to: "composer-design" },
       { from: paths.packagedConfigPath, to: "open-design-config.json" },
     ],
     files: [...ELECTRON_BUILDER_FILE_PATTERNS],

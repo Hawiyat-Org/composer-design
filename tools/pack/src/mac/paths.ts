@@ -68,7 +68,7 @@ export function resolveMacPaths(config: ToolPackConfig): MacPaths {
     packagedMainPrebundleMetaPath: join(namespaceRoot, MAC_PREBUNDLE_META_DIR_NAME, "packaged-main.meta.json"),
     packagedMainPrebundlePath: join(namespaceRoot, "assembled", MAC_PREBUNDLED_PACKAGED_MAIN_RELATIVE_PATH),
     packagedConfigPath: join(namespaceRoot, "open-design-config.json"),
-    resourceRoot: join(namespaceRoot, "resources", "open-design"),
+    resourceRoot: join(namespaceRoot, "resources", "composer-design"),
     payloadZipPath: join(namespaceRoot, "payload", `${PRODUCT_NAME}-${namespaceToken}-payload.zip`),
     systemApplicationsAppPath: join("/Applications", identity.systemAppBundleName),
     tarballsRoot: join(namespaceRoot, "tarballs"),
