@@ -2305,7 +2305,7 @@ function OnboardingView({
           )}
         </div>
         <footer className="onboarding-cloud__footer">
-          © {new Date().getFullYear()} Composer Design · {t('settings.onboardingCloudRights')}
+          © {new Date().getFullYear()} Hawiyat Team · {t('settings.onboardingCloudRights')}
         </footer>
       </section>
     );
