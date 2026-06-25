@@ -25,11 +25,11 @@
   --text-faint: #b3b0a8;
 
   /* Accent — Composer Design action color for app chrome only. */
-  --accent: #c96442;
-  --accent-strong: #b45a3b;
-  --accent-soft: #f5d8cb;
-  --accent-tint: #fbeee5;
-  --accent-hover: #b45a3b;
+  --accent: #5b7fa5;
+  --accent-strong: #4a6a8c;
+  --accent-soft: #dae6f2;
+  --accent-tint: #ebf2f9;
+  --accent-hover: #4a6a8c;
 
   /* Semantic accent tints used by tool / status pills. */
   --green: #1f7a3a;
@@ -118,11 +118,11 @@
   --text-soft: #6e6b65;
   --text-faint: #4e4b46;
 
-  --accent: #d97a56;
-  --accent-strong: #e8896a;
-  --accent-soft: #3d2318;
-  --accent-tint: #2e1a12;
-  --accent-hover: #e8896a;
+  --accent: #7fa3c8;
+  --accent-strong: #92b8db;
+  --accent-soft: #1e2c3d;
+  --accent-tint: #15212e;
+  --accent-hover: #92b8db;
 
   --green: #4caf72;
   --green-bg: #0f2a18;
@@ -171,11 +171,11 @@
     --text-soft: #6e6b65;
     --text-faint: #4e4b46;
 
-    --accent: #d97a56;
-    --accent-strong: #e8896a;
-    --accent-soft: #3d2318;
-    --accent-tint: #2e1a12;
-    --accent-hover: #e8896a;
+    --accent: #7fa3c8;
+    --accent-strong: #92b8db;
+    --accent-soft: #1e2c3d;
+    --accent-tint: #15212e;
+    --accent-hover: #92b8db;
 
     --green: #4caf72;
     --green-bg: #0f2a18;

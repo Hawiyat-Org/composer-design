@@ -3491,7 +3491,7 @@ describe('SettingsDialog appearance interactions', () => {
     );
 
     expect(screen.getByRole('radio', { name: 'Default accent color' }).getAttribute('aria-checked')).toBe('true');
-    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('#c96442');
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('#5b7fa5');
   });
 
   it('live previews explicit themes and removes the explicit document theme when switching back to System', () => {
@@ -3683,12 +3683,12 @@ describe('SettingsDialog appearance interactions', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: 'Default accent color' }));
 
-    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('#c96442');
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('#5b7fa5');
 
     await waitForPersist(
       onPersist,
       expect.objectContaining({
-        accentColor: '#c96442',
+        accentColor: '#5b7fa5',
       }),
       {},
     );
@@ -3866,7 +3866,7 @@ describe('SettingsDialog pets interactions', () => {
           custom: {
             name: 'Buddy',
             glyph: '🦄',
-            accent: '#c96442',
+            accent: '#5b7fa5',
             greeting: 'Hi! I am here whenever you need me.',
           },
         },
