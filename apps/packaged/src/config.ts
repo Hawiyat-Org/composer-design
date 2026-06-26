@@ -135,7 +135,7 @@ function resolvePackagedWebStandaloneRoot(
   const configured = resolveOptionalPath(value);
   if (configured != null) return configured;
   if (webOutputMode !== "standalone") return null;
-  return join(process.resourcesPath, "open-design-web-standalone");
+  return join(process.resourcesPath, "composer-design-web-standalone");
 }
 
 async function resolvePackagedRelativeEntry(value: string | undefined): Promise<string | null> {

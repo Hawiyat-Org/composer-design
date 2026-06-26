@@ -269,7 +269,7 @@ async function resolvePayloadConfig(
     )
     : null;
   const rawWebStandaloneRoot = raw.webStandaloneRoot == null || raw.webStandaloneRoot.length === 0
-    ? webOutputMode === "standalone" ? join(resourcesPath, "open-design-web-standalone") : null
+    ? webOutputMode === "standalone" ? join(resourcesPath, "composer-design-web-standalone") : null
     : raw.webStandaloneRoot;
   const webStandaloneRoot = await resolveWindowsWebStandaloneRoot(
     versionPaths,
