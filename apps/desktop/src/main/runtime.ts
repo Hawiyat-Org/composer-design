@@ -801,7 +801,7 @@ const MAC_WINDOW_CHROME_CSS = `
   }
 `;
 
-// Light-background startup splash shown while the web runtime boots. It plays
+// Dark-background startup splash shown while the web runtime boots. It plays
 // the brand intro clip once and then holds on its final settled logo frame until
 // the main window is ready. The clip is embedded as a base64 data URL so it
 // renders identically in dev and in packaged builds (see `splash-video.ts`).
@@ -816,7 +816,7 @@ function createPendingHtml(): string {
     <style>
       html,
       body {
-        background: #f2f4f5;
+        background: #040306;
         height: 100%;
         margin: 0;
         overflow: hidden;
@@ -827,7 +827,7 @@ function createPendingHtml(): string {
         justify-content: center;
       }
       video {
-        background: #f2f4f5;
+        background: #040306;
         height: auto;
         max-height: 100%;
         max-width: 100%;
@@ -835,7 +835,7 @@ function createPendingHtml(): string {
       }
       .boot-stage {
         bottom: 56px;
-        color: #7a838a;
+        color: #9aa2a8;
         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
         font-size: 13px;
         left: 0;
@@ -856,7 +856,7 @@ function createPendingHtml(): string {
         margin-right: 7px;
       }
       .boot-progress {
-        background: rgba(122, 131, 138, 0.18);
+        background: rgba(255, 255, 255, 0.20);
         border-radius: 999px;
         bottom: 84px;
         height: 3px;
@@ -867,7 +867,7 @@ function createPendingHtml(): string {
         width: 200px;
       }
       .boot-progress-fill {
-        background: #7a838a;
+        background: #9aa2a8;
         border-radius: 999px;
         height: 100%;
         transition: width 320ms cubic-bezier(0.23, 1, 0.32, 1);
@@ -1093,7 +1093,7 @@ export type SplashWindowHandle = {
 };
 
 /**
- * Create and immediately show the light brand-splash window. The packaged entry
+ * Create and immediately show the dark brand-splash window. The packaged entry
  * calls this BEFORE awaiting the daemon/web sidecars so the animation masks the
  * whole cold boot (no black no-window gap); the desktop runtime then adopts it
  * via `DesktopRuntimeOptions.splashWindow` + `splashStartedAt` and closes it
@@ -1105,7 +1105,7 @@ export function createSplashWindow(): SplashWindowHandle {
   const startedAt = Date.now();
   const splash = new BrowserWindow({
     autoHideMenuBar: true,
-    backgroundColor: "#f2f4f5",
+    backgroundColor: "#040306",
     frame: false,
     height: 900,
     resizable: false,
