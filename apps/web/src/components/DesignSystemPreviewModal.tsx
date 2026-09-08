@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import type { WorkspaceCollabContext } from '@open-design/contracts';
 import { useAnalytics } from '../analytics/provider';
 import {
   trackDesignSystemsTemplatesModalClick,
@@ -12,23 +13,55 @@ import {
   fetchDesignSystemPreview,
   fetchDesignSystemShowcase,
 } from '../providers/registry';
-import type { DesignSystemSummary } from '../types';
+import type { DesignSystemDetail, DesignSystemSummary } from '../types';
 import { DesignSpecView } from './DesignSpecView';
+import { DesignSystemKitPreview } from './DesignSystemKitPreview';
 import { PreviewModal } from './PreviewModal';
+import { useWorkspaceContext } from '../collab/useWorkspaceContext';
+import {
+  beginWorkspaceResourceScopedRead,
+  resolveWorkspaceResourceReadIdentity,
+  workspaceResourceReadIdentityFromContext,
+  workspaceResourceReadIdentityKey,
+  type WorkspaceResourceReadIdentity,
+} from '../collab/workspace-identity';
 
 interface Props {
   system: DesignSystemSummary;
   onClose: () => void;
+  initialViewId?: 'showcase' | 'kit' | 'tokens';
+  /** Exact project scope wins over the shell context while it is resolving. */
+  workspaceContext?: WorkspaceCollabContext | null;
+  /** Exact read-only authority; omitted callers use the ambient Workspace state. */
+  resourceReadIdentity?: WorkspaceResourceReadIdentity | null;
 }
 
-// Two-tab DS preview: a complete Showcase webpage rendered from the system's
-// tokens, and the original Tokens view (palette / typography / components +
-// rendered DESIGN.md prose). A toggleable side panel surfaces the raw
-// DESIGN.md so users can compare spec to render at the same time, mirroring
-// the styles.refero.design layout.
-export function DesignSystemPreviewModal({ system, onClose }: Props) {
+function isDesignSystemDetail(system: DesignSystemSummary): system is DesignSystemDetail {
+  return typeof (system as { body?: unknown }).body === 'string';
+}
+
+// Full DS preview: keep the brand-kit-style module stack as the default view,
+// while retaining the lazy showcase/tokens tabs and DESIGN.md side panel from
+// the richer modal flow.
+export function DesignSystemPreviewModal({
+  system,
+  onClose,
+  initialViewId = 'kit',
+  workspaceContext: explicitWorkspaceContext,
+  resourceReadIdentity: resourceReadIdentityProp,
+}: Props) {
   const t = useT();
   const analytics = useAnalytics();
+  const workspaceState = useWorkspaceContext();
+  const ambientResourceReadIdentity = resolveWorkspaceResourceReadIdentity(workspaceState);
+  const resourceReadIdentity = explicitWorkspaceContext !== undefined
+    ? workspaceResourceReadIdentityFromContext(explicitWorkspaceContext)
+    : resourceReadIdentityProp === undefined
+      ? ambientResourceReadIdentity
+      : resourceReadIdentityProp;
+  const resourceReadIdentityKey = workspaceResourceReadIdentityKey(resourceReadIdentity);
+  const resourceReadIdentityRef = useRef(resourceReadIdentity);
+  resourceReadIdentityRef.current = resourceReadIdentity;
   const surfaceViewFiredRef = useRef<string | null>(null);
   useEffect(() => {
     if (surfaceViewFiredRef.current === system.id) return;
@@ -40,77 +73,112 @@ export function DesignSystemPreviewModal({ system, onClose }: Props) {
       templates_type: system.source ?? 'library',
     });
   }, [analytics.track, system.id, system.source]);
+
   const [showcaseHtml, setShowcaseHtml] = useState<string | null | undefined>(undefined);
   const [tokensHtml, setTokensHtml] = useState<string | null | undefined>(undefined);
   const [specBody, setSpecBody] = useState<string | null | undefined>(undefined);
+  const [detail, setDetail] = useState<DesignSystemDetail | null | undefined>(
+    () => (isDesignSystemDetail(system) ? system : undefined),
+  );
+  const detailBody = detail?.body ?? (isDesignSystemDetail(system) ? system.body : undefined);
 
-  // Lazy-load each view on first reveal. Both endpoints are cheap, but this
-  // keeps the network panel quiet when the user only opens one tab.
-  // Also emits a templates_modal ui_click for showcase / tokens tab changes.
+  useEffect(() => {
+    let cancelled = false;
+    const read = beginWorkspaceResourceScopedRead(resourceReadIdentityRef.current);
+    setDetail(isDesignSystemDetail(system) ? system : undefined);
+    void fetchDesignSystem(system.id, read.context).then((next) => {
+      if (cancelled || !read.isStillCurrent(resourceReadIdentityRef.current)) return;
+      if (next) setDetail(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [system, resourceReadIdentityKey]);
+
   const initialViewIdRef = useRef<string | null>(null);
   const handleView = useCallback(
     (viewId: string) => {
-      // The first call comes from PreviewModal's mount with the initial
-      // view id; that's a surface_view, not a click. Skip the click
-      // tracking for the very first invocation and only emit on real
-      // user-driven tab changes.
       if (initialViewIdRef.current === null) {
         initialViewIdRef.current = viewId;
       } else if (initialViewIdRef.current !== viewId) {
         initialViewIdRef.current = viewId;
-        if (viewId === 'showcase' || viewId === 'tokens') {
+        if (viewId === 'showcase' || viewId === 'kit' || viewId === 'tokens') {
           trackDesignSystemsTemplatesModalClick(analytics.track, {
             page_name: 'design_systems',
             area: 'templates_modal',
-            element: viewId,
+            element: viewId === 'kit' ? 'composer_design_set' : viewId,
             templates_id: system.id,
             templates_type: system.source ?? 'library',
           });
         }
       }
       if (viewId === 'showcase' && showcaseHtml === undefined) {
+        const read = beginWorkspaceResourceScopedRead(resourceReadIdentityRef.current);
         setShowcaseHtml(null);
-        void fetchDesignSystemShowcase(system.id).then((html) => setShowcaseHtml(html));
+        void fetchDesignSystemShowcase(system.id, read.context).then((html) => {
+          if (read.isStillCurrent(resourceReadIdentityRef.current)) setShowcaseHtml(html);
+        });
       }
       if (viewId === 'tokens' && tokensHtml === undefined) {
+        const read = beginWorkspaceResourceScopedRead(resourceReadIdentityRef.current);
         setTokensHtml(null);
-        void fetchDesignSystemPreview(system.id).then((html) => setTokensHtml(html));
+        void fetchDesignSystemPreview(system.id, read.context).then((html) => {
+          if (read.isStillCurrent(resourceReadIdentityRef.current)) setTokensHtml(html);
+        });
       }
     },
-    [analytics.track, system.id, system.source, showcaseHtml, tokensHtml],
+    [analytics.track, system.id, system.source, showcaseHtml, tokensHtml, resourceReadIdentityKey],
   );
 
-  // Fetch DESIGN.md the first time the side panel opens. Once we have it we
-  // never re-fetch unless the underlying system swaps.
   const handleSidebarToggle = useCallback(
     (open: boolean) => {
       if (!open || specBody !== undefined) return;
+      if (detailBody !== undefined) {
+        setSpecBody(detailBody);
+        return;
+      }
+      const read = beginWorkspaceResourceScopedRead(resourceReadIdentityRef.current);
       setSpecBody(null);
-      void fetchDesignSystem(system.id).then((detail) =>
-        setSpecBody(detail?.body ?? null),
-      );
+      void fetchDesignSystem(system.id, read.context).then((nextDetail) => {
+        if (read.isStillCurrent(resourceReadIdentityRef.current)) {
+          setSpecBody(nextDetail?.body ?? null);
+        }
+      });
     },
-    [system.id, specBody],
+    [detailBody, system.id, specBody, resourceReadIdentityKey],
   );
 
-  // If the system swaps under us (rare but possible), wipe all caches.
   useEffect(() => {
     setShowcaseHtml(undefined);
     setTokensHtml(undefined);
     setSpecBody(undefined);
-  }, [system.id]);
+  }, [system.id, resourceReadIdentityKey]);
 
-  const detail = (
+  const modal = (
     <PreviewModal
       title={system.title}
       subtitle={system.summary || system.category}
       views={[
+        {
+          id: 'kit',
+          label: t('ds.kitVisualize'),
+          custom: (
+            <DesignSystemKitPreview
+              system={system}
+              resourceReadIdentity={resourceReadIdentity}
+              variant="panel"
+              showCover={false}
+              className="ds-modal-kit-preview"
+              dataTestId="design-system-modal-kit"
+            />
+          ),
+        },
         { id: 'showcase', label: t('ds.showcase'), html: showcaseHtml },
         { id: 'tokens', label: t('ds.tokens'), html: tokensHtml },
       ]}
-      initialViewId="showcase"
+      initialViewId={initialViewId}
       onView={handleView}
-      exportTitleFor={(viewId) => `${system.title} — ${viewId}`}
+      exportTitleFor={(viewId) => (viewId === 'kit' ? system.title : `${system.title} - ${viewId}`)}
       onClose={onClose}
       onFullscreenClick={() =>
         trackDesignSystemsTemplatesModalClick(analytics.track, {
@@ -152,9 +220,7 @@ export function DesignSystemPreviewModal({ system, onClose }: Props) {
         label: t('ds.specToggle'),
         defaultOpen: true,
         onToggle: handleSidebarToggle,
-        // Re-fire onToggle when the system swaps under us so the new
-        // DESIGN.md fetch starts even if the sidebar never closed.
-        contentKey: system.id,
+        contentKey: `${system.id}:${resourceReadIdentityKey}`,
         content: (
           <DesignSpecView
             source={specBody}
@@ -165,6 +231,6 @@ export function DesignSystemPreviewModal({ system, onClose }: Props) {
     />
   );
 
-  if (typeof document === 'undefined') return detail;
-  return createPortal(detail, document.body);
+  if (typeof document === 'undefined') return modal;
+  return createPortal(modal, document.body);
 }

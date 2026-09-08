@@ -6,7 +6,7 @@ import { GUIDE_SECTIONS } from '../../src/components/use-everywhere/sections';
 describe('buildAgentGuideMarkdown', () => {
   it('emits a top-level header and the setup checklist by default', () => {
     const md = buildAgentGuideMarkdown();
-    expect(md).toMatch(/^# Composer Design — agent setup guide/);
+    expect(md).toMatch(/^# ComposerDesign — agent setup guide/);
     expect(md).toContain('## Setup checklist');
     expect(md).toContain('http://127.0.0.1:7456/api/health');
     expect(md).toContain('http://127.0.0.1:7456/api/mcp/install-info');
@@ -58,13 +58,13 @@ describe('buildAgentGuideMarkdown', () => {
       versionHint: '0.42.0',
       cliHint: '/usr/local/bin/od',
     });
-    expect(md).toContain('Reported Composer Design version: `0.42.0`');
+    expect(md).toContain('Reported ComposerDesign version: `0.42.0`');
     expect(md).toContain('The user reported `od` at: `/usr/local/bin/od`');
   });
 
   it('omits hint sentences when the corresponding option is not provided', () => {
     const md = buildAgentGuideMarkdown();
-    expect(md).not.toContain('Reported Composer Design version');
+    expect(md).not.toContain('Reported ComposerDesign version');
     expect(md).not.toContain('The user reported `od` at');
   });
 
@@ -73,5 +73,52 @@ describe('buildAgentGuideMarkdown', () => {
     expect(md).toContain('## Reference URLs');
     expect(md).toContain('- Daemon: `http://example.test:5555`');
     expect(md).toContain('- MCP install info: `http://example.test:5555/api/mcp/install-info`');
+  });
+
+  it('uses daemon install-info for the MCP config instead of assuming od is on PATH', () => {
+    const md = buildAgentGuideMarkdown({
+      daemonUrl: 'http://127.0.0.1:7456',
+      mcpInstallInfo: {
+        command: 'C:\\Program Files\\Composer Design\\Composer Design.exe',
+        args: [
+          'C:\\Program Files\\Composer Design\\resources\\app\\apps\\daemon\\dist\\cli.js',
+          'mcp',
+        ],
+        env: {
+          ELECTRON_RUN_AS_NODE: '1',
+          OD_DATA_DIR: 'C:\\Users\\Ada\\AppData\\Roaming\\Composer Design',
+        },
+      },
+    });
+
+    expect(md).toContain('"command": "C:\\\\Program Files\\\\Composer Design\\\\Composer Design.exe"');
+    expect(md).toContain(
+      '"C:\\\\Program Files\\\\Composer Design\\\\resources\\\\app\\\\apps\\\\daemon\\\\dist\\\\cli.js"',
+    );
+    expect(md).toContain('"ELECTRON_RUN_AS_NODE": "1"');
+    expect(md).toContain('"OD_DATA_DIR": "C:\\\\Users\\\\Ada\\\\AppData\\\\Roaming\\\\Composer Design"');
+    expect(md).not.toContain('"command": "od"');
+  });
+
+  it('does not rewrite CLI snippets with POSIX env prefixes for Windows packaged installs', () => {
+    const md = buildAgentGuideMarkdown({
+      daemonUrl: 'http://127.0.0.1:7456',
+      mcpInstallInfo: {
+        command: 'C:\\Program Files\\Composer Design\\Composer Design.exe',
+        args: [
+          'C:\\Program Files\\Composer Design\\resources\\app\\apps\\daemon\\dist\\cli.js',
+          'mcp',
+        ],
+        env: {
+          ELECTRON_RUN_AS_NODE: '1',
+          OD_DATA_DIR: 'C:\\Users\\Ada\\AppData\\Roaming\\Composer Design',
+        },
+      },
+    });
+
+    expect(md).toContain('"command": "C:\\\\Program Files\\\\Composer Design\\\\Composer Design.exe"');
+    expect(md).toContain('"ELECTRON_RUN_AS_NODE": "1"');
+    expect(md).toContain('od skills list --json');
+    expect(md).not.toMatch(/^\s*ELECTRON_RUN_AS_NODE=1\s+OD_DATA_DIR=/m);
   });
 });

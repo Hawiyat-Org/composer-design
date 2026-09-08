@@ -21,7 +21,7 @@ export const PL_SKILL_COPY: Record<string, { description?: string; examplePrompt
   },
   'agent-browser': {
     description:
-      'CLI do automatyzacji przeglądarki dla agentów AI. Użyj, gdy użytkownik potrzebuje sprawdzić,\nprzetestować lub zautomatyzować zachowanie przeglądarki: nawigację po stronach, wypełnianie formularzy,\nklikanie przycisków, robienie zrzutów ekranu, wyodrębnianie danych ze strony, odczytywanie wybranego\nkontekstu karty przeglądarki w Composer Design, testowanie aplikacji webowych, dogfooding podglądów Composer Design,\nQA, polowanie na błędy lub przegląd jakości aplikacji. Preferuj lokalne adresy URL podglądu Composer Design,\nchyba że użytkownik wyraźnie poprosi o przeglądanie zewnętrzne.',
+      'CLI do automatyzacji przeglądarki dla agentów AI. Użyj, gdy użytkownik potrzebuje sprawdzić,\nprzetestować lub zautomatyzować zachowanie przeglądarki: nawigację po stronach, wypełnianie formularzy,\nklikanie przycisków, robienie zrzutów ekranu, wyodrębnianie danych ze strony, odczytywanie wybranego\nkontekstu karty przeglądarki w ComposerDesign, testowanie aplikacji webowych, dogfooding podglądów ComposerDesign,\nQA, polowanie na błędy lub przegląd jakości aplikacji. Preferuj lokalne adresy URL podglądu ComposerDesign,\nchyba że użytkownik wyraźnie poprosi o przeglądanie zewnętrzne.',
     examplePrompt:
       'CLI do automatyzacji przeglądarki dla agentów AI.',
   },
@@ -849,7 +849,7 @@ export const PL_SKILL_COPY: Record<string, { description?: string; examplePrompt
   },
   'ui-ux-pro-max': {
     description:
-      'Wpis UI/UX Pro Max wyłącznie w katalogu. Pełne szablony źródłowe, dane i przepływ wyszukiwania nie są dołączone do Composer Design.',
+      'Wpis UI/UX Pro Max wyłącznie w katalogu. Pełne szablony źródłowe, dane i przepływ wyszukiwania nie są dołączone do ComposerDesign.',
     examplePrompt:
       'Wpis UI/UX Pro Max wyłącznie w katalogu.',
   },
@@ -959,6 +959,7 @@ export const PL_DESIGN_SYSTEM_SUMMARIES: Record<string, string> = {
   'claymorphism': 'Miękkie, zaokrąglone, trójwymiarowe kształty imitujące plastyczną glinę, z figlarnymi, pulchnymi elementami i kolorowymi powierzchniami.',
   'clean': 'Projekt skupiony na prostocie, z obfitą przestrzenią, czytelną typografią i ograniczoną paletą kolorów, redukujący wizualny chaos.',
   'clickhouse': 'Szybka baza danych analitycznych. Akcenty w żółci, styl dokumentacji technicznej.',
+  'cloudflare-kumo': 'System komponentów Cloudflare dla nowoczesnych aplikacji webowych: semantyczne tokeny jasnego i ciemnego motywu, zwarta typografia Inter, warstwowe neutralne powierzchnie, dostępne kontrolki i palety do wykresów.',
   'cohere': 'Korporacyjna platforma AI. Żywe gradienty, estetyka pulpitu bogatego w dane.',
   'coinbase': 'Giełda kryptowalut. Czysta, niebieska tożsamość, nastawiona na zaufanie, instytucjonalny charakter.',
   'colorful': 'Żywe, wysokokontrastowe palety i gradienty zapewniające angażujące, zapadające w pamięć i nowoczesne doświadczenia użytkownika.',

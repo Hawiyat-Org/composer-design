@@ -17,8 +17,11 @@ export type UpdaterFixtureOptions = {
   artifactBody?: Buffer | string;
   artifactPath?: string;
   channel?: UpdaterFixtureChannel;
+  controlLauncherVersionMin?: string;
+  controlLauncherVersionUrl?: string;
   host?: string;
   includePayload?: boolean;
+  launcherSchema?: number;
   platform?: "mac" | "win";
   payloadBody?: Buffer | string;
   payloadPath?: string;
@@ -226,7 +229,7 @@ export async function startUpdaterFixtureServer(options: UpdaterFixtureOptions =
   }
   const artifactBody = Buffer.isBuffer(options.artifactBody)
     ? options.artifactBody
-    : Buffer.from(options.artifactBody ?? `Open Design updater fixture ${version}\n`, "utf8");
+    : Buffer.from(options.artifactBody ?? `Composer Design updater fixture ${version}\n`, "utf8");
   const artifactSize = artifactFileStat?.size ?? artifactBody.byteLength;
   const sha256 = options.artifactPath == null
     ? createHash("sha256").update(artifactBody).digest("hex")
@@ -241,7 +244,7 @@ export async function startUpdaterFixtureServer(options: UpdaterFixtureOptions =
   const includePayload = options.includePayload === true || options.payloadPath != null;
   const payloadBody = Buffer.isBuffer(options.payloadBody)
     ? options.payloadBody
-    : Buffer.from(options.payloadBody ?? `Open Design launcher payload fixture ${version}\n`, "utf8");
+    : Buffer.from(options.payloadBody ?? `Composer Design launcher payload fixture ${version}\n`, "utf8");
   const payloadFileStat = options.payloadPath == null ? null : await stat(options.payloadPath);
   if (payloadFileStat != null && (!payloadFileStat.isFile() || payloadFileStat.size <= 0)) {
     throw new Error(`updater fixture payload path must be a non-empty file: ${options.payloadPath}`);
@@ -265,6 +268,19 @@ export async function startUpdaterFixtureServer(options: UpdaterFixtureOptions =
         channel,
         generatedAt: new Date().toISOString(),
         ...channelMetadata(channel, version),
+        ...(options.launcherSchema != null ? { launcher: { schema: options.launcherSchema } } : {}),
+        ...(options.controlLauncherVersionMin != null || options.controlLauncherVersionUrl != null
+          ? {
+              control: {
+                launcher: {
+                  version: {
+                    ...(options.controlLauncherVersionMin != null ? { min: options.controlLauncherVersionMin } : {}),
+                    ...(options.controlLauncherVersionUrl != null ? { url: options.controlLauncherVersionUrl } : {}),
+                  },
+                },
+              },
+            }
+          : {}),
         platforms: {
           [platformKey]: {
             arch: platform === "win" ? "x64" : "arm64",

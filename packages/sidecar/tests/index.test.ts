@@ -1,14 +1,12 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { lstat, mkdtemp, rm } from "node:fs/promises";
+import { describe, expect, it, vi } from "vitest";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
+import { bootstrapSidecarRuntime, createSidecarLaunchEnv } from "../src/bootstrap.js";
+import { createJsonIpcServer, requestJsonIpc } from "../src/json-ipc.js";
+import { resolveAppIpcPath } from "../src/paths.js";
 import {
-  bootstrapSidecarRuntime,
-  createJsonIpcServer,
-  createSidecarLaunchEnv,
-  requestJsonIpc,
-  resolveAppIpcPath,
   resolveAppRuntimePath,
   resolveLogFilePath,
   resolveNamespace,
@@ -16,11 +14,10 @@ import {
   resolveRuntimeNamespaceRoot,
   resolveSidecarBase,
   resolveSourceRuntimeRoot,
-  type SidecarContractDescriptor,
-  type SidecarStampShape,
 } from "../src/index.js";
+import type { RuntimeLayoutStampShape, SidecarContractDescriptor } from "../src/types.js";
 
-type FakeStamp = SidecarStampShape & {
+type FakeStamp = RuntimeLayoutStampShape & {
   app: "api" | "ui";
   mode: "dev" | "prod";
   source: "tool" | "pack";
@@ -73,7 +70,7 @@ function testIpcPath(root: string): string {
 }
 
 describe("generic sidecar path boundary", () => {
-  it("uses descriptor defaults instead of Open Design constants", () => {
+  it("uses descriptor defaults instead of ComposerDesign constants", () => {
     const sourceRoot = resolveSourceRuntimeRoot({
       contract: fakeContract,
       projectRoot: "/repo/product",
@@ -109,9 +106,77 @@ describe("generic sidecar path boundary", () => {
     expect(resolveNamespace({ contract: fakeContract, env })).toBe("selected");
     expect(resolveSidecarBase({ contract: fakeContract, env, projectRoot: "/repo/product", source: "tool" })).toBe(resolve("/runtime/base"));
   });
+
+  it("does not read cwd when an explicit or environment base is available", () => {
+    const explicitBase = resolve(tmpdir(), "runtime-explicit");
+    const environmentBase = resolve(tmpdir(), "runtime-env");
+    const launchBase = resolve(tmpdir(), "runtime-launch");
+    const cwd = vi.spyOn(process, "cwd").mockImplementation(() => {
+      throw new Error("uv_cwd");
+    });
+    const stamp: FakeStamp = {
+      app: "api",
+      ipc: resolveAppIpcPath({ app: "api", contract: fakeContract, namespace: "alpha" }),
+      mode: "dev",
+      namespace: "alpha",
+      source: "tool",
+    };
+
+    try {
+      expect(resolveSidecarBase({ base: explicitBase, contract: fakeContract, source: "tool" })).toBe(explicitBase);
+      expect(resolveSidecarBase({ contract: fakeContract, env: { FAKE_BASE: environmentBase }, source: "tool" })).toBe(
+        environmentBase,
+      );
+      expect(createSidecarLaunchEnv({ base: launchBase, contract: fakeContract, extraEnv: {}, stamp })).toMatchObject({
+        FAKE_BASE: launchBase,
+      });
+      expect(cwd).not.toHaveBeenCalled();
+    } finally {
+      cwd.mockRestore();
+    }
+  });
 });
 
 describe("generic sidecar JSON IPC", () => {
+  it("does not unlink a replacement socket when an old server finishes closing", async () => {
+    if (process.platform === "win32") return;
+    const root = await mkdtemp(join(tmpdir(), "open-design-sidecar-owned-ipc-"));
+    const socketPath = testIpcPath(root);
+    let releaseOld!: () => void;
+    let markEntered!: () => void;
+    const entered = new Promise<void>((resolve) => { markEntered = resolve; });
+    const holdOld = new Promise<void>((resolve) => { releaseOld = resolve; });
+    const old = await createJsonIpcServer({
+      socketPath,
+      handler: async () => {
+        markEntered();
+        await holdOld;
+        return { generation: "old" };
+      },
+    });
+    const oldRequest = requestJsonIpc(socketPath, { type: "status" });
+    await entered;
+    const closing = old.close();
+    await vi.waitFor(async () => {
+      await expect(lstat(socketPath)).rejects.toMatchObject({ code: "ENOENT" });
+    });
+    const replacement = await createJsonIpcServer({
+      socketPath,
+      handler: async () => ({ generation: "replacement" }),
+    });
+
+    try {
+      releaseOld();
+      await oldRequest;
+      await closing;
+      await expect(requestJsonIpc(socketPath, { type: "status" })).resolves.toEqual({ generation: "replacement" });
+    } finally {
+      releaseOld();
+      await replacement.close();
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
   it("traces low-level IPC events without changing request semantics", async () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-sidecar-ipc-"));
     const socketPath = testIpcPath(root);
@@ -157,6 +222,38 @@ describe("generic sidecar JSON IPC", () => {
     expect(events).toContain("client.response_success");
     expect(JSON.stringify(logs)).not.toContain("secret()");
   });
+
+  it("preserves multibyte UTF-8 (CJK) across socket chunk boundaries", async () => {
+    // Regression for exported CJK artifacts showing `???` / `◆?` (U+FFFD):
+    // a multibyte character (e.g. 挤 = 0xE6 0x8C 0xA4) split across two `data`
+    // events was decoded per-chunk, turning each half into U+FFFD. The payload
+    // is large enough that the OS delivers it over multiple chunks, so a
+    // character is virtually guaranteed to straddle a boundary; with the old
+    // per-chunk `chunk.toString()` the round-trip corrupts, with StringDecoder
+    // it is byte-exact.
+    const root = await mkdtemp(join(tmpdir(), "open-design-sidecar-utf8-"));
+    const socketPath = testIpcPath(root);
+    // Mix of CJK glyphs incl. the exact ones seen corrupted in QA exports.
+    const unit = "拥挤让人焦虑，留白让人信任。敢留白，是因为知道什么最重要——交付边界。";
+    const big = unit.repeat(4000); // ~1.3 MB of UTF-8, far past one socket chunk
+    const server = await createJsonIpcServer({
+      socketPath,
+      handler: async (message: any) => ({ echo: message.html }),
+    });
+    try {
+      const result = await requestJsonIpc<{ echo: string }>(
+        socketPath,
+        { type: "RENDER", html: big },
+        { timeoutMs: 10_000 },
+      );
+      expect(result.echo).toBe(big);
+      expect(result.echo).not.toContain("�");
+      expect(result.echo.includes("拥挤让人焦虑")).toBe(true);
+    } finally {
+      await server.close();
+      await rm(root, { force: true, recursive: true });
+    }
+  });
 });
 
 describe("generic sidecar bootstrap", () => {
@@ -181,7 +278,6 @@ describe("generic sidecar bootstrap", () => {
     ).toEqual({
       app: "api",
       base: resolve("/runtime/base"),
-      ipc: stamp.ipc,
       mode: "dev",
       namespace: "alpha",
       source: "tool",

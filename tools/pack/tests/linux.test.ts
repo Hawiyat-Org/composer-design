@@ -1,42 +1,76 @@
+import { spawn, type ChildProcess } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { posix } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { requestJsonIpc, resolveAppIpcPath } from "@open-design/sidecar";
+import { findSidecarProcesses, getSidecarStatus, invokeSidecar, stopSidecar } from "@open-design/sidecar";
 import {
   APP_KEYS,
   OPEN_DESIGN_SIDECAR_CONTRACT,
+  SIDECAR_MESSAGES,
   SIDECAR_MODES,
   SIDECAR_SOURCES,
 } from "@open-design/sidecar-proto";
 import { describe, expect, it, vi } from "vitest";
 
+const stopSidecarMock = vi.hoisted(() => vi.fn(async (_stamp?: unknown, _options?: unknown) => ({
+  alreadyStopped: true,
+  forcedPids: [],
+  gracefulAccepted: false,
+  matchedPids: [],
+  remainingPids: [],
+  stoppedPids: [],
+})));
+const stopSidecarsMock = vi.hoisted(() => vi.fn(async (requests: Array<{ options?: unknown; stamp: unknown }>) => {
+  const results = await Promise.all(requests.map(async ({ options, stamp }) => ({
+    result: await stopSidecarMock(stamp, options),
+    stamp,
+  })));
+  const stopped = results.map(({ result }) => result);
+  return {
+    alreadyStopped: stopped.every(({ alreadyStopped }) => alreadyStopped),
+    forcedPids: [],
+    gracefulAccepted: stopped.some(({ gracefulAccepted }) => gracefulAccepted),
+    matchedPids: [...new Set(stopped.flatMap(({ matchedPids }) => matchedPids))],
+    remainingPids: [...new Set(stopped.flatMap(({ remainingPids }) => remainingPids))],
+    results,
+    stoppedPids: [...new Set(stopped.flatMap(({ stoppedPids }) => stoppedPids))],
+  };
+}));
+
 vi.mock("@open-design/sidecar", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@open-design/sidecar")>();
   return {
     ...actual,
-    requestJsonIpc: vi.fn(async () => {
-      throw new Error("requestJsonIpc should not be called for invalid headless inspect options");
-    }),
+    findSidecarProcesses: vi.fn(async () => []),
+    getSidecarStatus: vi.fn(async () => { throw new Error("status unavailable"); }),
+    invokeSidecar: vi.fn(async () => { throw new Error("invoke unavailable"); }),
+    stopSidecar: stopSidecarMock,
+    stopSidecars: stopSidecarsMock,
   };
 });
 
-import type { ToolPackConfig } from "../src/config.js";
+import type { ToolPackConfig } from "@/config/index.js";
 import {
   buildDockerArgs,
   cleanupPackedLinuxNamespace,
+  createLinuxDesktopLaunchEnv,
   inspectPackedLinuxApp,
+  LINUX_APPIMAGE_EXECUTABLE_ARGS,
   matchesAppImageProcess,
   renderDesktopTemplate,
+  renderLinuxAppImageAppRun,
+  renderLinuxPackagedMainEntry,
   resolveLinuxLifecycleMode,
   resolveProductionInstallCommand,
   shouldRejectLinuxHeadlessInspectOptions,
+  stopPackedLinuxApp,
   sanitizeNamespace,
   stopPackedLinuxHeadless,
-} from "../src/linux.js";
+} from "@/linux.js";
 
 async function pathExists(path: string): Promise<boolean> {
   try {
@@ -82,6 +116,19 @@ function makeConfig(): ToolPackConfig {
     webOutputMode: "server",
     workspaceRoot: "/work",
   };
+}
+
+const linuxOnlyIt = process.platform === "linux" ? it : it.skip;
+
+async function waitForChildExit(child: ChildProcess, timeoutMs = 5000): Promise<void> {
+  if (child.exitCode != null || child.signalCode != null) return;
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, timeoutMs);
+    child.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
 }
 
 describe("buildDockerArgs", () => {
@@ -324,11 +371,7 @@ describe("stopPackedLinuxHeadless", () => {
     const markerPath = join(namespaceRoot, "runtime", "desktop-root.json");
     const stamp = {
       app: APP_KEYS.DESKTOP,
-      ipc: resolveAppIpcPath({
-        app: APP_KEYS.DESKTOP,
-        contract: OPEN_DESIGN_SIDECAR_CONTRACT,
-        namespace,
-      }),
+      ipc: "/deprecated-derived-identity",
       mode: SIDECAR_MODES.RUNTIME,
       namespace,
       source: SIDECAR_SOURCES.PACKAGED,
@@ -356,8 +399,7 @@ describe("stopPackedLinuxHeadless", () => {
       const result = await stopPackedLinuxHeadless(config);
 
       expect(result.status).toBe("not-running");
-      expect(result.fallback?.reason).toBe("marker-not-found");
-      expect(result.fallback?.markerPath).toBe(join(namespaceRoot, "runtime", "headless-root.json"));
+      expect(result.fallback).toBeUndefined();
     } finally {
       await rm(root, { force: true, recursive: true });
     }
@@ -385,11 +427,7 @@ describe("stopPackedLinuxHeadless", () => {
     const markerPath = join(namespaceRoot, "runtime", "desktop-root.json");
     const stamp = {
       app: APP_KEYS.DESKTOP,
-      ipc: resolveAppIpcPath({
-        app: APP_KEYS.DESKTOP,
-        contract: OPEN_DESIGN_SIDECAR_CONTRACT,
-        namespace,
-      }),
+      ipc: "/deprecated-derived-identity",
       mode: SIDECAR_MODES.RUNTIME,
       namespace,
       source: SIDECAR_SOURCES.PACKAGED,
@@ -447,41 +485,11 @@ describe("stopPackedLinuxHeadless", () => {
         },
       },
     };
-    const markerPath = join(namespaceRoot, "runtime", "desktop-root.json");
-    const stamp = {
-      app: APP_KEYS.DESKTOP,
-      ipc: resolveAppIpcPath({
-        app: APP_KEYS.DESKTOP,
-        contract: OPEN_DESIGN_SIDECAR_CONTRACT,
-        namespace,
-      }),
-      mode: SIDECAR_MODES.RUNTIME,
-      namespace,
-      source: SIDECAR_SOURCES.PACKAGED,
-    };
-
     try {
-      await mkdir(dirname(markerPath), { recursive: true });
-      // Use the test runner's own PID -- guaranteed to be in the live snapshot
-      // table returned by listProcessSnapshots, so validateDesktopAppImageMarker
-      // returns a non-"not-running" status. The cleanup defense skips on any
-      // status other than "not-running", regardless of whether stamp/exe match.
-      await writeFile(
-        markerPath,
-        `${JSON.stringify({
-          appPath: "/tmp/Open-Design.AppImage",
-          executablePath: "/tmp/.mount_od/AppRun",
-          logPath: join(namespaceRoot, "logs", "desktop", "latest.log"),
-          namespaceRoot,
-          pid: process.pid,
-          ppid: 1,
-          stamp,
-          startedAt: new Date(0).toISOString(),
-          updatedAt: new Date(0).toISOString(),
-          version: 1,
-        })}\n`,
-        "utf8",
+      vi.mocked(findSidecarProcesses).mockImplementation(async (stamp) =>
+        stamp.mode === SIDECAR_MODES.RUNTIME ? [{ command: "desktop", pid: process.pid, ppid: 1 }] : [],
       );
+      await mkdir(namespaceRoot, { recursive: true });
       await mkdir(config.roots.output.namespaceRoot, { recursive: true });
 
       const result = await cleanupPackedLinuxNamespace(config, { headless: true });
@@ -489,12 +497,37 @@ describe("stopPackedLinuxHeadless", () => {
       expect(result.skipped).toBe(true);
       expect(result.removedOutputRoot).toBe(false);
       expect(result.removedRuntimeNamespaceRoot).toBe(false);
-      expect(await pathExists(markerPath)).toBe(true);
       expect(await pathExists(namespaceRoot)).toBe(true);
       expect(await pathExists(config.roots.output.namespaceRoot)).toBe(true);
     } finally {
+      vi.mocked(findSidecarProcesses).mockResolvedValue([]);
       await rm(root, { force: true, recursive: true });
     }
+  });
+});
+
+describe("stopPackedLinuxApp", () => {
+  it("stops both exact launch sources without consulting derived files", async () => {
+    const stop = vi.mocked(stopSidecar);
+    stop.mockClear();
+    stop.mockResolvedValue({
+      alreadyStopped: true,
+      forcedPids: [],
+      gracefulAccepted: false,
+      matchedPids: [],
+      remainingPids: [],
+      stoppedPids: [],
+    });
+    await expect(stopPackedLinuxApp(makeConfig())).resolves.toMatchObject({ status: "not-running" });
+    expect(stop).toHaveBeenCalledTimes(12);
+    expect(stop).toHaveBeenCalledWith(
+      expect.objectContaining({ source: SIDECAR_SOURCES.TOOLS_PACK }),
+      undefined,
+    );
+    expect(stop).toHaveBeenCalledWith(
+      expect.objectContaining({ source: SIDECAR_SOURCES.PACKAGED }),
+      undefined,
+    );
   });
 });
 
@@ -547,7 +580,7 @@ describe("renderDesktopTemplate", () => {
   const template = `[Desktop Entry]
 Type=Application
 Name=Composer Design (@@NAMESPACE@@)
-Exec=env OD_PACKAGED_NAMESPACE=@@NAMESPACE@@ @@EXEC_PATH@@ --appimage-extract-and-run %U
+Exec=env -u ELECTRON_RUN_AS_NODE OD_PACKAGED_NAMESPACE=@@NAMESPACE@@ @@EXEC_PATH@@ --appimage-extract-and-run %U
 Icon=@@ICON_PATH@@
 MimeType=x-scheme-handler/od;
 `;
@@ -555,12 +588,12 @@ MimeType=x-scheme-handler/od;
   it("substitutes all @@TOKEN@@ placeholders", () => {
     const out = renderDesktopTemplate(template, {
       namespace: "default",
-      execPath: "/home/u/.local/bin/Composer-Design.default.AppImage",
+      execPath: "/home/u/.local/bin/Open-Design.default.AppImage",
       iconName: "open-design-default",
     });
     expect(out).toContain("Name=Composer Design (default)");
     expect(out).toContain(
-      "Exec=env OD_PACKAGED_NAMESPACE=default /home/u/.local/bin/Composer-Design.default.AppImage --appimage-extract-and-run %U",
+      "Exec=env -u ELECTRON_RUN_AS_NODE OD_PACKAGED_NAMESPACE=default /home/u/.local/bin/Open-Design.default.AppImage --appimage-extract-and-run %U",
     );
     expect(out).toContain("Icon=open-design-default");
   });
@@ -571,8 +604,17 @@ MimeType=x-scheme-handler/od;
       execPath: "/x",
       iconName: "open-design-ns",
     });
-    expect(out).toMatch(/^Exec=env OD_PACKAGED_NAMESPACE=ns /m);
+    expect(out).toMatch(/^Exec=env -u ELECTRON_RUN_AS_NODE OD_PACKAGED_NAMESPACE=ns /m);
     expect(out).not.toMatch(/OD_NAMESPACE=/);
+  });
+
+  it("unsets ELECTRON_RUN_AS_NODE on the Exec= line so desktop launches run Electron normally", () => {
+    const out = renderDesktopTemplate(template, {
+      namespace: "ns",
+      execPath: "/x",
+      iconName: "open-design-ns",
+    });
+    expect(out).toMatch(/^Exec=env -u ELECTRON_RUN_AS_NODE /m);
   });
 
   it("preserves --appimage-extract-and-run on the Exec= line so menu launches bypass FUSE", () => {
@@ -600,6 +642,118 @@ MimeType=x-scheme-handler/od;
       iconName: "open-design-ns",
     });
     expect(out).toContain("MimeType=x-scheme-handler/od;");
+  });
+});
+
+describe("renderLinuxPackagedMainEntry", () => {
+  it("loads the ESM packaged entry without require or temporary keepalive handles", () => {
+    const out = renderLinuxPackagedMainEntry();
+
+    expect(out).toContain('import("@open-design/packaged")');
+    expect(out).not.toContain('require("@open-design/packaged")');
+    expect(out).not.toContain("setTimeout");
+  });
+});
+
+describe("LINUX_APPIMAGE_EXECUTABLE_ARGS", () => {
+  it("keeps the AppImage no-sandbox fallback explicit for constrained Linux hosts", () => {
+    expect([...LINUX_APPIMAGE_EXECUTABLE_ARGS]).toEqual(["--no-sandbox"]);
+  });
+});
+
+describe("renderLinuxAppImageAppRun", () => {
+  it("unsets ELECTRON_RUN_AS_NODE before execing the Electron binary", () => {
+    const out = renderLinuxAppImageAppRun();
+
+    expect(out).toContain("unset ELECTRON_RUN_AS_NODE");
+    expect(out.indexOf("unset ELECTRON_RUN_AS_NODE")).toBeLessThan(out.indexOf('exec "$BIN"'));
+    expect(out).toContain('BIN="$APPDIR/Composer Design"');
+  });
+
+  it("preserves AppImageLauncher install-only behavior", () => {
+    const out = renderLinuxAppImageAppRun();
+
+    expect(out).toContain('if [ -z "$APPIMAGE_EXIT_AFTER_INSTALL" ] ; then');
+    expect(out).toContain("trap atexit EXIT");
+  });
+
+  it("passes desktop Exec arguments through to Electron", () => {
+    const out = renderLinuxAppImageAppRun();
+
+    expect(out).toContain('args=("$@")');
+    expect(out).toContain('exec "$BIN" "${args[@]}"');
+  });
+
+  it("sets APPIMAGE when running an extracted AppRun directly", () => {
+    const out = renderLinuxAppImageAppRun();
+
+    expect(out).toContain('APPIMAGE="$APPDIR/AppRun"');
+  });
+
+  linuxOnlyIt("exports APPIMAGE fallback to the execed Electron process", async () => {
+    const root = await mkdtemp(join(tmpdir(), "od-linux-apprun-export-"));
+    const appDir = join(root, "AppDir");
+    const appRunPath = join(appDir, "AppRun");
+    const observedEnvPath = join(root, "observed-env.txt");
+    const electronPath = join(appDir, "Composer Design");
+
+    try {
+      await mkdir(appDir, { recursive: true });
+      await writeFile(appRunPath, renderLinuxAppImageAppRun(), "utf8");
+      await chmod(appRunPath, 0o755);
+      await writeFile(
+        electronPath,
+        `#!/bin/bash
+{
+  printf 'APPIMAGE=%s\\n' "$APPIMAGE"
+  printf 'ELECTRON_RUN_AS_NODE=%s\\n' "\${ELECTRON_RUN_AS_NODE-unset}"
+} > ${JSON.stringify(observedEnvPath)}
+`,
+        "utf8",
+      );
+      await chmod(electronPath, 0o755);
+
+      const env: NodeJS.ProcessEnv = {
+        ...process.env,
+        APPDIR: appDir,
+        ELECTRON_RUN_AS_NODE: "1",
+      };
+      delete env.APPIMAGE;
+      const child = spawn(appRunPath, [], { env, stdio: "ignore" });
+      const exit = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
+        child.once("error", reject);
+        child.once("exit", (code, signal) => resolve({ code, signal }));
+      });
+
+      expect(exit).toEqual({ code: 0, signal: null });
+      expect(await readFile(observedEnvPath, "utf8")).toBe(
+        `APPIMAGE=${appRunPath}\nELECTRON_RUN_AS_NODE=unset\n`,
+      );
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+});
+
+describe("createLinuxDesktopLaunchEnv", () => {
+  it("strips ELECTRON_RUN_AS_NODE before spawning the Electron AppImage", () => {
+    const config = makeConfig();
+    const stamp = {
+      app: APP_KEYS.DESKTOP,
+      channel: "stable",
+      mode: SIDECAR_MODES.RUNTIME,
+      namespace: "default",
+      source: SIDECAR_SOURCES.TOOLS_PACK,
+    };
+
+    const env = createLinuxDesktopLaunchEnv(config, stamp, {
+      ELECTRON_RUN_AS_NODE: "1",
+      KEEP_ME: "yes",
+    });
+
+    expect(env.ELECTRON_RUN_AS_NODE).toBeUndefined();
+    expect(env.KEEP_ME).toBe("yes");
+    expect(env.OD_SIDECAR_BASE).toBeUndefined();
   });
 });
 
@@ -646,8 +800,8 @@ describe("shouldRejectLinuxHeadlessInspectOptions", () => {
 
 describe("inspectPackedLinuxApp", () => {
   it("rejects unsupported headless inspect options before opening IPC", async () => {
-    const requestJsonIpcMock = vi.mocked(requestJsonIpc);
-    requestJsonIpcMock.mockClear();
+    const getStatus = vi.mocked(getSidecarStatus);
+    getStatus.mockClear();
 
     await expect(
       inspectPackedLinuxApp(makeConfig(), {
@@ -655,14 +809,15 @@ describe("inspectPackedLinuxApp", () => {
         headless: true,
       }),
     ).rejects.toThrow("linux inspect --headless supports status only; omit --expr and --path");
-    expect(requestJsonIpcMock).not.toHaveBeenCalled();
+    expect(getStatus).not.toHaveBeenCalled();
   });
 
   it("allows desktop inspect eval and screenshot options when headless is omitted", async () => {
-    const requestJsonIpcMock = vi.mocked(requestJsonIpc);
-    requestJsonIpcMock.mockReset();
-    requestJsonIpcMock
-      .mockResolvedValueOnce({ state: "running", url: "od://app/" })
+    vi.mocked(getSidecarStatus).mockImplementation(async (stamp) => {
+      if (stamp.source === SIDECAR_SOURCES.TOOLS_PACK) return { state: "running", url: "od://app/" };
+      throw new Error("packaged status unavailable");
+    });
+    vi.mocked(invokeSidecar)
       .mockResolvedValueOnce({ ok: true, value: "Composer Design" })
       .mockResolvedValueOnce({ path: "/tmp/composer-design-linux.png" });
 
@@ -676,12 +831,34 @@ describe("inspectPackedLinuxApp", () => {
       screenshot: { path: "/tmp/composer-design-linux.png" },
       status: { state: "running", url: "od://app/" },
     });
-    expect(requestJsonIpcMock).toHaveBeenCalledTimes(3);
+    expect(getSidecarStatus).toHaveBeenCalledTimes(2);
+    expect(invokeSidecar).toHaveBeenCalledTimes(2);
+  });
+
+  it("targets packaged IPC when a tools-pack process marker is stale", async () => {
+    vi.mocked(findSidecarProcesses).mockImplementation(async (stamp) =>
+      stamp.source === SIDECAR_SOURCES.TOOLS_PACK ? [{ command: "desktop", pid: 42, ppid: 1 }] : [],
+    );
+    vi.mocked(getSidecarStatus).mockImplementation(async (stamp) => {
+      if (stamp.source === SIDECAR_SOURCES.PACKAGED) return { state: "running", url: "od://app/" };
+      throw new Error("stale tools-pack endpoint");
+    });
+    vi.mocked(invokeSidecar).mockResolvedValueOnce({ ok: true, value: "Composer Design" });
+
+    const result = await inspectPackedLinuxApp(makeConfig(), { expr: "document.title" });
+
+    expect(result.status).toEqual({ state: "running", url: "od://app/" });
+    expect(invokeSidecar).toHaveBeenCalledWith(
+      expect.objectContaining({ source: SIDECAR_SOURCES.PACKAGED }),
+      SIDECAR_MESSAGES.EVAL,
+      { expression: "document.title" },
+      { timeoutMs: 5000 },
+    );
   });
 });
 
 describe("matchesAppImageProcess", () => {
-  const installPath = "/home/u/.local/bin/Composer-Design.default.AppImage";
+  const installPath = "/home/u/.local/bin/Open-Design.default.AppImage";
 
   it("matches FUSE-mode (executable === installPath)", () => {
     const ok = matchesAppImageProcess(
@@ -718,6 +895,30 @@ describe("matchesAppImageProcess", () => {
   it("rejects extracted-mode when APPIMAGE env is missing", () => {
     const ok = matchesAppImageProcess(
       { pid: 1234, executable: "/tmp/.mount_abc123/AppRun", env: {} },
+      installPath,
+    );
+    expect(ok).toBe(false);
+  });
+
+  it("matches direct AppRun fallback when APPIMAGE points to the sibling AppRun", () => {
+    const ok = matchesAppImageProcess(
+      {
+        pid: 1234,
+        executable: "/tmp/appimage_extracted_fe548e54/Composer Design",
+        env: { APPIMAGE: "/tmp/appimage_extracted_fe548e54/AppRun" },
+      },
+      installPath,
+    );
+    expect(ok).toBe(true);
+  });
+
+  it("rejects direct AppRun fallback when APPIMAGE points outside the executable directory", () => {
+    const ok = matchesAppImageProcess(
+      {
+        pid: 1234,
+        executable: "/tmp/appimage_extracted_fe548e54/Composer Design",
+        env: { APPIMAGE: "/tmp/other/AppRun" },
+      },
       installPath,
     );
     expect(ok).toBe(false);

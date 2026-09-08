@@ -1,29 +1,30 @@
 import {
   OPEN_DESIGN_HOST_GLOBAL,
   OPEN_DESIGN_HOST_VERSION,
-  type OpenDesignHostBridge,
-  type OpenDesignHostGlobalScope,
-  type OpenDesignHostUpdaterStatusSnapshot,
+  type ComposerDesignHostBridge,
+  type ComposerDesignHostGlobalScope,
+  type ComposerDesignHostUpdaterStatusSnapshot,
 } from "./index.js";
 
-export type MockOpenDesignHost = Partial<Omit<OpenDesignHostBridge, "capture" | "client" | "pdf" | "pet" | "project" | "shell" | "updater">> & {
-  browser?: Partial<OpenDesignHostBridge["browser"]>;
-  capture?: Partial<OpenDesignHostBridge["capture"]>;
-  client?: Partial<OpenDesignHostBridge["client"]>;
-  pdf?: Partial<OpenDesignHostBridge["pdf"]>;
-  pet?: Partial<OpenDesignHostBridge["pet"]>;
-  project?: Partial<OpenDesignHostBridge["project"]>;
-  shell?: Partial<OpenDesignHostBridge["shell"]>;
-  updater?: Partial<OpenDesignHostBridge["updater"]>;
+export type MockComposerDesignHost = Partial<Omit<ComposerDesignHostBridge, "capture" | "client" | "pdf" | "pet" | "preview" | "project" | "shell" | "updater">> & {
+  browser?: Partial<ComposerDesignHostBridge["browser"]>;
+  capture?: Partial<ComposerDesignHostBridge["capture"]>;
+  client?: Partial<ComposerDesignHostBridge["client"]>;
+  pdf?: Partial<ComposerDesignHostBridge["pdf"]>;
+  pet?: Partial<ComposerDesignHostBridge["pet"]>;
+  preview?: Partial<NonNullable<ComposerDesignHostBridge["preview"]>>;
+  project?: Partial<ComposerDesignHostBridge["project"]>;
+  shell?: Partial<ComposerDesignHostBridge["shell"]>;
+  updater?: Partial<ComposerDesignHostBridge["updater"]>;
 };
 
-export type MockOpenDesignHostOptions = {
-  host?: MockOpenDesignHost;
-  scope?: OpenDesignHostGlobalScope;
+export type MockComposerDesignHostOptions = {
+  host?: MockComposerDesignHost;
+  scope?: ComposerDesignHostGlobalScope;
 };
 
-function defaultHost(): OpenDesignHostBridge {
-  const updaterStatus: OpenDesignHostUpdaterStatusSnapshot = {
+function defaultHost(): ComposerDesignHostBridge {
+  const updaterStatus: ComposerDesignHostUpdaterStatusSnapshot = {
     arch: "arm64",
     capabilities: {
       canApplyInPlace: false,
@@ -74,18 +75,25 @@ function defaultHost(): OpenDesignHostBridge {
     pet: {
       setVisible: () => undefined,
     },
+    preview: {
+      getLatestNavigationFailure: () => null,
+      subscribeNavigationFailure: () => () => undefined,
+    },
     updater: {
       check: async () => updaterStatus,
+      "clear-cache": async () => updaterStatus,
       download: async () => updaterStatus,
       install: async () => updaterStatus,
       quit: async () => ({ ok: true }),
+      setMenuLabels: async () => ({ ok: true }),
       status: async () => updaterStatus,
       subscribe: () => () => undefined,
+      subscribeOpenDialog: () => () => undefined,
     },
   };
 }
 
-export function createMockOpenDesignHost(overrides: MockOpenDesignHost = {}): OpenDesignHostBridge {
+export function createMockComposerDesignHost(overrides: MockComposerDesignHost = {}): ComposerDesignHostBridge {
   const base = defaultHost();
   return {
     ...base,
@@ -97,18 +105,26 @@ export function createMockOpenDesignHost(overrides: MockOpenDesignHost = {}): Op
     project: { ...base.project, ...overrides.project },
     pdf: { ...base.pdf, ...overrides.pdf },
     pet: { ...base.pet, ...overrides.pet },
+    preview: {
+      getLatestNavigationFailure:
+        overrides.preview?.getLatestNavigationFailure
+        ?? base.preview!.getLatestNavigationFailure,
+      subscribeNavigationFailure:
+        overrides.preview?.subscribeNavigationFailure
+        ?? base.preview!.subscribeNavigationFailure,
+    },
     updater: { ...base.updater, ...overrides.updater },
   };
 }
 
-export function installMockOpenDesignHost(options: MockOpenDesignHostOptions = {}): () => void {
-  const scope = (options.scope ?? globalThis) as OpenDesignHostGlobalScope;
-  const host = createMockOpenDesignHost(options.host);
+export function installMockComposerDesignHost(options: MockComposerDesignHostOptions = {}): () => void {
+  const scope = (options.scope ?? globalThis) as ComposerDesignHostGlobalScope;
+  const host = createMockComposerDesignHost(options.host);
   const windowValue = scope.window;
   const targets = [
     scope,
     ...(typeof windowValue === "object" && windowValue != null && windowValue !== scope
-      ? [windowValue as OpenDesignHostGlobalScope]
+      ? [windowValue as ComposerDesignHostGlobalScope]
       : []),
   ];
   const previous = targets.map((target) => ({

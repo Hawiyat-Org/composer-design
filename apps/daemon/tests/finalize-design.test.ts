@@ -2,7 +2,7 @@
 // Tests for `apps/daemon/src/finalize-design.ts` — fills in across phases
 // D-I. Phase D adds the truncation helper tests; phases E-I extend.
 //
-// Per memory `project_open_design_493_merged.md`: this file uses
+// Per memory `project_composer_design_493_merged.md`: this file uses
 // `import fs from 'node:fs'` (default import) so `vi.spyOn(fs, '<fn>')`
 // can redefine properties on the underlying CJS exports object. ESM
 // namespace import (`import * as fs from 'node:fs'`) gives a frozen
@@ -31,7 +31,7 @@ import {
   FinalizeUpstreamError,
   resolveCurrentArtifact,
   truncateTranscriptForPrompt,
-} from '../src/finalize-design.js';
+} from '../src/design/index.js';
 
 void appendVersionedApiPath;
 

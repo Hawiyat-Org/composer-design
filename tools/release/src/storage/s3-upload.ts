@@ -11,7 +11,8 @@ export type StorageConfig = {
 };
 
 type PutObjectOptions = StorageConfig & {
-  bodyPath: string;
+  body?: Buffer;
+  bodyPath?: string;
   cacheControl: string;
   contentType: string;
   headers?: Record<string, string>;
@@ -21,6 +22,27 @@ type PutObjectOptions = StorageConfig & {
 type GetObjectOptions = StorageConfig & {
   objectKey: string;
 };
+
+/**
+ * R2/S3 If-Match requires a strong quoted ETag. GET may omit the quotes;
+ * a weak `W/"..."` validator is not promoted because If-Match is strong.
+ */
+export function strongQuotedEtag(etag: string): string {
+  const trimmed = etag.trim();
+  if (trimmed.length === 0) {
+    throw new Error("storage object ETag is empty");
+  }
+  if (/^W\//i.test(trimmed)) {
+    throw new Error(
+      `storage object ETag is weak; refusing If-Match without a strong validator: ${trimmed}`,
+    );
+  }
+  const unquoted = trimmed.replace(/^"+|"+$/g, "");
+  if (unquoted.length === 0) {
+    throw new Error("storage object ETag is empty after removing quotes");
+  }
+  return `"${unquoted}"`;
+}
 
 function hmac(key: Buffer | string, value: string): Buffer {
   return createHmac("sha256", key).update(value, "utf8").digest();
@@ -123,9 +145,16 @@ export async function putStorageObject(options: PutObjectOptions): Promise<void>
 }
 
 export async function putStorageObjectWithStatus(options: PutObjectOptions): Promise<{ body: string; ok: boolean; status: number; url: string }> {
-  const body = readFileSync(options.bodyPath);
+  if (options.body == null && options.bodyPath == null) {
+    throw new Error("PUT storage object requires body or bodyPath");
+  }
+  const body = options.body == null ? readFileSync(options.bodyPath ?? "") : Buffer.from(options.body);
   const payloadHash = hash(body);
   const { canonicalUri, url } = objectUrl(options, options.objectKey);
+  const requestHeaders = { ...(options.headers ?? {}) };
+  if (requestHeaders["if-match"] != null && requestHeaders["if-match"].length > 0) {
+    requestHeaders["if-match"] = strongQuotedEtag(requestHeaders["if-match"]);
+  }
   // x-amz-date is filled in per attempt inside signedFetchWithRetry so the
   // signature never goes stale across a backoff; keep the key present here so it
   // is part of the signed header set.
@@ -135,7 +164,7 @@ export async function putStorageObjectWithStatus(options: PutObjectOptions): Pro
     host: url.host,
     "x-amz-content-sha256": payloadHash,
     "x-amz-date": "",
-    ...(options.headers ?? {}),
+    ...requestHeaders,
   };
   if (options.sessionToken != null && options.sessionToken.length > 0) {
     headers["x-amz-security-token"] = options.sessionToken;
@@ -164,10 +193,11 @@ export async function putStorageObjectWithStatus(options: PutObjectOptions): Pro
   };
 }
 
-export async function getStorageObject(options: GetObjectOptions): Promise<{ etag: string; text: string } | null> {
+export async function getStorageObject(options: GetObjectOptions): Promise<{ bytes: Buffer; etag: string; text: string } | null> {
   const payloadHash = hash("");
   const { canonicalUri, url } = objectUrl(options, options.objectKey);
   const headers: Record<string, string> = {
+    "accept-encoding": "identity",
     host: url.host,
     "x-amz-content-sha256": payloadHash,
     "x-amz-date": "",
@@ -195,9 +225,11 @@ export async function getStorageObject(options: GetObjectOptions): Promise<{ eta
     const text = await response.text().catch(() => "");
     throw new Error(`GET ${url} failed with HTTP ${response.status}${text.length > 0 ? `: ${text}` : ""}`);
   }
+  const bytes = Buffer.from(await response.arrayBuffer());
   return {
+    bytes,
     etag: response.headers.get("etag") ?? "",
-    text: await response.text(),
+    text: bytes.toString("utf8"),
   };
 }
 

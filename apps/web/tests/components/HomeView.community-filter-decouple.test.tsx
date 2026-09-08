@@ -12,10 +12,15 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { HomeView } from '../../src/components/HomeView';
+import type { InstalledPluginRecord } from '@open-design/contracts';
+import { PluginsHomeSection } from '../../src/components/PluginsHomeSection';
 import { I18nProvider } from '../../src/i18n';
 
-function makeHomePlugin(id: string, mode: string) {
+function makeHomePlugin(
+  id: string,
+  mode: string,
+  preview?: Record<string, unknown>,
+): InstalledPluginRecord {
   return {
     id,
     title: id,
@@ -32,7 +37,12 @@ function makeHomePlugin(id: string, mode: string) {
       title: id,
       version: '1.0.0',
       description: `${id} fixture`,
-      od: { kind: 'scenario', taskKind: 'new-generation', mode },
+      od: {
+        kind: 'scenario',
+        taskKind: 'new-generation',
+        mode,
+        ...(preview ? { preview } : {}),
+      },
     },
   };
 }
@@ -40,6 +50,13 @@ function makeHomePlugin(id: string, mode: string) {
 const PLUGINS = [
   makeHomePlugin('example-web-prototype', 'prototype'),
   makeHomePlugin('example-simple-deck', 'deck'),
+];
+
+const DUPLICABLE_PLUGINS = [
+  makeHomePlugin('example-html-prototype', 'prototype', {
+    type: 'html',
+    entry: './example.html',
+  }),
 ];
 
 function ariaSelected(testId: string): string | null {
@@ -53,46 +70,74 @@ describe('HomeView community filter decoupling', () => {
   });
 
   it('keeps the Community category selection independent from the hero type chips', async () => {
-    const fetchMock = vi.fn<typeof fetch>(async (url) => {
-      if (typeof url === 'string' && url === '/api/plugins') {
-        return new Response(JSON.stringify({ plugins: PLUGINS }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }
-      throw new Error(`unexpected fetch ${url}`);
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
     render(
       <I18nProvider initial="en">
-        <HomeView
-          projects={[]}
-          onSubmit={() => undefined}
-          onOpenProject={() => undefined}
-          onViewAllProjects={() => undefined}
+        <PluginsHomeSection
+          plugins={PLUGINS}
+          loading={false}
+          activePluginId={null}
+          pendingApplyId={null}
+          onUse={() => undefined}
+          onOpenDetails={() => undefined}
+          preferDefaultFacet
+          cardLayout="gallery"
         />
       </I18nProvider>,
     );
 
-    // Home boots with a default active type chip; the Community grid must
-    // still come up unfiltered ("All"), not pre-snapped to that chip.
+    // The Community gallery owns its own facet state, so it is mounted on its
+    // own here — there is no hero rail for it to couple to. It boots on its own
+    // All selection (the gallery layout keeps the All bucket, per #5762's
+    // sibling change to PluginsHomeSection) no matter which type chip Home
+    // would have started on. Wait for the selected state, not just the pill
+    // mount, so the assertion stays stable under full-suite CI load.
     await waitFor(() => {
-      expect(screen.getByTestId('plugins-home-pill-category-deck')).toBeTruthy();
+      expect(ariaSelected('plugins-home-pill-category-all')).toBe('true');
     });
-    expect(ariaSelected('plugins-home-pill-category-all')).toBe('true');
+    expect(ariaSelected('plugins-home-pill-category-deck')).toBe('false');
     expect(ariaSelected('plugins-home-pill-category-prototype')).toBe('false');
 
-    // Picking another chip drives the composer, not the gallery filter.
-    fireEvent.click(await screen.findByTestId('home-hero-rail-deck'));
-    await waitFor(() => {
-      expect(screen.getByTestId('home-hero-active-type-chip').textContent).toContain('Slide deck');
-    });
-    expect(ariaSelected('plugins-home-pill-category-all')).toBe('true');
-    expect(ariaSelected('plugins-home-pill-category-deck')).toBe('false');
-
-    // And the gallery's own pills still work locally.
+    // The gallery's own pills still work locally, independent of any hero chip.
     fireEvent.click(screen.getByTestId('plugins-home-pill-category-deck'));
+    expect(ariaSelected('plugins-home-pill-category-all')).toBe('false');
     expect(ariaSelected('plugins-home-pill-category-deck')).toBe('true');
+
+    // And switching to a different gallery pill selects it locally.
+    fireEvent.click(screen.getByTestId('plugins-home-pill-category-prototype'));
+    expect(ariaSelected('plugins-home-pill-category-deck')).toBe('false');
+    expect(ariaSelected('plugins-home-pill-category-prototype')).toBe('true');
+  });
+
+  it('opens duplicated gallery examples at the copied entry file', async () => {
+    const onOpenProject = vi.fn();
+    const onDuplicate = vi.fn((record: InstalledPluginRecord) => {
+      if (
+        record.id === 'example-html-prototype'
+      ) {
+        onOpenProject('duplicated-project', 'index.html');
+      }
+    });
+
+    render(
+      <I18nProvider initial="en">
+        <PluginsHomeSection
+          plugins={DUPLICABLE_PLUGINS}
+          loading={false}
+          activePluginId={null}
+          pendingApplyId={null}
+          onUse={() => undefined}
+          onDuplicate={onDuplicate}
+          onOpenDetails={() => undefined}
+          preferDefaultFacet={false}
+          cardLayout="gallery"
+        />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(await screen.findByTestId('plugins-home-duplicate-example-html-prototype'));
+
+    await waitFor(() => {
+      expect(onOpenProject).toHaveBeenCalledWith('duplicated-project', 'index.html');
+    });
   });
 });

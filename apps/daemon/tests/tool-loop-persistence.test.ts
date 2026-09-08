@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { daemonAgentPayloadToPersistedAgentEvent } from '../src/runtimes/chat-run-messages.js';
 import {
   __forTestFilesystemEmptyAnswerFallbackText,
   __forTestFilesystemWriteFileNamesFromRunEvents,
-  daemonAgentPayloadToPersistedAgentEvent,
 } from '../src/server.js';
 
 // Regression for PR #3375 review: the `tool_loop` event was handled by the live
@@ -98,6 +98,71 @@ describe('daemonAgentPayloadToPersistedAgentEvent — diagnostic', () => {
         hasText: true,
       },
     });
+  });
+});
+
+describe('daemonAgentPayloadToPersistedAgentEvent — transient ACP status labels', () => {
+  // Regression for PR #5145 review: transient ACP protocol-internal status
+  // labels (waiting_for_first_output, tool_call, tool_call_update,
+  // session_update) carry no user-visible detail. The live web translator
+  // normalizes them to 'running', but the daemon must also suppress them at
+  // persistence time so history replay doesn't render empty expandable rows
+  // in the assistant process panel.
+  it.each([
+    ['waiting_for_first_output'],
+    ['tool_call'],
+    ['tool_call_update'],
+    ['session_update'],
+    ['opencode_compaction'],
+  ])('returns null for transient status %s', (label) => {
+    expect(
+      persist({
+        type: 'status',
+        label,
+        detail: 'should be dropped',
+      }),
+    ).toBeNull();
+  });
+
+  // `agent_reconnecting` was on the list above and was taken off it. Unlike its
+  // neighbours it is not polling-shaped: it fires once per real, irreversible
+  // upstream event — the agent's connection to the model dropped mid-turn and
+  // the turn restarted — and the model can re-generate text it had already
+  // streamed, so the transcript legitimately ends up holding the answer twice.
+  // Dropping the row left the reader with two conclusions and nothing to
+  // explain the seam. Full rationale and the recorded case live on
+  // `TRANSIENT_ACP_PERSISTED_STATUS_LABELS` and in
+  // `tests/persisted-agent-reconnect-status.test.ts`.
+  it('persists agent_reconnecting so the transcript can explain a restarted turn', () => {
+    expect(persist({ type: 'status', label: 'agent_reconnecting', detail: '1/5' })).toEqual({
+      kind: 'status',
+      label: 'agent_reconnecting',
+      detail: '1/5',
+    });
+  });
+
+  it('persists a visible model status with model as detail', () => {
+    const persisted = persist({
+      type: 'status',
+      label: 'model',
+      model: 'claude-sonnet-4',
+    });
+    expect(persisted).not.toBeNull();
+    expect(persisted!.kind).toBe('status');
+    expect(persisted!.label).toBe('model');
+    expect(persisted!.detail).toBe('claude-sonnet-4');
+  });
+
+  it('persists a visible streaming status with explicit detail', () => {
+    const persisted = persist({
+      type: 'status',
+      label: 'streaming',
+      detail: 'thinking…',
+    });
+    expect(persisted).not.toBeNull();
+    expect(persisted!.kind).toBe('status');
+    expect(persisted!.label).toBe('streaming');
+    expect(persisted!.detail).toBe('thinking…');
   });
 });
 

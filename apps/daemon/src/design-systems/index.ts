@@ -12,6 +12,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import JSZip from 'jszip';
+import type Database from 'better-sqlite3';
 
 import {
   type ComponentsManifest,
@@ -22,6 +24,15 @@ import {
 import { parseFrontmatter } from './frontmatter.js';
 import type { FrontmatterObject, FrontmatterValue } from './frontmatter.js';
 import { extractSwiftColors } from './swift-colors.js';
+import { workspaceTeamDesignSystemBindingResourceId } from './workspace-team-binding.js';
+import {
+  ensureWorkspaceResource,
+  getWorkspaceResourceByResourceId,
+  updateWorkspaceResource,
+} from '../db.js';
+import { teamResourceWorkspaceRoot } from '../collab/team-resource-materialization.js';
+
+type SqliteDb = Database.Database;
 
 export type DesignSystemSurface = 'web' | 'image' | 'video' | 'audio';
 export type DesignSystemSource = 'built-in' | 'installed' | 'user';
@@ -44,6 +55,14 @@ export type DesignSystemSummary = {
   updatedAt?: string;
   provenance?: DesignSystemProvenance;
   projectId?: string;
+  teamSynced?: boolean;
+  /**
+   * The workspace this user design system belongs to, when one claimed it.
+   *
+   * Absent means UNCLAIMED, not "belongs to no workspace" — see
+   * `DesignSystemListOptions.workspaceId`.
+   */
+  workspaceId?: string;
 };
 
 export type DesignSystemFileKind =
@@ -77,8 +96,19 @@ export type DesignSystemPullFileDetail = {
   content: string;
 };
 
+export type DesignSystemStaticFileDetail = {
+  path: string;
+  name: string;
+  kind: DesignSystemFileKind;
+  size: number;
+  updatedAt: string;
+  contentType: string;
+  bytes: Buffer;
+};
+
 export type DesignSystemPackageInfo = {
   manifest?: DesignSystemProjectManifest;
+  availableFiles?: string[];
   sourceEvidence?: {
     scannedFileCount?: number;
     tokenCount?: number;
@@ -168,6 +198,7 @@ type DesignSystemProjectManifest = {
 
 export type DesignSystemProvenance = {
   companyBlurb?: string;
+  sourceUrls?: string[];
   githubUrls?: string[];
   localCodeFiles?: string[];
   figFiles?: string[];
@@ -186,6 +217,9 @@ type UserDesignSystemMetadata = {
   updatedAt?: string;
   provenance?: DesignSystemProvenance;
   projectId?: string;
+  teamSynced?: boolean;
+  /** Workspace that claimed this system; absent on anything written before #145. */
+  workspaceId?: string;
 };
 
 type AtomicTextFileWrite = {
@@ -235,6 +269,17 @@ export type UserDesignSystemInput = {
   body?: string;
   sourceNotes?: string;
   provenance?: DesignSystemProvenance;
+  /**
+   * Workspace to claim the new system for (#145). Set by the daemon from the
+   * active workspace selection at creation time; omitted leaves the system
+   * unclaimed for local/unscoped use and quarantined from scoped catalogs.
+   *
+   * Only `createUserDesignSystem` reads it — an update must never re-home an
+   * existing system just because the caller happened to be elsewhere.
+   */
+  workspaceId?: string;
+  /** Internal write-fence: logical ids already claimed in workspace_resources. */
+  reservedResourceIds?: Iterable<string>;
 };
 
 export type UserDesignSystemRevisionInput = {
@@ -251,6 +296,24 @@ export type DesignSystemListOptions = {
   source?: DesignSystemSource;
   isEditable?: boolean;
   defaultStatus?: DesignSystemStatus;
+  /**
+   * Restrict the listing to design systems visible from this workspace (#145).
+   *
+   * User design systems all live in ONE flat directory under the daemon data
+   * root — there is no per-workspace store — so without this filter a system
+   * authored in workspace A also showed up in a brand-new workspace B.
+   *
+   * A positive scope is fail-closed: both systems claimed by another workspace
+   * and UNCLAIMED systems (no `workspaceId` in metadata) are hidden. Historical
+   * ownerless systems remain on disk and visible to truly unscoped/local
+   * callers; startup migration claims only those whose project has one exact
+   * persisted workspace binding.
+   *
+   * Omitted means a truly unscoped internal lookup and lists everything.
+   * Explicitly empty (`null`/`''`) is the signed-out/local catalog lane: it
+   * lists only ownerless local systems and hides every claimed system.
+   */
+  workspaceId?: string | null;
 };
 
 export async function listDesignSystems(
@@ -274,6 +337,7 @@ export async function listDesignSystems(
       if (!stats.isFile()) continue;
       const raw = await readFile(designPath, 'utf8');
       const metadata = await readUserMetadata(root, entry.name);
+      if (!designSystemVisibleFromWorkspace(metadata.workspaceId, options.workspaceId)) continue;
       const { data: frontmatter, body } = parseFrontmatter(raw);
       const titleMatch = /^#\s+(.+?)\s*$/m.exec(body);
       const markdownTitle =
@@ -317,12 +381,57 @@ export async function listDesignSystems(
         ...(metadata.updatedAt ? { updatedAt: metadata.updatedAt } : {}),
         ...(metadata.provenance ? { provenance: metadata.provenance } : {}),
         ...(metadata.projectId ? { projectId: metadata.projectId } : {}),
+        ...(metadata.teamSynced ? { teamSynced: true } : {}),
+        ...(metadata.workspaceId ? { workspaceId: metadata.workspaceId } : {}),
       });
     } catch {
       // Skip.
     }
   }
   return out;
+}
+
+/**
+ * Whether a design system claimed by `owner` should be listed while `scope` is
+ * the active workspace.
+ *
+ * `scope === undefined` (the `workspaceId` option key OMITTED, not merely
+ * empty) means the caller asked for the truly unscoped catalog — id
+ * resolution, install/import lookups, and (critically) `createUserDesignSystem`/
+ * `updateUserDesignSystem`/`linkUserDesignSystemProject` re-reading the system
+ * they just wrote by id — which must never hide anything, or writing a system
+ * claimed by a workspace would make `listDesignSystems(...).find(...)` fail to
+ * find what was just written (a real regression this fix must not introduce).
+ *
+ * `scope` present but empty (`null`/`''`) is a DIFFERENT case: a caller that
+ * DID ask to be scoped — `GET /api/design-systems` with no verified vela
+ * session — but has no workspace identity to offer. Spec 04 §10: that must
+ * hide a CLAIMED system, not show it, or "no scope" quietly becomes "trust
+ * everything". With a positive scope, no `owner` means QUARANTINED: absence of
+ * an ownership witness must not authorize a cross-workspace read. With an
+ * explicitly empty scope, ownerless local resources remain usable while all
+ * claimed workspace resources stay hidden.
+ */
+function designSystemVisibleFromWorkspace(
+  owner: string | undefined,
+  scope: string | null | undefined,
+): boolean {
+  if (scope === undefined) return true;
+  const scopeId = scope?.trim();
+  const ownerId = owner?.trim();
+  if (!scopeId) return !ownerId;
+  if (!ownerId) return false;
+  return ownerId === scopeId;
+}
+
+async function designSystemDirectoryVisibleFromWorkspace(
+  root: string,
+  dirId: string,
+  scope: string | null | undefined,
+): Promise<boolean> {
+  if (scope === undefined) return true;
+  const metadata = await readUserMetadata(root, dirId);
+  return designSystemVisibleFromWorkspace(metadata.workspaceId, scope);
 }
 
 function stringField(data: FrontmatterObject, key: string): string {
@@ -366,10 +475,13 @@ function pickFinalSwatchRow(
 export async function readDesignSystem(
   root: string,
   id: string,
-  options: { idPrefix?: string } = {},
+  options: { idPrefix?: string; workspaceId?: string | null } = {},
 ): Promise<string | null> {
   const dirId = stripPrefixAndValidateId(id, options.idPrefix);
   if (!dirId) return null;
+  if (!(await designSystemDirectoryVisibleFromWorkspace(root, dirId, options.workspaceId))) {
+    return null;
+  }
   const brandRoot = path.join(root, dirId);
   const manifest = await readProjectManifest(brandRoot, dirId);
   const file = path.join(brandRoot, manifest?.files.design ?? 'DESIGN.md');
@@ -383,19 +495,59 @@ export async function readDesignSystem(
 export async function readDesignSystemPackageInfo(
   root: string,
   id: string,
-  options: { idPrefix?: string } = {},
+  options: { idPrefix?: string; workspaceId?: string | null } = {},
 ): Promise<DesignSystemPackageInfo | null> {
   const dirId = stripPrefixAndValidateId(id, options.idPrefix);
   if (!dirId) return null;
+  if (!(await designSystemDirectoryVisibleFromWorkspace(root, dirId, options.workspaceId))) {
+    return null;
+  }
   const brandRoot = path.join(root, dirId);
   const manifest = await readProjectManifest(brandRoot, dirId);
   if (manifest === null) return null;
 
   const sourceEvidence = await readDesignSystemSourceEvidence(brandRoot, manifest);
+  const availableFiles = await listAvailableDesignSystemPackageFiles(brandRoot, manifest);
   return {
     manifest,
+    ...(availableFiles.length > 0 ? { availableFiles } : {}),
     ...(sourceEvidence ? { sourceEvidence } : {}),
   };
+}
+
+async function listAvailableDesignSystemPackageFiles(
+  brandRoot: string,
+  manifest: DesignSystemProjectManifest,
+): Promise<string[]> {
+  const candidates = new Set<string>(DESIGN_SYSTEM_STATIC_SYSTEM_FILES);
+  const add = (filePath: string | undefined): void => {
+    const cleanPath = typeof filePath === 'string' ? sanitizeRelativeFilePath(filePath) : null;
+    if (cleanPath) candidates.add(cleanPath);
+  };
+
+  add(manifest.files.design);
+  add(manifest.files.tokens);
+  add(manifest.files.components);
+  add(manifest.files.designTokens);
+  add(manifest.files.tailwind);
+  add(manifest.usage);
+  add(manifest.componentsManifest);
+  for (const page of manifest.preview?.pages ?? []) add(page.path);
+  for (const font of manifest.fonts ?? []) add(font.file);
+
+  const out: string[] = [];
+  const resolvedRoot = path.resolve(brandRoot);
+  for (const relativePath of Array.from(candidates).sort()) {
+    const filePath = path.resolve(brandRoot, relativePath);
+    if (filePath !== resolvedRoot && !filePath.startsWith(`${resolvedRoot}${path.sep}`)) continue;
+    try {
+      const stats = await stat(filePath);
+      if (stats.isFile()) out.push(relativePath);
+    } catch (err) {
+      if (!isAbsenceError(err)) throw err;
+    }
+  }
+  return out;
 }
 
 /**
@@ -506,6 +658,48 @@ export async function readDesignSystemPullFile(
   }
 }
 
+export async function readDesignSystemStaticFile(
+  root: string,
+  id: string,
+  relativePath: string,
+  options: { idPrefix?: string; workspaceId?: string | null } = {},
+): Promise<DesignSystemStaticFileDetail | null> {
+  const dirId = stripPrefixAndValidateId(id, options.idPrefix);
+  const cleanPath = sanitizeRelativeFilePath(relativePath);
+  if (!dirId || !cleanPath) return null;
+  if (!(await designSystemDirectoryVisibleFromWorkspace(root, dirId, options.workspaceId))) {
+    return null;
+  }
+
+  const brandRoot = path.join(root, dirId);
+  const manifest = await readProjectManifest(brandRoot, dirId);
+  if (!(await isAllowedDesignSystemStaticFile(brandRoot, manifest, cleanPath))) return null;
+
+  const resolvedRoot = path.resolve(brandRoot);
+  const filePath = path.resolve(brandRoot, cleanPath);
+  if (filePath !== resolvedRoot && !filePath.startsWith(`${resolvedRoot}${path.sep}`)) {
+    return null;
+  }
+
+  try {
+    const stats = await stat(filePath);
+    if (!stats.isFile()) return null;
+    const bytes = await readFile(filePath);
+    return {
+      path: cleanPath,
+      name: path.basename(cleanPath),
+      kind: classifyDesignSystemFile(cleanPath, false),
+      size: stats.size,
+      updatedAt: stats.mtime.toISOString(),
+      contentType: designSystemStaticContentType(cleanPath),
+      bytes,
+    };
+  } catch (err) {
+    if (isAbsenceError(err)) return null;
+    throw err;
+  }
+}
+
 export function isDesignTokenChannelEnabled(
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
@@ -607,6 +801,10 @@ async function resolveDesignSystemAssetsUncached(
   builtInRoot: string,
   userInstalledRoot: string,
 ): Promise<DesignSystemAssets> {
+  if (designSystemId.startsWith('user:')) {
+    return readDesignSystemAssets(userInstalledRoot, designSystemId);
+  }
+
   const builtIn = await readDesignSystemAssets(builtInRoot, designSystemId);
   if (builtIn.tokensCss !== undefined && builtIn.fixtureHtml !== undefined) {
     return builtIn;
@@ -640,12 +838,15 @@ async function designSystemAssetsCacheFingerprint(
   userInstalledRoot: string,
   env: NodeJS.ProcessEnv,
 ): Promise<string> {
+  const roots = designSystemId.startsWith('user:')
+    ? [designSystemAssetsRootFingerprint(userInstalledRoot, designSystemId)]
+    : [
+        designSystemAssetsRootFingerprint(builtInRoot, designSystemId),
+        designSystemAssetsRootFingerprint(userInstalledRoot, designSystemId),
+      ];
   const payload = {
     tokenChannel: env.OD_DESIGN_TOKEN_CHANNEL ?? null,
-    roots: await Promise.all([
-      designSystemAssetsRootFingerprint(builtInRoot, designSystemId),
-      designSystemAssetsRootFingerprint(userInstalledRoot, designSystemId),
-    ]),
+    roots: await Promise.all(roots),
   };
   return createHash('sha256').update(JSON.stringify(payload), 'utf8').digest('hex');
 }
@@ -819,6 +1020,83 @@ async function buildDesignSystemPullFileAllowlist(
   return allowed;
 }
 
+const DESIGN_SYSTEM_STATIC_SYSTEM_FILES = new Set([
+  'system/index.html',
+  'system/kit.html',
+  'system/kit.dark.html',
+  'system/tokens.default.json',
+  'system/artifacts/landing.html',
+  'system/artifacts/deck.html',
+  'system/artifacts/poster.html',
+  'system/artifacts/email.html',
+  'system/artifacts/newsletter.html',
+  'system/artifacts/form.html',
+]);
+
+async function isAllowedDesignSystemStaticFile(
+  brandRoot: string,
+  manifest: DesignSystemProjectManifest | null,
+  relativePath: string,
+): Promise<boolean> {
+  if (!isSafeManifestPath(relativePath)) return false;
+  if (DESIGN_SYSTEM_STATIC_SYSTEM_FILES.has(relativePath)) return true;
+
+  const allowed = new Set<string>();
+  const add = (filePath: string | undefined): void => {
+    const cleanPath = typeof filePath === 'string' ? sanitizeRelativeFilePath(filePath) : null;
+    if (cleanPath) allowed.add(cleanPath);
+  };
+
+  add(manifest?.files.design ?? 'DESIGN.md');
+  add(manifest?.files.tokens ?? 'tokens.css');
+  add(manifest?.files.components ?? 'components.html');
+  add(manifest?.files.designTokens);
+  add(manifest?.files.tailwind);
+  add(manifest?.usage ?? 'USAGE.md');
+  add(manifest?.componentsManifest ?? 'components.manifest.json');
+  for (const page of manifest?.preview?.pages ?? []) add(page.path);
+  for (const font of manifest?.fonts ?? []) add(font.file);
+
+  if (manifest?.assetsDir === 'assets') {
+    await addFilesUnderDeclaredDir(brandRoot, 'assets', allowed);
+  }
+
+  return allowed.has(relativePath);
+}
+
+function designSystemStaticContentType(relativePath: string): string {
+  const ext = path.extname(relativePath).toLowerCase();
+  switch (ext) {
+    case '.html':
+      return 'text/html; charset=utf-8';
+    case '.css':
+      return 'text/css; charset=utf-8';
+    case '.json':
+      return 'application/json; charset=utf-8';
+    case '.svg':
+      return 'image/svg+xml';
+    case '.png':
+      return 'image/png';
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.webp':
+      return 'image/webp';
+    case '.gif':
+      return 'image/gif';
+    case '.woff':
+      return 'font/woff';
+    case '.woff2':
+      return 'font/woff2';
+    case '.ttf':
+      return 'font/ttf';
+    case '.otf':
+      return 'font/otf';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
 async function addFilesUnderDeclaredDir(
   brandRoot: string,
   dir: string,
@@ -990,7 +1268,11 @@ export async function createUserDesignSystem(
   input: UserDesignSystemInput,
 ): Promise<DesignSystemSummary> {
   const title = normalizeTitle(input.title);
-  const dirId = await uniqueSlug(root, slugify(title));
+  const { dirId, dir } = await reserveUniqueSlugDirectory(
+    root,
+    slugify(title),
+    input.reservedResourceIds,
+  );
   const now = new Date().toISOString();
   const provenance = normalizeProvenance(input.provenance, {
     ...(input.summary ? { companyBlurb: input.summary } : {}),
@@ -1003,37 +1285,46 @@ export async function createUserDesignSystem(
     sourceNotes,
   });
   const surface = input.surface ?? extractSurface(body) ?? 'web';
-  await mkdir(path.join(root, dirId), { recursive: true });
-  await writeFile(path.join(root, dirId, 'DESIGN.md'), body, 'utf8');
-  const artifactMode = normalizeArtifactMode(input.artifactMode);
-  await writeUserMetadata(root, dirId, {
-    title,
-    category: cleanText(input.category) || extractCategory(body) || 'Custom',
-    surface,
-    status: input.status ?? 'draft',
-    ...(artifactMode ? { artifactMode } : {}),
-    createdAt: now,
-    updatedAt: now,
-    ...(provenance ? { provenance } : {}),
-  });
-  if (artifactMode !== 'agent-managed') {
-    await writeGeneratedDesignSystemFiles(root, dirId, {
+  let createdDir = false;
+  try {
+    createdDir = true;
+    await writeFile(path.join(dir, 'DESIGN.md'), body, 'utf8');
+    const artifactMode = normalizeArtifactMode(input.artifactMode);
+    await writeUserMetadata(root, dirId, {
       title,
       category: cleanText(input.category) || extractCategory(body) || 'Custom',
       surface,
-      summary: summarize(body),
+      status: input.status ?? 'draft',
+      ...(artifactMode ? { artifactMode } : {}),
+      createdAt: now,
+      updatedAt: now,
       ...(provenance ? { provenance } : {}),
-      ...(sourceNotes ? { sourceNotes } : {}),
-      body,
+      // Claim the system for the workspace it was authored in, so switching to
+      // another workspace no longer shows it (#145).
+      ...(input.workspaceId?.trim() ? { workspaceId: input.workspaceId.trim() } : {}),
     });
+    if (artifactMode !== 'agent-managed') {
+      await writeGeneratedDesignSystemFiles(root, dirId, {
+        title,
+        category: cleanText(input.category) || extractCategory(body) || 'Custom',
+        surface,
+        summary: summarize(body),
+        ...(provenance ? { provenance } : {}),
+        ...(sourceNotes ? { sourceNotes } : {}),
+        body,
+      });
+    }
+    const listed = await listDesignSystems(root, {
+      idPrefix: 'user:',
+      source: 'user',
+      isEditable: true,
+      defaultStatus: 'draft',
+    });
+    return listed.find((s) => s.id === `user:${dirId}`)!;
+  } catch (err) {
+    if (createdDir) await rm(dir, { recursive: true, force: true });
+    throw err;
   }
-  const listed = await listDesignSystems(root, {
-    idPrefix: 'user:',
-    source: 'user',
-    isEditable: true,
-    defaultStatus: 'draft',
-  });
-  return listed.find((s) => s.id === `user:${dirId}`)!;
 }
 
 export async function updateUserDesignSystem(
@@ -1095,6 +1386,67 @@ export async function updateUserDesignSystem(
     defaultStatus: 'draft',
   });
   return listed.find((s) => s.id === `user:${dirId}`) ?? null;
+}
+
+// A design-system workspace project mirrors its design system's title:
+// ensureUserDesignSystemWorkspaceProject re-stamps the project name from
+// the registry title every time the workspace is ensured, so a rename
+// applied only to the project row silently reverts on the next open.
+// Renames on these projects must instead be written through to the
+// design-system title — the sync then carries the new name back onto the
+// project and both records agree.
+export function workspaceRenameDesignSystemId(project: {
+  designSystemId?: string | null;
+  metadata?: unknown;
+}): string | null {
+  const id = typeof project?.designSystemId === 'string' ? project.designSystemId : '';
+  if (!id.startsWith('user:')) return null;
+  const metadata = project?.metadata;
+  const importedFrom =
+    metadata && typeof metadata === 'object'
+      ? (metadata as Record<string, unknown>).importedFrom
+      : undefined;
+  return importedFrom === 'design-system' ? id : null;
+}
+
+// 'not-applicable': the project is not a design-system workspace (or the
+// name is blank) — the rename does not involve a design system at all.
+// 'propagated': the bound design system's title now matches the new name.
+// 'failed': the project IS bound to a user design system but the title
+// could not be written through (e.g. the entry is missing on disk).
+// Callers must not persist the project-row rename on 'failed' — doing so
+// recreates the silent revert this write-through exists to prevent.
+export type WorkspaceRenamePropagation = 'not-applicable' | 'propagated' | 'failed';
+
+/**
+ * A Team design-system workspace project edits the workspace-scoped
+ * materialization, never a same-id Personal canonical entry. The persisted
+ * project binding is the scope authority; shell/current Workspace state is
+ * deliberately irrelevant.
+ */
+export function resolveWorkspaceProjectDesignSystemRoot(
+  canonicalRoot: string,
+  binding: { workspaceId?: unknown; visibility?: unknown } | null | undefined,
+): string {
+  const workspaceId = typeof binding?.workspaceId === 'string'
+    ? binding.workspaceId.trim()
+    : '';
+  return binding?.visibility === 'team' && workspaceId
+    ? teamResourceWorkspaceRoot(canonicalRoot, workspaceId)
+    : canonicalRoot;
+}
+
+export async function propagateWorkspaceProjectRename(
+  root: string,
+  project: { designSystemId?: string | null; metadata?: unknown },
+  name: unknown,
+): Promise<WorkspaceRenamePropagation> {
+  const id = workspaceRenameDesignSystemId(project);
+  if (!id) return 'not-applicable';
+  const title = typeof name === 'string' ? name.trim() : '';
+  if (!title) return 'not-applicable';
+  const updated = await updateUserDesignSystem(root, id, { title });
+  return updated != null ? 'propagated' : 'failed';
 }
 
 export async function linkUserDesignSystemProject(
@@ -1244,6 +1596,135 @@ export async function deleteUserDesignSystem(root: string, id: string): Promise<
   }
 }
 
+/**
+ * Whether `id` was materialized locally from a teammate's team share, rather
+ * than authored by the current caller. Mirrors the `teamSynced` flag
+ * `markTeamSynced` (server.ts `syncSharedTeamDesignSystem`) writes once a
+ * shared design system is pulled onto disk — false/absent for anything the
+ * caller authored themselves, including a system the caller has *shared* to
+ * the team (the sharer's own copy never gets this flag). Routes that mutate
+ * a `user:` design system (edit / publish toggle / delete) must treat a
+ * `true` result as "not necessarily mine" and check the caller's team-share
+ * management permission before proceeding (see `canManageSharedResource` in
+ * `collab/team-resource-share.ts`) — recvqb6mfyqXLD.
+ */
+export async function isTeamSyncedUserDesignSystem(root: string, id: string): Promise<boolean> {
+  const dirId = stripPrefixAndValidateId(id, 'user:');
+  if (!dirId) return false;
+  const meta = await readUserMetadata(root, dirId);
+  return meta.teamSynced === true;
+}
+
+/**
+ * One-time startup backfill (spec 9.2): design systems predate the generic
+ * `workspace_resources` envelope table entirely — `createWorkspaceOwnedDesignSystem`
+ * and `markTeamSynced` (server.ts) only started double-writing into it today,
+ * so every system claimed BEFORE that shipped has a `workspaceId` in its
+ * `metadata.json` but no corresponding row in the table. Left alone, that
+ * system stays permanently invisible to anything that reads the generic table
+ * (mirrors what `collapseWorkspaceProjectHomes` heals for project, applied to
+ * a filesystem-backed resource instead of a DB-only one). Older systems that
+ * lack `workspaceId` may be recovered only when their `projectId` maps to
+ * exactly one persisted project binding. The current/active workspace is never
+ * consulted; an absent or ambiguous binding leaves the resource quarantined.
+ *
+ * Idempotent by construction: a directory whose exact Personal or
+ * Workspace-qualified Team binding already exists is skipped, so re-running
+ * this on every daemon start costs one readdir plus a lookup per system and
+ * never writes a duplicate. Legacy raw Team rows are retained; the qualified
+ * binding is added alongside them so no historical data is deleted.
+ *
+ * `visibility` mirrors the claim `markTeamSynced` writes going forward —
+ * `teamSynced: true` backfills as `'team'`, everything else as `'personal'`.
+ * For a project-inferred claim, metadata.json is updated with that durable
+ * workspace witness before the envelope row is created. Other metadata is
+ * preserved. Unresolvable ownerless resources are never deleted or rewritten.
+ */
+export async function backfillDesignSystemWorkspaceResources(
+  db: SqliteDb,
+  root: string,
+): Promise<number> {
+  let entries = [];
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  let backfilled = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+    const dirId = entry.name;
+    const id = `user:${dirId}`;
+    const metadata = await readUserMetadata(root, dirId);
+    let workspaceId = metadata.workspaceId;
+    let createdByWorkspaceMemberId: string | undefined;
+    let inferredWorkspaceId: string | undefined;
+    if (metadata.projectId) {
+      const bindings = db.prepare(
+        `SELECT workspace_id AS workspaceId,
+                created_by_workspace_member_id AS createdByWorkspaceMemberId
+           FROM workspace_projects
+          WHERE project_id = ?
+          LIMIT 2`,
+      ).all(metadata.projectId) as Array<{
+        workspaceId?: string;
+        createdByWorkspaceMemberId?: string | null;
+      }>;
+      if (bindings.length === 1) {
+        inferredWorkspaceId = cleanWorkspaceIdForMetadata(bindings[0]?.workspaceId) ?? undefined;
+        if (!workspaceId) workspaceId = inferredWorkspaceId ?? undefined;
+        if (inferredWorkspaceId === workspaceId) {
+          createdByWorkspaceMemberId = bindings[0]?.createdByWorkspaceMemberId?.trim() || undefined;
+        }
+      }
+    }
+    const bindingResourceId = metadata.teamSynced === true && workspaceId
+      ? workspaceTeamDesignSystemBindingResourceId(workspaceId, id)
+      : id;
+    const existing = getWorkspaceResourceByResourceId(
+      db,
+      'design_system',
+      bindingResourceId,
+    );
+    if (existing) {
+      const bindingMatchesInference = inferredWorkspaceId === existing.workspaceId;
+      if (!metadata.workspaceId && bindingMatchesInference) {
+        await writeUserDesignSystemWorkspaceClaim(root, dirId, existing.workspaceId);
+      }
+      if (
+        existing.visibility !== 'team'
+        && !existing.createdByWorkspaceMemberId
+        && bindingMatchesInference
+        && createdByWorkspaceMemberId
+      ) {
+        updateWorkspaceResource(db, 'design_system', existing.workspaceId, bindingResourceId, {
+          createdByWorkspaceMemberId,
+          updatedByWorkspaceMemberId: createdByWorkspaceMemberId,
+          updatedAt: existing.updatedAt,
+        });
+        backfilled += 1;
+      }
+      continue;
+    }
+    if (!workspaceId) continue;
+    if (!metadata.workspaceId && inferredWorkspaceId === workspaceId) {
+      await writeUserDesignSystemWorkspaceClaim(root, dirId, workspaceId);
+    }
+    ensureWorkspaceResource(db, 'design_system', workspaceId, bindingResourceId, {
+      visibility: metadata.teamSynced === true ? 'team' : 'personal',
+      resourceState: 'active',
+      ...(createdByWorkspaceMemberId
+        ? {
+            createdByWorkspaceMemberId,
+            updatedByWorkspaceMemberId: createdByWorkspaceMemberId,
+          }
+        : {}),
+    });
+    backfilled += 1;
+  }
+  return backfilled;
+}
+
 export async function listUserDesignSystemFiles(
   root: string,
   id: string,
@@ -1272,6 +1753,16 @@ export async function readUserDesignSystemFile(
   id: string,
   relativePath: string,
 ): Promise<DesignSystemFileDetail | null> {
+  const detail = await readUserDesignSystemFileBytes(root, id, relativePath);
+  if (!detail) return null;
+  return { ...detail, content: detail.bytes.toString('utf8') };
+}
+
+export async function readUserDesignSystemFileBytes(
+  root: string,
+  id: string,
+  relativePath: string,
+) {
   const dirId = stripPrefixAndValidateId(id, 'user:');
   const cleanPath = sanitizeRelativeFilePath(relativePath);
   if (!dirId || !cleanPath) return null;
@@ -1284,18 +1775,227 @@ export async function readUserDesignSystemFile(
   try {
     const stats = await stat(filePath);
     if (!stats.isFile()) return null;
-    const content = await readFile(filePath, 'utf8');
+    const bytes = await readFile(filePath);
     return {
       path: cleanPath,
       name: path.basename(cleanPath),
       kind: classifyDesignSystemFile(cleanPath, false),
       size: stats.size,
       updatedAt: stats.mtime.toISOString(),
-      content,
+      bytes,
     };
   } catch {
     return null;
   }
+}
+
+// Pack a user design system's entire on-disk directory into a shareable .zip.
+// The archive is the same file tree the Design Files panel shows (folders walked
+// recursively, dotfiles + the internal metadata.json/revisions/ excluded) plus a
+// generated SKILLS.md usage guide so a recipient can drop the folder into any AI
+// coding tool and get on-brand output without further art direction. Returns null
+// for non-user ids (built-in presets live elsewhere and have no editable dir).
+export async function buildUserDesignSystemArchive(
+  root: string,
+  id: string,
+): Promise<{ buffer: Buffer; baseName: string; title: string } | null> {
+  const dirId = stripPrefixAndValidateId(id, 'user:');
+  if (!dirId) return null;
+  const base = path.join(root, dirId);
+  try {
+    const baseStats = await stat(base);
+    if (!baseStats.isDirectory()) return null;
+  } catch {
+    return null;
+  }
+  await ensureGeneratedDesignSystemFiles(root, dirId);
+
+  const summaries: DesignSystemFileSummary[] = [];
+  await collectDesignSystemFiles(base, '', summaries);
+  const fileEntries = summaries.filter((entry) => entry.kind !== 'folder');
+
+  const metadata = await readUserMetadata(root, dirId);
+  let body = '';
+  try {
+    body = await readFile(path.join(base, 'DESIGN.md'), 'utf8');
+  } catch {
+    // DESIGN.md is normally present; an empty body still produces a valid guide.
+  }
+  const title = normalizeTitle(metadata.title ?? firstHeading(body) ?? dirId);
+
+  const zip = new JSZip();
+  for (const entry of fileEntries) {
+    const buf = await readFile(path.join(base, ...entry.path.split('/')));
+    zip.file(entry.path, buf, {
+      date: entry.updatedAt ? new Date(entry.updatedAt) : new Date(0),
+      binary: true,
+    });
+  }
+
+  // Inject the usage guide unless the system already ships its own SKILLS.md.
+  if (!fileEntries.some((entry) => entry.path.toLowerCase() === 'skills.md')) {
+    const skills = buildDesignSystemSkillsMarkdown({
+      title,
+      summary: summarize(body),
+      category: metadata.category ?? extractCategory(body) ?? 'Custom',
+      surface: metadata.surface ?? extractSurface(body) ?? 'web',
+      palette: normalizeSwatches(body),
+      ...(metadata.provenance ? { provenance: metadata.provenance } : {}),
+    });
+    zip.file('SKILLS.md', skills, { date: new Date(0), binary: false });
+  }
+
+  const buffer = await zip.generateAsync({
+    type: 'nodebuffer',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+  return { buffer, baseName: title || dirId, title };
+}
+
+// Surface-specific framing for the SKILLS.md guide: what the system is best at
+// and the deliverables an agent should expect to produce from it.
+const DESIGN_SYSTEM_SURFACE_GUIDE: Record<
+  DesignSystemSurface,
+  { deliverables: string; goodFor: string[] }
+> = {
+  web: {
+    deliverables: 'websites, landing pages, dashboards, decks, and product UI',
+    goodFor: [
+      'Landing pages & marketing sites',
+      'Slide decks & pitch decks',
+      'Dashboards & product UI',
+      'Prototypes & component mockups',
+    ],
+  },
+  image: {
+    deliverables: 'social posts, ads, posters, and other image creative',
+    goodFor: [
+      'Social posts & ad creative',
+      'Posters & one-pagers',
+      'Cover art & thumbnails',
+      'On-brand illustration prompts',
+    ],
+  },
+  video: {
+    deliverables: 'video, motion, and animated creative',
+    goodFor: [
+      'Promo & explainer video',
+      'Motion graphics & title cards',
+      'Animated social clips',
+      'Storyboards & shot lists',
+    ],
+  },
+  audio: {
+    deliverables: 'audio, podcast, and sonic-brand work',
+    goodFor: [
+      'Podcast & episode branding',
+      'Audio ad scripts',
+      'Sonic-logo & jingle direction',
+      'Voice & tone guidance',
+    ],
+  },
+};
+
+// Build the SKILLS.md usage guide bundled into every downloaded design system.
+// Pure (no I/O) so it can be unit tested against fixed inputs. The guide teaches
+// a recipient how to feed the system to an AI coding tool for on-brand results
+// and attributes it to the ComposerDesign open-source project for shareability.
+export function buildDesignSystemSkillsMarkdown(input: {
+  title: string;
+  summary: string;
+  category: string;
+  surface: DesignSystemSurface;
+  palette: GeneratedPalette;
+  provenance?: DesignSystemProvenance;
+}): string {
+  const { title, summary, category, surface, palette } = input;
+  const guide = DESIGN_SYSTEM_SURFACE_GUIDE[surface] ?? DESIGN_SYSTEM_SURFACE_GUIDE.web;
+  const sourceUrls = (input.provenance?.sourceUrls ?? []).filter(
+    (url): url is string => typeof url === 'string' && url.trim().length > 0,
+  );
+
+  const lines: string[] = [];
+  lines.push(`# How to use the ${title} design system`);
+  lines.push('');
+  if (summary) {
+    lines.push(summary);
+    lines.push('');
+  }
+  lines.push(
+    `This package is a portable **${category}** design system for ${guide.deliverables}. ` +
+      'Hand the unzipped folder to any AI coding agent — Claude Code, Codex, Cursor, ' +
+      'Gemini, OpenCode, or Qwen — alongside `DESIGN.md`, and it will produce on-brand ' +
+      'work without further art direction.',
+  );
+  lines.push('');
+
+  lines.push('## What it is good for');
+  lines.push('');
+  for (const item of guide.goodFor) lines.push(`- ${item}`);
+  lines.push('');
+
+  lines.push('## How to apply it');
+  lines.push('');
+  lines.push('1. Unzip this folder and open it in your AI coding tool.');
+  lines.push(
+    '2. Tell the agent: "Use `DESIGN.md` as the design system for everything you generate."',
+  );
+  lines.push('3. Ask for the artifact you want — e.g. "a pricing page" or "a 10-slide deck".');
+  lines.push(
+    '4. The agent reads `DESIGN.md` (identity, palette, typography, voice, layout) and the ' +
+      '`system/` kit, then matches the brand.',
+  );
+  lines.push('');
+  lines.push(
+    '`DESIGN.md` is the single source of truth. The `system/` directory (when present) ships ' +
+      'the rendered kit and design tokens — keep them together so the agent can read both.',
+  );
+  lines.push('');
+
+  lines.push('## Palette quick reference');
+  lines.push('');
+  lines.push('| Role | Hex |');
+  lines.push('| --- | --- |');
+  lines.push(`| Background | \`${palette.background}\` |`);
+  lines.push(`| Foreground | \`${palette.foreground}\` |`);
+  lines.push(`| Accent | \`${palette.accent}\` |`);
+  lines.push(`| Border | \`${palette.border}\` |`);
+  lines.push(`| Muted | \`${palette.muted}\` |`);
+  lines.push('');
+
+  lines.push('## Tips for better results');
+  lines.push('');
+  lines.push('- Reference `DESIGN.md` explicitly in every prompt so the agent stays on-brand.');
+  lines.push(
+    '- Ask the agent to pull exact hex values and font families from `DESIGN.md` rather than ' +
+      'inventing its own.',
+  );
+  lines.push(
+    '- For multi-page or multi-slide work, ask it to reuse the same tokens across every page.',
+  );
+  lines.push('- Iterate by pointing at a specific section of `DESIGN.md` when something looks off.');
+  lines.push('');
+
+  if (sourceUrls.length > 0) {
+    lines.push('## Source');
+    lines.push('');
+    lines.push(`Extracted from: ${sourceUrls.join(', ')}`);
+    lines.push('');
+  }
+
+  lines.push('---');
+  lines.push('');
+  lines.push(
+    'Generated with **ComposerDesign** — the open-source, local-first Claude Design alternative. ' +
+      'Generate decks, landing pages, dashboards, and brand systems with your favourite AI ' +
+      'coding agent.',
+  );
+  lines.push('');
+  lines.push('https://github.com/nexu-io/open-design');
+  lines.push('');
+
+  return lines.join('\n');
 }
 
 async function ensureGeneratedDesignSystemFiles(root: string, id: string): Promise<void> {
@@ -1340,7 +2040,7 @@ async function migrateLegacyDesignSystemPackage(
     return;
   }
   const title = normalizeTitle(metadata.title ?? firstHeading(body) ?? id);
-  const summary = summarize(body) || 'A reusable Composer Design design system.';
+  const summary = summarize(body) || 'A reusable ComposerDesign design system.';
   const palette = normalizeSwatches(body);
   const copyIfMissing = async (from: string, to: string): Promise<boolean> => {
     const fromPath = path.join(dir, ...from.split('/'));
@@ -1407,7 +2107,7 @@ async function migrateLegacyDesignSystemPackage(
     appKitExists
       ? writeIfMissing(
           'ui_kits/app/README.md',
-          `# ${title} UI Kit\n\nThis package was migrated from an earlier Composer Design design-system workspace. Use \`index.html\` as the applied interface example and replace it with source-backed modular components when new repository evidence is available.\n`,
+          `# ${title} UI Kit\n\nThis package was migrated from an earlier ComposerDesign design-system workspace. Use \`index.html\` as the applied interface example and replace it with source-backed modular components when new repository evidence is available.\n`,
         )
       : Promise.resolve(false),
     appKitExists
@@ -1509,6 +2209,11 @@ async function collectDesignSystemFiles(
   const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.name.startsWith('.')) continue;
+    // Never list or archive symlinks: `readFile`/`stat` would follow them out of
+    // the design-system root, letting a crafted package exfiltrate arbitrary
+    // daemon-readable files through the ZIP download. Excluding them here keeps
+    // both the file listing and `buildUserDesignSystemArchive` inside `base`.
+    if (entry.isSymbolicLink()) continue;
     if (!relativeDir && (entry.name === 'metadata.json' || entry.name === 'revisions')) continue;
     const relativePath = relativeDir
       ? path.posix.join(relativeDir.replaceAll(path.sep, '/'), entry.name)
@@ -1559,6 +2264,89 @@ function classifyDesignSystemFile(
   return 'asset';
 }
 
+// Hidden fingerprint manifest recording the content the generator last wrote for
+// each derived file. `collectDesignSystemFiles` skips dot-prefixed entries, so it
+// is excluded from file listings and ZIP archives; the pull/static allowlists are
+// default-deny, so it is never served either.
+const GENERATED_MANIFEST_FILENAME = '.od-generated.json';
+
+// Manifest keys are posix-relative paths under the design-system root, matching
+// the `collectDesignSystemFiles` relative-path convention.
+function generatedManifestKey(dir: string, targetPath: string): string {
+  return path.relative(dir, targetPath).split(path.sep).join('/');
+}
+
+function hashGeneratedContent(content: string): string {
+  return createHash('sha256').update(content, 'utf8').digest('hex');
+}
+
+function serializeGeneratedManifest(manifest: Record<string, string>): string {
+  const sorted: Record<string, string> = {};
+  for (const [key, value] of Object.entries(manifest).sort(([a], [b]) => a.localeCompare(b))) {
+    sorted[key] = value;
+  }
+  return `${JSON.stringify(sorted, null, 2)}\n`;
+}
+
+// Reading the manifest is fault-tolerant: a missing, malformed, or user-authored
+// same-named file all degrade to "no manifest" (an empty record). That routes the
+// caller into the conservative legacy path (write-if-missing) instead of ever
+// trusting an untrusted file as a source of overwrite decisions.
+async function readGeneratedManifest(dir: string): Promise<Record<string, string>> {
+  const raw = await readFileOptional(path.join(dir, GENERATED_MANIFEST_FILENAME));
+  if (raw === undefined) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return {};
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (typeof value === 'string') out[key] = value;
+  }
+  return out;
+}
+
+// Regeneration must never discard files a user has customized (issue #323). A
+// generated file is only overwritten when it is still byte-identical to what the
+// generator last wrote (recorded in `.od-generated.json`). Anything the user
+// edited — or any pre-existing file with no recorded fingerprint (legacy systems)
+// — is preserved. Files that are absent are written and fingerprinted. The
+// returned `nextManifest` records fingerprints for every path that will be
+// written/refreshed, preserves the prior fingerprint for kept-but-skipped paths,
+// and drops manifest keys the generator no longer produces.
+async function filterGeneratedWritesPreservingUserEdits(
+  dir: string,
+  writes: AtomicTextFileWrite[],
+  manifest: Record<string, string>,
+): Promise<{ writes: AtomicTextFileWrite[]; nextManifest: Record<string, string> }> {
+  const kept: AtomicTextFileWrite[] = [];
+  const nextManifest: Record<string, string> = {};
+  for (const write of writes) {
+    const key = generatedManifestKey(dir, write.targetPath);
+    const current = await readFileOptional(write.targetPath);
+    if (current === undefined) {
+      // Absent → safe to write.
+      kept.push(write);
+      nextManifest[key] = hashGeneratedContent(write.content);
+      continue;
+    }
+    const recorded = manifest[key];
+    if (recorded !== undefined && hashGeneratedContent(current) === recorded) {
+      // Untouched since the last generation → refresh to the new content.
+      kept.push(write);
+      nextManifest[key] = hashGeneratedContent(write.content);
+      continue;
+    }
+    // User-owned (edited, or a legacy file with no fingerprint) → preserve as-is.
+    // Retain any prior fingerprint so future updates can still compare.
+    if (recorded !== undefined) nextManifest[key] = recorded;
+  }
+  return { writes: kept, nextManifest };
+}
+
 async function writeGeneratedDesignSystemFiles(
   root: string,
   id: string,
@@ -1583,11 +2371,111 @@ async function writeGeneratedDesignSystemFiles(
     mkdir(path.join(dir, 'ui_kits', 'app', 'components'), { recursive: true }),
   ]);
 
-  await Promise.all(
-    generatedDesignSystemFileWrites(dir, input).map((write) =>
-      writeFile(write.targetPath, write.content, 'utf8')
-    ),
+  const manifest = await readGeneratedManifest(dir);
+  const { writes, nextManifest } = await filterGeneratedWritesPreservingUserEdits(
+    dir,
+    generatedDesignSystemFileWrites(dir, input),
+    manifest,
   );
+  await Promise.all(
+    writes.map((write) => writeFile(write.targetPath, write.content, 'utf8')),
+  );
+  await writeFile(
+    path.join(dir, GENERATED_MANIFEST_FILENAME),
+    serializeGeneratedManifest(nextManifest),
+    'utf8',
+  );
+}
+
+// A real asset file synced in from a workspace project's editing-time
+// mirror — arbitrary bytes the agent already produced there (e.g. a
+// regenerated logo.svg), not generator output.
+export type DesignSystemAssetSourceFile = {
+  /** POSIX-relative path under the design-system root, e.g. "assets/logo.svg". */
+  path: string;
+  content: Buffer;
+};
+
+export type DesignSystemAssetSyncResult = {
+  /** POSIX-relative paths that were actually written to the canonical dir. */
+  synced: string[];
+};
+
+/**
+ * Copies real asset bytes into a user design system's canonical `assets/`
+ * directory — the fix for the logo/asset desync (spec 04 §9.3,
+ * recvqb1t4FrckM): canonical is the only directory `team-resource-share`
+ * packages and downloads read from, but agent-produced assets only ever
+ * landed in the workspace-project editing mirror, so a regenerated logo
+ * never reached what got shared or downloaded.
+ *
+ * Every write here is caller-supplied bytes, never generator output, so it
+ * must survive the next `writeGeneratedDesignSystemFiles` call rather than
+ * being silently regenerated back to a placeholder. Two things make it
+ * stick, both applied here:
+ *  1. Any `.od-generated.json` fingerprint entry for an overwritten path is
+ *     dropped. `filterGeneratedWritesPreservingUserEdits` treats a path with
+ *     no recorded fingerprint exactly like a hand-edited file — preserved,
+ *     never refreshed.
+ *  2. `artifactMode` flips to `'agent-managed'` the first time any file
+ *     actually syncs, so `createUserDesignSystem`/`updateUserDesignSystem`
+ *     skip `writeGeneratedDesignSystemFiles` entirely on every future write
+ *     (the "fingerprint protection was spinning with nothing to protect"
+ *     root cause the investigation identified).
+ *
+ * Only paths under `assets/` are accepted; anything else is silently
+ * skipped — this function syncs real assets, not arbitrary canonical files.
+ */
+export async function syncUserDesignSystemAssetsFromFiles(
+  root: string,
+  id: string,
+  files: DesignSystemAssetSourceFile[],
+): Promise<DesignSystemAssetSyncResult> {
+  const dirId = stripPrefixAndValidateId(id, 'user:');
+  if (!dirId) return { synced: [] };
+  const dir = path.join(root, dirId);
+  try {
+    const stats = await stat(path.join(dir, 'DESIGN.md'));
+    if (!stats.isFile()) return { synced: [] };
+  } catch {
+    return { synced: [] };
+  }
+
+  const manifest = await readGeneratedManifest(dir);
+  let manifestChanged = false;
+  const synced: string[] = [];
+  for (const file of files) {
+    const sanitized = sanitizeRelativeFilePath(file.path);
+    if (!sanitized || !(sanitized === 'assets' || sanitized.startsWith('assets/'))) continue;
+    const targetPath = path.join(dir, ...sanitized.split('/'));
+    await mkdir(path.dirname(targetPath), { recursive: true });
+    await writeFile(targetPath, file.content);
+    const key = generatedManifestKey(dir, targetPath);
+    if (key in manifest) {
+      delete manifest[key];
+      manifestChanged = true;
+    }
+    synced.push(sanitized);
+  }
+  if (synced.length === 0) return { synced };
+
+  if (manifestChanged) {
+    await writeFile(
+      path.join(dir, GENERATED_MANIFEST_FILENAME),
+      serializeGeneratedManifest(manifest),
+      'utf8',
+    );
+  }
+
+  const existingMeta = await readUserMetadata(root, dirId);
+  if (existingMeta.artifactMode !== 'agent-managed') {
+    await writeUserMetadata(root, dirId, {
+      ...existingMeta,
+      artifactMode: 'agent-managed',
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  return { synced };
 }
 
 function generatedDesignSystemFileWrites(
@@ -1603,7 +2491,7 @@ function generatedDesignSystemFileWrites(
   },
 ): AtomicTextFileWrite[] {
   const palette = normalizeSwatches(input.body);
-  const summary = input.summary || 'A user-created Composer Design design system.';
+  const summary = input.summary || 'A user-created ComposerDesign design system.';
   const sections = extractMarkdownSections(input.body);
   const provenance = input.provenance ?? normalizeProvenance(undefined, {
     ...(input.sourceNotes ? { sourceNotes: input.sourceNotes } : {}),
@@ -2042,7 +2930,7 @@ window.Composer = Composer;
 `;
 }
 
-function stripPrefixAndValidateId(id: string, prefix = ''): string | null {
+export function stripPrefixAndValidateId(id: string, prefix = ''): string | null {
   if (typeof id !== 'string') return null;
   if (prefix && !id.startsWith(prefix)) return null;
   const dirId = prefix ? id.slice(prefix.length) : id;
@@ -2068,10 +2956,26 @@ async function readUserMetadata(root: string, id: string): Promise<UserDesignSys
       ...(typeof parsed.updatedAt === 'string' ? { updatedAt: parsed.updatedAt } : {}),
       ...(provenance ? { provenance } : {}),
       ...(projectId ? { projectId } : {}),
+      ...(parsed.teamSynced === true ? { teamSynced: true } : {}),
+      ...(cleanWorkspaceIdForMetadata(parsed.workspaceId)
+        ? { workspaceId: cleanWorkspaceIdForMetadata(parsed.workspaceId)! }
+        : {}),
     };
   } catch {
     return {};
   }
+}
+
+/**
+ * Accept a workspace id only in the opaque-token shape B issues. A malformed
+ * value is dropped rather than trusted, which lands the system in the UNCLAIMED
+ * quarantine for scoped catalogs instead of silently claiming it by garbage.
+ */
+function cleanWorkspaceIdForMetadata(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const value = raw.trim();
+  if (!value) return null;
+  return /^[A-Za-z0-9._:-]{1,160}$/.test(value) ? value : null;
 }
 
 function cleanProjectIdForMetadata(raw: unknown): string | null {
@@ -2100,6 +3004,28 @@ async function writeUserMetadata(
     `${JSON.stringify(metadata, null, 2)}\n`,
     'utf8',
   );
+}
+
+export async function writeUserDesignSystemWorkspaceClaim(
+  root: string,
+  id: string,
+  workspaceId: string,
+): Promise<void> {
+  const metadataPath = path.join(root, id, 'metadata.json');
+  let parsed: unknown = {};
+  try {
+    parsed = JSON.parse(await readFile(metadataPath, 'utf8')) as unknown;
+  } catch (error: any) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return;
+  const tempPath = `${metadataPath}.workspace-backfill-${randomUUID()}.tmp`;
+  try {
+    await writeFile(tempPath, `${JSON.stringify({ ...parsed, workspaceId }, null, 2)}\n`, 'utf8');
+    await rename(tempPath, metadataPath);
+  } finally {
+    await rm(tempPath, { force: true });
+  }
 }
 
 async function writeUserDesignSystemRevision(
@@ -2193,6 +3119,7 @@ async function writeAcceptedUserDesignSystemRevision(
     updatedAt,
     ...(provenance ? { provenance } : {}),
   };
+  const fileChangeWrites = revisionFileChangeWrites(root, dirId, revision.fileChanges);
   const writes: AtomicTextFileWrite[] = [
     { targetPath: designPath, content: revision.proposedBody },
     {
@@ -2202,17 +3129,37 @@ async function writeAcceptedUserDesignSystemRevision(
   ];
   if (artifactMode !== 'agent-managed') {
     const sourceNotes = provenanceToNotes(provenance);
-    writes.push(...generatedDesignSystemFileWrites(base, {
-      title,
-      category,
-      surface,
-      summary: summarize(revision.proposedBody),
-      ...(provenance ? { provenance } : {}),
-      ...(sourceNotes ? { sourceNotes } : {}),
-      body: revision.proposedBody,
-    }));
+    const manifest = await readGeneratedManifest(base);
+    const filtered = await filterGeneratedWritesPreservingUserEdits(
+      base,
+      generatedDesignSystemFileWrites(base, {
+        title,
+        category,
+        surface,
+        summary: summarize(revision.proposedBody),
+        ...(provenance ? { provenance } : {}),
+        ...(sourceNotes ? { sourceNotes } : {}),
+        body: revision.proposedBody,
+      }),
+      manifest,
+    );
+    // Generated writes precede fileChanges; writeTextFilesAtomically keeps the
+    // last write per path, so an explicit fileChange wins over a same-named
+    // derived write. Drop those paths from the manifest so the hand-authored
+    // content is treated as user-owned (preserved) on the next regeneration.
+    const nextManifest = { ...filtered.nextManifest };
+    for (const change of fileChangeWrites) {
+      delete nextManifest[generatedManifestKey(base, change.targetPath)];
+    }
+    writes.push(...filtered.writes);
+    writes.push(...fileChangeWrites);
+    writes.push({
+      targetPath: path.join(base, GENERATED_MANIFEST_FILENAME),
+      content: serializeGeneratedManifest(nextManifest),
+    });
+  } else {
+    writes.push(...fileChangeWrites);
   }
-  writes.push(...revisionFileChangeWrites(root, dirId, revision.fileChanges));
   writes.push({
     targetPath: path.join(base, 'revisions', `${acceptedRevision.id}.json`),
     content: `${JSON.stringify(acceptedRevision, null, 2)}\n`,
@@ -2326,6 +3273,43 @@ async function uniqueSlug(root: string, base: string): Promise<string> {
   }
 }
 
+async function reserveUniqueSlugDirectory(
+  root: string,
+  base: string,
+  reservedResourceIds: Iterable<string> = [],
+): Promise<{ dirId: string; dir: string }> {
+  await mkdir(root, { recursive: true });
+  const reservedDirIds = new Set(
+    [...reservedResourceIds].map((resourceId) =>
+      resourceId.startsWith('user:') ? resourceId.slice('user:'.length) : resourceId),
+  );
+  let candidate = base || 'design-system';
+  let index = 2;
+  for (;;) {
+    if (reservedDirIds.has(candidate)) {
+      candidate = `${base || 'design-system'}-${index++}`;
+      continue;
+    }
+    const dir = path.join(root, candidate);
+    try {
+      await mkdir(dir);
+      return { dirId: candidate, dir };
+    } catch (err) {
+      if (!isNodeErrorCode(err, 'EEXIST')) throw err;
+      candidate = `${base || 'design-system'}-${index++}`;
+    }
+  }
+}
+
+function isNodeErrorCode(error: unknown, code: string): boolean {
+  return Boolean(
+    error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: unknown }).code === code,
+  );
+}
+
 function slugify(raw: string): string {
   const ascii = raw
     .normalize('NFKD')
@@ -2360,12 +3344,14 @@ function cleanMultiline(raw: string | undefined): string {
 function parseProvenance(raw: unknown): DesignSystemProvenance | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const value = raw as Record<string, unknown>;
+  const sourceUrls = parseStringList(value.sourceUrls);
   const githubUrls = parseStringList(value.githubUrls);
   const localCodeFiles = parseStringList(value.localCodeFiles);
   const figFiles = parseStringList(value.figFiles);
   const assetFiles = parseStringList(value.assetFiles);
   return normalizeProvenance({
     ...(typeof value.companyBlurb === 'string' ? { companyBlurb: value.companyBlurb } : {}),
+    ...(sourceUrls ? { sourceUrls } : {}),
     ...(githubUrls ? { githubUrls } : {}),
     ...(localCodeFiles ? { localCodeFiles } : {}),
     ...(figFiles ? { figFiles } : {}),
@@ -2386,6 +3372,7 @@ function normalizeProvenance(
   fallback: { companyBlurb?: string; sourceNotes?: string } = {},
 ): DesignSystemProvenance | undefined {
   const companyBlurb = cleanMultiline(raw?.companyBlurb) || cleanMultiline(fallback.companyBlurb);
+  const sourceUrls = uniqueCleanList(raw?.sourceUrls);
   const githubUrls = uniqueCleanList(raw?.githubUrls);
   const localCodeFiles = uniqueCleanList(raw?.localCodeFiles);
   const figFiles = uniqueCleanList(raw?.figFiles);
@@ -2394,6 +3381,7 @@ function normalizeProvenance(
   const sourceNotes = cleanMultiline(raw?.sourceNotes) || cleanMultiline(fallback.sourceNotes);
   const provenance: DesignSystemProvenance = {
     ...(companyBlurb ? { companyBlurb } : {}),
+    ...(sourceUrls.length > 0 ? { sourceUrls } : {}),
     ...(githubUrls.length > 0 ? { githubUrls } : {}),
     ...(localCodeFiles.length > 0 ? { localCodeFiles } : {}),
     ...(figFiles.length > 0 ? { figFiles } : {}),
@@ -2422,6 +3410,7 @@ function hasProvenance(provenance: DesignSystemProvenance): boolean {
     provenance.companyBlurb
       || provenance.notes
       || provenance.sourceNotes
+      || provenance.sourceUrls?.length
       || provenance.githubUrls?.length
       || provenance.localCodeFiles?.length
       || provenance.figFiles?.length
@@ -2433,7 +3422,8 @@ function provenanceToNotes(provenance: DesignSystemProvenance | undefined): stri
   if (!provenance) return '';
   const lines: string[] = [];
   if (provenance.companyBlurb) lines.push(`Company/product context: ${provenance.companyBlurb}`);
-  if (provenance.githubUrls?.length) lines.push(`GitHub/code links: ${provenance.githubUrls.join(', ')}`);
+  if (provenance.sourceUrls?.length) lines.push(`Source links: ${provenance.sourceUrls.join(', ')}`);
+  if (provenance.githubUrls?.length) lines.push(`GitHub repositories: ${provenance.githubUrls.join(', ')}`);
   if (provenance.localCodeFiles?.length) lines.push(`Local code references: ${provenance.localCodeFiles.join(', ')}`);
   if (provenance.figFiles?.length) lines.push(`Figma files: ${provenance.figFiles.join(', ')}`);
   if (provenance.assetFiles?.length) lines.push(`Fonts, logos and assets: ${provenance.assetFiles.join(', ')}`);
@@ -2477,7 +3467,7 @@ function upsertBlockquoteMeta(body: string, key: string, value: string): string 
 function buildDraftDesignSystemBody(input: UserDesignSystemInput & { title: string }): string {
   const category = cleanText(input.category) || 'Custom';
   const surface = input.surface ?? 'web';
-  const summary = cleanText(input.summary) || 'A user-authored design system for future Composer Design projects.';
+  const summary = cleanText(input.summary) || 'A user-authored design system for future ComposerDesign projects.';
   const sourceNotes = cleanText(input.sourceNotes);
   return `# ${input.title}
 
@@ -2541,10 +3531,10 @@ type GeneratedPalette = {
 function normalizeSwatches(body: string): GeneratedPalette {
   const [background, border, foreground, accent] = extractSwatches(body);
   return {
-    background: background ?? '#f7f7f7',
-    border: border ?? '#d0d0d0',
+    background: background ?? '#fbfaf7',
+    border: border ?? '#ddd8d0',
     foreground: foreground ?? '#1f1d1b',
-    accent: accent ?? '#787878',
+    accent: accent ?? '#d66f4d',
     muted: '#706b65',
     success: '#5d8f5a',
   };
@@ -2580,7 +3570,7 @@ function renderReadme(input: {
     .join('\n');
   return `# ${input.title}
 
-A reusable Composer Design package for ${input.title}.
+A reusable ComposerDesign package for ${input.title}.
 
 ## Product Overview
 
@@ -2620,8 +3610,11 @@ function renderProvenanceMarkdown(
   }
   const sections = [
     provenance.companyBlurb ? `## Company / Product\n\n${provenance.companyBlurb}` : '',
+    provenance.sourceUrls?.length
+      ? `## Source Links\n\n${provenance.sourceUrls.map((value) => `- ${value}`).join('\n')}`
+      : '',
     provenance.githubUrls?.length
-      ? `## GitHub / Code Links\n\n${provenance.githubUrls.map((value) => `- ${value}`).join('\n')}`
+      ? `## GitHub Repositories\n\n${provenance.githubUrls.map((value) => `- ${value}`).join('\n')}`
       : '',
     provenance.localCodeFiles?.length
       ? `## Local Code References\n\n${provenance.localCodeFiles.map((value) => `- ${value}`).join('\n')}`
@@ -2646,7 +3639,7 @@ function renderSkill(input: {
   const skillName = slugify(input.title);
   return `---
 name: ${skillName}
-description: Use this skill when generating Composer Design artifacts that should follow ${input.title}.
+description: Use this skill when generating ComposerDesign artifacts that should follow ${input.title}.
 user-invocable: true
 ---
 
@@ -2717,7 +3710,7 @@ function renderCssTokens(input: { title: string; palette: GeneratedPalette }): s
   return `:root {
   --${slug}-background: ${input.palette.background};
   --${slug}-surface: #ffffff;
-  --${slug}-surface-muted: #f2f2f2;
+  --${slug}-surface-muted: #f4f1ec;
   --${slug}-foreground: ${input.palette.foreground};
   --${slug}-muted: ${input.palette.muted};
   --${slug}-border: ${input.palette.border};
@@ -2803,7 +3796,7 @@ function renderOverviewHtml(
   return renderHtmlDocument(
     title,
     `<main class="overview">
-      <p class="eyebrow">Composer Design system</p>
+      <p class="eyebrow">ComposerDesign system</p>
       <h1>${escapeHtml(title)}</h1>
       <p class="lead">${escapeHtml(summary)}</p>
       <div class="palette">
@@ -2827,7 +3820,7 @@ function renderColorPreviewHtml(title: string, palette: GeneratedPalette): strin
     ['Border', palette.border],
     ['Accent', palette.accent],
     ['Success', palette.success],
-    ['Subtle', '#f2f2f2'],
+    ['Subtle', '#f4f1ec'],
   ];
   return renderHtmlDocument(
     title,
@@ -3008,7 +4001,7 @@ function renderHtmlDocument(title: string, body: string, palette: GeneratedPalet
     .logo-frame { padding: 34px; margin: 20px 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
     .logo-frame.dark { background: var(--fg); }
     .component-preview { display: grid; grid-template-columns: 240px 1fr; min-height: calc(100vh - 96px); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-    .component-preview aside { display: grid; align-content: start; gap: 10px; padding: 20px; background: #f0f0f0; border-right: 1px solid var(--border); }
+    .component-preview aside { display: grid; align-content: start; gap: 10px; padding: 20px; background: #f3f1ec; border-right: 1px solid var(--border); }
     button { border: 1px solid var(--border); background: var(--surface); color: var(--fg); border-radius: 7px; padding: 10px 14px; font-weight: 700; }
     button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
     .component-preview section { padding: 48px; }
@@ -3212,7 +4205,11 @@ function extractSwatches(raw: string): string[] {
   // bold markers (`**Name:**`) or outside them (`**Name**:`). Both variants
   // are common in hand-authored DESIGN.md files, so we allow the colon in
   // either position around the closing `**`.
-  const reA = /^[\s>*-]*\**\s*([A-Za-z][A-Za-z0-9 /&()+_-]{1,40}?)\s*[:：]?\s*\**\s*[:：]?\s*`?(#[0-9a-fA-F]{3,8})/gm;
+  // The leading class `[\s>*-]` already covers whitespace, `>`, `*` and `-`, so
+  // the old `[\s>*-]*\**\s*` prefix had three overlapping star-consumers whose
+  // ambiguous split made a long run of `*` at a line start O(n^2). A single
+  // `[\s>*-]*` matches the same prefixes without the backtracking blowup.
+  const reA = /^[\s>*-]*([A-Za-z][A-Za-z0-9 /&()+_-]{1,40}?)\s*[:：]?\s*\**\s*[:：]?\s*`?(#[0-9a-fA-F]{3,8})/gm;
   let m;
   while ((m = reA.exec(raw)) !== null) push(m[1] ?? '', m[2] ?? '');
   // Form B: "**Stripe Purple** (`#533afd`)"

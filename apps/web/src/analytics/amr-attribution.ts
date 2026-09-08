@@ -1,6 +1,8 @@
 import type {
   AmrEntryAttribution,
   TrackingAmrEntrySource,
+  TrackingCampaignConversionSource,
+  TrackingCampaignId,
   TrackingPageName,
 } from '@open-design/contracts/analytics';
 import {
@@ -18,6 +20,8 @@ type Track = (
 interface RecordAmrEntryOptions {
   metricsConsent?: boolean;
   reuseExistingFrom?: readonly TrackingAmrEntrySource[];
+  campaignId?: TrackingCampaignId;
+  conversionSource?: TrackingCampaignConversionSource;
 }
 
 interface SyncAmrProfileOptions {
@@ -29,22 +33,63 @@ interface SyncAmrProfileOptions {
 const AMR_ATTRIBUTION_STORAGE_KEY = 'open-design:amr-entry-attribution:v1';
 const AMR_ATTRIBUTION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * How long a CAMPAIGN entry survives, as opposed to the ordinary window above.
+ *
+ * A campaign runs longer than seven days, so the ordinary window would drop a
+ * visitor's entry while the campaign that produced it is still running: click
+ * the banner on day 1, subscribe on day 11, and the payment arrives with no
+ * entry left to attribute it to. The campaign then under-reports against the
+ * very metric it is judged on.
+ *
+ * Scoped to entries carrying a `campaignId` rather than raised globally, so
+ * every other entry point keeps the attribution window its dashboards were
+ * built on.
+ */
+const AMR_CAMPAIGN_ATTRIBUTION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
+function amrAttributionTtlMs(attribution: Pick<AmrEntryAttribution, 'campaignId'>): number {
+  return attribution.campaignId
+    ? AMR_CAMPAIGN_ATTRIBUTION_TTL_MS
+    : AMR_ATTRIBUTION_TTL_MS;
+}
+
 const ENTRY_PAGE_BY_SOURCE: Record<TrackingAmrEntrySource, TrackingPageName> = {
   onboarding_amr_card: 'onboarding',
   onboarding_amr_sign_in_continue: 'onboarding',
   inline_model_switcher_amr_row: 'chat_panel',
   settings_amr_agent_card: 'settings',
   settings_amr_authorize: 'settings',
+  settings_cloud_callout: 'settings',
   settings_amr_console: 'settings',
   settings_amr_install: 'settings',
   avatar_amr_console: 'chat_panel',
   handoff_amr_website: 'artifact',
   chat_error_authorize_retry: 'chat_panel',
   chat_error_recharge: 'chat_panel',
+  chat_error_upgrade: 'chat_panel',
+  chat_balance_gate_upgrade: 'chat_panel',
+  chat_upgrade_card: 'chat_panel',
+  chat_upgrade_card_auto_recharge: 'chat_panel',
+  home_balance_gate_upgrade: 'home',
+  chat_low_balance_warn_recharge: 'chat_panel',
+  home_low_balance_warn_recharge: 'home',
+  chat_balance_gate_sign_in: 'chat_panel',
+  home_balance_gate_sign_in: 'home',
   chat_error_switch_retry_card: 'chat_panel',
   generation_preview_authorize_retry: 'file_manager',
   generation_preview_recharge: 'file_manager',
   generation_preview_switch_retry_card: 'file_manager',
+  settings_amr_upgrade: 'settings',
+  inline_amr_upgrade: 'chat_panel',
+  go_plan_sunset_modal: 'home',
+  deepseek_unpaid_modal: 'home',
+  deepseek_workbench_badge: 'home',
+  deepseek_model_switcher_upgrade: 'chat_panel',
+  avatar_amr_upgrade: 'chat_panel',
+  avatar_amr_agent_card: 'chat_panel',
+  artifact_success_upgrade: 'artifact',
+  home_artifact_upgrade: 'home',
 };
 
 const ONBOARDING_PROFILE_SYNC_SOURCES: readonly TrackingAmrEntrySource[] = [
@@ -74,9 +119,13 @@ export function recordAmrEntry(
   const profile = readOnboardingProfile();
   const attribution: AmrEntryAttribution = {
     entryId: `od-amr-${randomId()}`,
-    sourceProduct: 'open_design',
+    sourceProduct: 'composer_design',
     sourceDetail,
     occurredAt: now.toISOString(),
+    ...(options.campaignId ? { campaignId: options.campaignId } : {}),
+    ...(options.conversionSource
+      ? { conversionSource: options.conversionSource }
+      : {}),
     ...(profile?.role ? { odRole: profile.role } : {}),
     ...(profile?.orgSize ? { odOrgSize: profile.orgSize } : {}),
     ...(profile?.useCase && profile.useCase.length > 0
@@ -94,6 +143,10 @@ export function recordAmrEntry(
     source_product: attribution.sourceProduct,
     source_detail: attribution.sourceDetail,
     entry_occurred_at: attribution.occurredAt,
+    ...(attribution.campaignId ? { campaign_id: attribution.campaignId } : {}),
+    ...(attribution.conversionSource
+      ? { conversion_source: attribution.conversionSource }
+      : {}),
   });
   if (options.metricsConsent === true) {
     void mirrorAmrEntryToAmrAnalytics(attribution);
@@ -108,7 +161,7 @@ export function readAmrAttribution(now: Date = new Date()): AmrEntryAttribution 
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<AmrEntryAttribution>;
     if (!isValidAmrAttribution(parsed)) return null;
-    if (now.getTime() - Date.parse(parsed.occurredAt) > AMR_ATTRIBUTION_TTL_MS) {
+    if (now.getTime() - Date.parse(parsed.occurredAt) > amrAttributionTtlMs(parsed)) {
       window.localStorage.removeItem(AMR_ATTRIBUTION_STORAGE_KEY);
       return null;
     }
@@ -169,11 +222,11 @@ export function amrHandoffDeviceId(input: {
   return input.installationId ?? input.resolvedDeviceId ?? null;
 }
 
-// Builds the AMR handoff URL with Composer Design attribution params. When
+// Builds the AMR handoff URL with ComposerDesign attribution params. When
 // `deviceId` is provided it is added as `od_device_id`, so AMR can link the
-// landing/registration directly back to this Composer Design install instead of
+// landing/registration directly back to this ComposerDesign install instead of
 // only through the one-shot entry id. The caller passes it ONLY when the user
-// has consented to metrics: AMR is Composer Design's official model service, so
+// has consented to metrics: AMR is ComposerDesign's official model service, so
 // this is a same-owner cross-product link, but it still respects the telemetry
 // opt-in. Pass null/undefined to omit it.
 export function attributedAmrUrl(
@@ -187,6 +240,10 @@ export function attributedAmrUrl(
     od_entry_source: attribution.sourceDetail,
     od_entry_at: attribution.occurredAt,
   };
+  if (attribution.campaignId) params.od_campaign_id = attribution.campaignId;
+  if (attribution.conversionSource) {
+    params.od_conversion_source = attribution.conversionSource;
+  }
   if (deviceId) params.od_device_id = deviceId;
   try {
     const url = new URL(baseUrl);
@@ -260,7 +317,7 @@ async function mirrorAmrEntryToAmrAnalytics(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         payload: {
-          pageName: 'open_design',
+          pageName: 'composer_design',
           sourcePageName,
           area: 'amr_entry',
           element: attribution.sourceDetail,
@@ -269,6 +326,10 @@ async function mirrorAmrEntryToAmrAnalytics(
           sourceProduct: attribution.sourceProduct,
           sourceDetail: attribution.sourceDetail,
           entryOccurredAt: attribution.occurredAt,
+          ...(attribution.campaignId ? { campaignId: attribution.campaignId } : {}),
+          ...(attribution.conversionSource
+            ? { conversionSource: attribution.conversionSource }
+            : {}),
           // Self-reported onboarding profile (optional). Anchored to entryId on
           // the AMR side for paid-conversion segmentation. Not added to the
           // redirect URL — kept to the consent-gated mirror channel only.
@@ -282,7 +343,7 @@ async function mirrorAmrEntryToAmrAnalytics(
       }),
     });
   } catch {
-    // AMR analytics mirroring must never block the primary Composer Design action.
+    // AMR analytics mirroring must never block the primary ComposerDesign action.
   }
 }
 
@@ -297,7 +358,7 @@ async function mirrorAmrOnboardingProfileToAmrAnalytics(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         payload: {
-          pageName: 'open_design',
+          pageName: 'composer_design',
           sourcePageName: 'onboarding',
           area: 'onboarding',
           element: 'about_you_submit',
@@ -325,7 +386,7 @@ async function mirrorAmrOnboardingProfileToAmrAnalytics(
 }
 
 function isValidAmrAttribution(value: Partial<AmrEntryAttribution>): value is AmrEntryAttribution {
-  return value.sourceProduct === 'open_design'
+  return value.sourceProduct === 'composer_design'
     && typeof value.entryId === 'string'
     && value.entryId.length > 0
     && typeof value.sourceDetail === 'string'

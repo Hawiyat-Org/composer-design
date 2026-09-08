@@ -135,6 +135,33 @@ describe('GET /api/projects/:id resolvedDir', () => {
     expect(path.isAbsolute(detail.resolvedDir)).toBe(true);
   });
 
+  it('fails GET /api/projects/:id?ensureDir=1 when a managed folder cannot be materialized', async () => {
+    const projectId = `proj-ensure-fails-${Date.now()}`;
+    const createResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Native fixture',
+        skillId: null,
+        designSystemId: null,
+      }),
+    });
+    expect(createResp.status).toBe(200);
+
+    const detailResp = await fetch(`${baseUrl}/api/projects/${projectId}`);
+    expect(detailResp.status).toBe(200);
+    const detail = (await detailResp.json()) as { resolvedDir: string };
+    tempDirs.push(detail.resolvedDir);
+    await writeFile(detail.resolvedDir, 'not a directory');
+
+    const ensureResp = await fetch(`${baseUrl}/api/projects/${projectId}?ensureDir=1`);
+    expect(ensureResp.status).toBe(500);
+    const body = (await ensureResp.json()) as { error?: { code?: string; message?: string } };
+    expect(body.error?.code).toBe('PROJECT_DIR_MATERIALIZATION_FAILED');
+    expect(body.error?.message).toMatch(/EEXIST|not a directory|file already exists/i);
+  });
+
   it('persists skipDiscoveryBrief for batch-created projects', async () => {
     const projectId = `proj-skip-discovery-${Date.now()}`;
     const createResp = await fetch(`${baseUrl}/api/projects`, {
@@ -245,9 +272,107 @@ describe('GET /api/projects/:id resolvedDir', () => {
       role: 'assistant',
       content: 'first answer',
     });
+    // 指针不继承(它们指向源会话那次 run),结论继承 —— 见
+    // `settledForkVerdict` 和 `tests/routes/conversation-fork-run-verdict.test.ts`。
     expect(forkMessagesBody.messages[1]?.runId).toBeUndefined();
-    expect(forkMessagesBody.messages[1]?.runStatus).toBeUndefined();
+    expect(forkMessagesBody.messages[1]?.runStatus).toBe('succeeded');
     expect(forkMessagesBody.messages[1]?.lastRunEventId).toBeUndefined();
+
+    /*
+     * 分叉分界线落在**新会话**里(2026-08-26 用户真机指认两次:
+     * 「为什么点了 fork 按钮,这个分界没出现??」「要在新的 fork 里出现,
+     * 而不是旧会话里出现啊」)。
+     *
+     * 点完分叉页面就跳到新会话,人此刻站在这里;那行脚注「上文已带过来,接着说就行」
+     * 也只有对着这一截复制过来的上下文才说得通。盖在源会话上等于对着原地没动的人
+     * 说「已经带过来了」。标题用**源会话**的标题 —— 这条线回答的是「上面这些从哪来」。
+     * 只盖最后一条:线是那一截的下边界,中间每条都盖就成了一堆线。
+     */
+    const forkedMarkers = forkMessagesBody.messages.map(
+      (message) => (message as { forkedInto?: { title: string } }).forkedInto,
+    );
+    expect(forkedMarkers.at(-1)).toMatchObject({ title: 'Source' });
+    expect(forkedMarkers.slice(0, -1).every((marker) => marker == null)).toBe(true);
+
+    // 源会话一条都不许盖
+    const sourceAfterResp = await fetch(
+      `${baseUrl}/api/projects/${projectId}/conversations/${sourceId}/messages`,
+    );
+    const sourceAfterBody = (await sourceAfterResp.json()) as {
+      messages: Array<{ forkedInto?: unknown }>;
+    };
+    expect(sourceAfterBody.messages.every((message) => message.forkedInto == null)).toBe(true);
+  });
+
+  it('round-trips forkedInto on an assistant message so the fork divider survives a reload', async () => {
+    // 设计稿第 38 格:分叉之后在原会话那条助手消息上**原地**落一条分界。
+    // 分界只有落库才「刷新之后还在」—— 契约上的 `ChatMessage.forkedInto`
+    // 之前没有对应的存储列,PUT 上来的值在 upsert 里被整个丢掉。
+    const projectId = `fork-divider-${Date.now()}`;
+    const createProjectResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Fork divider fixture',
+        skillId: null,
+        designSystemId: null,
+      }),
+    });
+    expect(createProjectResp.status).toBe(200);
+
+    const convResp = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Source', sessionMode: 'chat' }),
+    });
+    expect(convResp.status).toBe(200);
+    const convId = ((await convResp.json()) as { conversation: { id: string } }).conversation.id;
+
+    const messageId = 'fork-divider-assistant-1';
+    const forkedInto = { title: 'Source', conversationId: 'conv-fork-target' };
+    const saveResp = await fetch(
+      `${baseUrl}/api/projects/${projectId}/conversations/${convId}/messages/${messageId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: messageId,
+          role: 'assistant',
+          content: 'answer',
+          forkedInto,
+        }),
+      },
+    );
+    expect(saveResp.status).toBe(200);
+    const savedBody = (await saveResp.json()) as {
+      message: { forkedInto?: { title: string; conversationId?: string } };
+    };
+    expect(savedBody.message.forkedInto).toEqual(forkedInto);
+
+    const listResp = await fetch(
+      `${baseUrl}/api/projects/${projectId}/conversations/${convId}/messages`,
+    );
+    expect(listResp.status).toBe(200);
+    const listBody = (await listResp.json()) as {
+      messages: Array<{ id: string; forkedInto?: { title: string; conversationId?: string } }>;
+    };
+    expect(listBody.messages.find((m) => m.id === messageId)?.forkedInto).toEqual(forkedInto);
+
+    // A later snapshot that carries no fork marker must clear it, otherwise an
+    // undone fork would leave a permanent divider.
+    const clearResp = await fetch(
+      `${baseUrl}/api/projects/${projectId}/conversations/${convId}/messages/${messageId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: messageId, role: 'assistant', content: 'answer' }),
+      },
+    );
+    expect(clearResp.status).toBe(200);
+    expect(
+      ((await clearResp.json()) as { message: { forkedInto?: unknown } }).message.forkedInto,
+    ).toBeUndefined();
   });
 
   it('forks from a client-supplied snapshot when the fork point was never persisted', async () => {
@@ -343,12 +468,111 @@ describe('GET /api/projects/:id resolvedDir', () => {
       'enrich it',
       'partial answer before reset',
     ]);
-    // Fresh ids, and the dead run pointers are not inherited.
+    // Fresh ids, and the dead run pointers are not inherited. The verdict is:
+    // that turn really did fail, and the copy must keep saying so.
     expect(forkMessages.map((m) => m.id)).not.toContain('ghost-assistant-1');
     expect(forkMessages[1]).toMatchObject({ role: 'assistant', content: 'partial answer before reset' });
     expect(forkMessages[1]?.runId).toBeUndefined();
-    expect(forkMessages[1]?.runStatus).toBeUndefined();
+    expect(forkMessages[1]?.runStatus).toBe('failed');
     expect(forkMessages[1]?.lastRunEventId).toBeUndefined();
+  });
+
+  it('cuts persisted history at the fallback predecessor before appending the missing fork point', async () => {
+    const projectId = `proj-conv-fork-fallback-${Date.now()}`;
+    const createProjectResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Conversation fork fallback fixture',
+        skillId: null,
+        designSystemId: null,
+      }),
+    });
+    expect(createProjectResp.status).toBe(200);
+
+    const sourceResp = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Source', sessionMode: 'chat' }),
+    });
+    expect(sourceResp.status).toBe(200);
+    const sourceId = (
+      (await sourceResp.json()) as { conversation: { id: string } }
+    ).conversation.id;
+
+    const saveUserResp = await fetch(
+      `${baseUrl}/api/projects/${projectId}/conversations/${sourceId}/messages/fallback-user-1`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'fallback-user-1',
+          role: 'user',
+          content: 'Continue from this request',
+        }),
+      },
+    );
+    expect(saveUserResp.status).toBe(200);
+
+    for (const message of [
+      {
+        id: 'fallback-user-2',
+        role: 'user',
+        content: 'Later persisted request that must be excluded',
+      },
+      {
+        id: 'fallback-assistant-2',
+        role: 'assistant',
+        content: 'Later persisted answer that must be excluded',
+      },
+    ]) {
+      const saveLaterResp = await fetch(
+        `${baseUrl}/api/projects/${projectId}/conversations/${sourceId}/messages/${message.id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(message),
+        },
+      );
+      expect(saveLaterResp.status).toBe(200);
+    }
+
+    const forkResp = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Recovered fork',
+        sessionMode: 'chat',
+        seedFromConversationId: sourceId,
+        forkAfterMessageId: 'fallback-assistant-1',
+        forkFallbackPredecessorMessageId: 'fallback-user-1',
+        forkFallbackMessage: {
+          id: 'fallback-assistant-1',
+          role: 'assistant',
+          content: 'Unpersisted answer',
+        },
+      }),
+    });
+    expect(forkResp.status).toBe(200);
+    const forkId = (
+      (await forkResp.json()) as { conversation: { id: string } }
+    ).conversation.id;
+
+    const forkMessagesResp = await fetch(
+      `${baseUrl}/api/projects/${projectId}/conversations/${forkId}/messages`,
+    );
+    expect(forkMessagesResp.status).toBe(200);
+    const forkMessages = (
+      (await forkMessagesResp.json()) as {
+        messages: Array<{ id: string; role: string; content: string }>;
+      }
+    ).messages;
+    expect(forkMessages.map((message) => message.content)).toEqual([
+      'Continue from this request',
+      'Unpersisted answer',
+    ]);
+    expect(forkMessages.map((message) => message.id)).not.toContain('fallback-assistant-1');
   });
 
   it('serves project files through raw and files path routes', async () => {
@@ -371,6 +595,13 @@ describe('GET /api/projects/:id resolvedDir', () => {
       body: JSON.stringify({ name: 'index.html', content: '<!doctype html><h1>ok</h1>' }),
     });
     expect(writeResp.status).toBe(200);
+
+    const listResp = await fetch(`${baseUrl}/api/projects/${projectId}/files`);
+    expect(listResp.status).toBe(200);
+    expect(listResp.headers.get('cache-control')).toBe('no-store');
+    await expect(listResp.json()).resolves.toMatchObject({
+      files: [expect.objectContaining({ name: 'index.html' })],
+    });
 
     const rawResp = await fetch(`${baseUrl}/api/projects/${projectId}/raw/index.html`);
     expect(rawResp.status).toBe(200);
@@ -401,17 +632,28 @@ describe('GET /api/projects/:id resolvedDir', () => {
     const writeResp = await fetch(`${baseUrl}/api/projects/${projectId}/files`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'nested/demo/index.html', content: '<!doctype html><h1>nested ok</h1>' }),
+      body: JSON.stringify({
+        name: 'nested/demo/index.html',
+        content: '<!doctype html><style>@font-face{src:url("../../fonts/inter.woff2")}</style><h1>nested ok</h1>',
+      }),
     });
     expect(writeResp.status).toBe(200);
 
-    const rawResp = await fetch(`${baseUrl}/api/projects/${projectId}/raw/nested/demo/index.html`, {
+    const rawResp = await fetch(
+      `${baseUrl}/api/projects/${projectId}/raw/nested/demo/index.html?workspaceId=ws-cover&workspaceMemberId=wm-cover`,
+      {
       headers: { Origin: 'null' },
-    });
+      },
+    );
     expect(rawResp.status).toBe(200);
     expect(rawResp.headers.get('content-type')).toContain('text/html');
     expect(rawResp.headers.get('access-control-allow-origin')).toBe('*');
-    expect(await rawResp.text()).toContain('<h1>nested ok</h1>');
+    const html = await rawResp.text();
+    expect(html).toContain('<h1>nested ok</h1>');
+    expect(html).toContain(
+      `/api/projects/${projectId}/raw/fonts/inter.woff2?workspaceId=ws-cover&workspaceMemberId=wm-cover`,
+    );
+    expect(html).not.toContain('../../fonts/inter.woff2');
   });
   it('rejects non-boolean skipDiscoveryBrief on POST /api/projects', async () => {
     const projectId = `proj-skip-discovery-bad-${Date.now()}`;
@@ -466,6 +708,412 @@ describe('GET /api/projects/:id resolvedDir', () => {
     expect(detail.status).toBe(200);
     const body = (await detail.json()) as { project?: { metadata?: { linkedDirs?: string[] } } };
     expect(body.project?.metadata?.linkedDirs?.length).toBe(1);
+  });
+
+  it('replaces, clears, and preserves metadata.linkedDirs on PATCH /api/projects/:id', async () => {
+    const firstDir = makeFolder();
+    const secondDir = makeFolder();
+    const projectId = `proj-patch-linked-${Date.now()}`;
+    const createResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Patch linked dir',
+        metadata: { kind: 'prototype', linkedDirs: [firstDir] },
+      }),
+    });
+    expect(createResp.status).toBe(200);
+
+    const replaceResp = await fetch(`${baseUrl}/api/projects/${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        metadata: { kind: 'prototype', linkedDirs: [secondDir] },
+      }),
+    });
+    expect(replaceResp.status).toBe(200);
+    const replaced = (await replaceResp.json()) as { project?: { metadata?: { linkedDirs?: string[] } } };
+    expect(replaced.project?.metadata?.linkedDirs).toEqual([await realpath(secondDir)]);
+
+    const invalidResp = await fetch(`${baseUrl}/api/projects/${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        metadata: { kind: 'prototype', linkedDirs: ['/no/such/folder/here'] },
+      }),
+    });
+    expect(invalidResp.status).toBe(400);
+    const invalid = (await invalidResp.json()) as { error?: { code?: string } };
+    expect(invalid.error?.code).toBe('INVALID_LINKED_DIR');
+
+    const afterInvalidResp = await fetch(`${baseUrl}/api/projects/${projectId}`);
+    expect(afterInvalidResp.status).toBe(200);
+    const afterInvalid = (await afterInvalidResp.json()) as {
+      project?: { metadata?: { linkedDirs?: string[] } };
+    };
+    expect(afterInvalid.project?.metadata?.linkedDirs).toEqual([await realpath(secondDir)]);
+
+    const clearResp = await fetch(`${baseUrl}/api/projects/${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        metadata: { kind: 'prototype', linkedDirs: [] },
+      }),
+    });
+    expect(clearResp.status).toBe(200);
+    const cleared = (await clearResp.json()) as { project?: { metadata?: { linkedDirs?: string[] } } };
+    expect(cleared.project?.metadata?.linkedDirs).toEqual([]);
+  });
+
+  it('keeps unrelated metadata keys while validating metadata.linkedDirs on PATCH /api/projects/:id', async () => {
+    const firstDir = makeFolder();
+    const secondDir = makeFolder();
+    const projectId = `proj-patch-linked-meta-${Date.now()}`;
+    const createResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Patch linked metadata',
+        metadata: {
+          kind: 'prototype',
+          entryFile: 'index.html',
+          customFlag: 'keep-me',
+          linkedDirs: [firstDir],
+        },
+      }),
+    });
+    expect(createResp.status).toBe(200);
+
+    const replaceResp = await fetch(`${baseUrl}/api/projects/${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        metadata: {
+          kind: 'prototype',
+          entryFile: 'app.html',
+          customFlag: 'still-here',
+          linkedDirs: [secondDir],
+        },
+      }),
+    });
+    expect(replaceResp.status).toBe(200);
+    const replaced = (await replaceResp.json()) as {
+      project?: { metadata?: { entryFile?: string; customFlag?: string; linkedDirs?: string[] } };
+    };
+    expect(replaced.project?.metadata).toMatchObject({
+      entryFile: 'app.html',
+      customFlag: 'still-here',
+    });
+    expect(replaced.project?.metadata?.linkedDirs).toEqual([await realpath(secondDir)]);
+
+    const invalidResp = await fetch(`${baseUrl}/api/projects/${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        metadata: {
+          kind: 'prototype',
+          entryFile: 'bad.html',
+          customFlag: 'bad',
+          linkedDirs: ['/no/such/folder/here'],
+        },
+      }),
+    });
+    expect(invalidResp.status).toBe(400);
+
+    const detailResp = await fetch(`${baseUrl}/api/projects/${projectId}`);
+    expect(detailResp.status).toBe(200);
+    const detail = (await detailResp.json()) as {
+      project?: { metadata?: { entryFile?: string; customFlag?: string; linkedDirs?: string[] } };
+    };
+    expect(detail.project?.metadata).toMatchObject({
+      entryFile: 'app.html',
+      customFlag: 'still-here',
+    });
+    expect(detail.project?.metadata?.linkedDirs).toEqual([await realpath(secondDir)]);
+  });
+
+  it('persists project and conversation session modes through create and patch routes', async () => {
+    const projectId = `proj-session-mode-${Date.now()}`;
+    const createResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Session mode fixture',
+        sessionMode: 'plan',
+      }),
+    });
+    expect(createResp.status).toBe(200);
+    const createBody = (await createResp.json()) as { conversationId: string };
+
+    const listResp = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`);
+    expect(listResp.status).toBe(200);
+    const listed = (await listResp.json()) as {
+      conversations: Array<{ id: string; sessionMode: string }>;
+    };
+    expect(listed.conversations.find((conversation) => conversation.id === createBody.conversationId)?.sessionMode)
+      .toBe('plan');
+
+    const chatResp = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Ask thread', sessionMode: 'chat' }),
+    });
+    expect(chatResp.status).toBe(200);
+    const chatBody = (await chatResp.json()) as { conversation: { id: string; sessionMode: string } };
+    expect(chatBody.conversation.sessionMode).toBe('chat');
+
+    const patchResp = await fetch(
+      `${baseUrl}/api/projects/${projectId}/conversations/${chatBody.conversation.id}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionMode: 'plan' }),
+      },
+    );
+    expect(patchResp.status).toBe(200);
+    const patched = (await patchResp.json()) as { conversation: { sessionMode: string } };
+    expect(patched.conversation.sessionMode).toBe('plan');
+
+    const invalidPatchResp = await fetch(
+      `${baseUrl}/api/projects/${projectId}/conversations/${chatBody.conversation.id}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionMode: 'review' }),
+      },
+    );
+    expect(invalidPatchResp.status).toBe(400);
+    const invalidBody = (await invalidPatchResp.json()) as { error?: { code?: string; message?: string } };
+    expect(invalidBody.error?.code).toBe('BAD_REQUEST');
+    expect(invalidBody.error?.message).toMatch(/sessionMode/i);
+  });
+
+  it('persists run session mode and workspace context on the pinned assistant message', async () => {
+    const projectId = `proj-run-context-${Date.now()}`;
+    const createResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Run context fixture',
+        sessionMode: 'design',
+      }),
+    });
+    expect(createResp.status).toBe(200);
+    const { conversationId } = (await createResp.json()) as { conversationId: string };
+    const assistantMessageId = `assistant-run-context-${Date.now()}`;
+    const workspaceContext = {
+      workspaceItems: [
+        { id: 'active-file:index.html', label: 'index.html', kind: 'file' },
+      ],
+    };
+
+    const runResp = await fetch(`${baseUrl}/api/runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectId,
+        conversationId,
+        assistantMessageId,
+        agentId: 'codex',
+        message: 'Use the active file as context.',
+        sessionMode: 'plan',
+        context: workspaceContext,
+      }),
+    });
+    expect(runResp.status).toBe(202);
+
+    const messagesResp = await fetch(`${baseUrl}/api/projects/${projectId}/conversations/${conversationId}/messages`);
+    expect(messagesResp.status).toBe(200);
+    const messages = ((await messagesResp.json()) as {
+      messages: Array<{
+        id: string;
+        role: string;
+        runId?: string;
+        sessionMode?: string;
+        runContext?: { workspaceItems?: Array<{ label?: string }> };
+      }>;
+    }).messages;
+    const assistant = messages.find((message) => message.id === assistantMessageId);
+    expect(assistant).toMatchObject({
+      role: 'assistant',
+      sessionMode: 'plan',
+    });
+    expect(assistant?.runId).toBeTruthy();
+    expect(assistant?.runContext).toEqual(workspaceContext);
+  });
+
+  it('inherits conversation session mode when pinning a run without explicit session mode', async () => {
+    const projectId = `proj-run-context-inherited-${Date.now()}`;
+    const createResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Run context inherited mode fixture',
+        sessionMode: 'plan',
+      }),
+    });
+    expect(createResp.status).toBe(200);
+    const { conversationId } = (await createResp.json()) as { conversationId: string };
+    const assistantMessageId = `assistant-inherited-run-mode-${Date.now()}`;
+
+    const runResp = await fetch(`${baseUrl}/api/runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectId,
+        conversationId,
+        assistantMessageId,
+        agentId: 'codex',
+        message: 'Inherit the conversation mode.',
+      }),
+    });
+    expect(runResp.status).toBe(202);
+
+    const messagesResp = await fetch(`${baseUrl}/api/projects/${projectId}/conversations/${conversationId}/messages`);
+    expect(messagesResp.status).toBe(200);
+    const messages = ((await messagesResp.json()) as {
+      messages: Array<{
+        id: string;
+        role: string;
+        runId?: string;
+        sessionMode?: string;
+      }>;
+    }).messages;
+    const assistant = messages.find((message) => message.id === assistantMessageId);
+    expect(assistant).toMatchObject({
+      role: 'assistant',
+      sessionMode: 'plan',
+    });
+    expect(assistant?.runId).toBeTruthy();
+  });
+
+  it('inherits the default conversation session mode for project-only runs', async () => {
+    const projectId = `proj-run-context-project-only-${Date.now()}`;
+    const createResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Run context project-only inherited mode fixture',
+        sessionMode: 'plan',
+      }),
+    });
+    expect(createResp.status).toBe(200);
+    const { conversationId } = (await createResp.json()) as { conversationId: string };
+
+    const runResp = await fetch(`${baseUrl}/api/runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectId,
+        agentId: 'codex',
+        message: 'Use the project default conversation.',
+      }),
+    });
+    expect(runResp.status).toBe(202);
+    const runBody = (await runResp.json()) as {
+      conversationId?: string | null;
+      assistantMessageId?: string | null;
+    };
+    expect(runBody.conversationId).toBe(conversationId);
+    expect(runBody.assistantMessageId).toBeTruthy();
+
+    const messagesResp = await fetch(`${baseUrl}/api/projects/${projectId}/conversations/${conversationId}/messages`);
+    expect(messagesResp.status).toBe(200);
+    const messages = ((await messagesResp.json()) as {
+      messages: Array<{
+        id: string;
+        role: string;
+        runId?: string;
+        sessionMode?: string;
+      }>;
+    }).messages;
+    const assistant = messages.find((message) => message.id === runBody.assistantMessageId);
+    expect(assistant).toMatchObject({
+      role: 'assistant',
+      sessionMode: 'plan',
+    });
+    expect(assistant?.runId).toBeTruthy();
+  });
+
+  it('overwrites stale run session mode and workspace context when pinning a preexisting assistant message', async () => {
+    const projectId = `proj-run-context-existing-${Date.now()}`;
+    const createResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'Run context existing message fixture',
+      }),
+    });
+    expect(createResp.status).toBe(200);
+    const { conversationId } = (await createResp.json()) as { conversationId: string };
+    const assistantMessageId = `assistant-existing-run-context-${Date.now()}`;
+    const staleWorkspaceContext = {
+      workspaceItems: [
+        { id: 'active-file:stale.html', label: 'stale.html', kind: 'file' },
+      ],
+    };
+    const workspaceContext = {
+      workspaceItems: [
+        { id: 'active-file:existing.html', label: 'existing.html', kind: 'file' },
+      ],
+    };
+
+    const seedResp = await fetch(
+      `${baseUrl}/api/projects/${projectId}/conversations/${conversationId}/messages/${assistantMessageId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: assistantMessageId,
+          role: 'assistant',
+          content: 'placeholder',
+          sessionMode: 'design',
+          runContext: staleWorkspaceContext,
+        }),
+      },
+    );
+    expect(seedResp.status).toBe(200);
+
+    const runResp = await fetch(`${baseUrl}/api/runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectId,
+        conversationId,
+        assistantMessageId,
+        agentId: 'codex',
+        message: 'Continue with this existing assistant row.',
+        sessionMode: 'chat',
+        context: workspaceContext,
+      }),
+    });
+    expect(runResp.status).toBe(202);
+
+    const messagesResp = await fetch(`${baseUrl}/api/projects/${projectId}/conversations/${conversationId}/messages`);
+    expect(messagesResp.status).toBe(200);
+    const messages = ((await messagesResp.json()) as {
+      messages: Array<{
+        id: string;
+        content: string;
+        runId?: string;
+        sessionMode?: string;
+        runContext?: { workspaceItems?: Array<{ label?: string }> };
+      }>;
+    }).messages;
+    const assistant = messages.find((message) => message.id === assistantMessageId);
+    expect(assistant).toMatchObject({
+      content: 'placeholder',
+      sessionMode: 'chat',
+    });
+    expect(assistant?.runId).toBeTruthy();
+    expect(assistant?.runContext).toEqual(workspaceContext);
   });
 
   it('returns 404 with PROJECT_NOT_FOUND for unknown ids', async () => {
@@ -545,6 +1193,43 @@ describe('GET /api/projects/:id resolvedDir', () => {
     expect(deleteResp.status).toBe(200);
     const deleted = (await deleteResp.json()) as { ok: boolean };
     expect(deleted.ok).toBe(true);
+  });
+
+  it('rejects folder create and delete requests for internal file-version storage', async () => {
+    const projectId = `proj-file-version-folder-guard-${Date.now()}`;
+    const createResp = await fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'File version folder guard',
+        skillId: null,
+        designSystemId: null,
+      }),
+    });
+    expect(createResp.status).toBe(200);
+
+    const postResp = await fetch(`${baseUrl}/api/projects/${projectId}/folders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: '.file-versions' }),
+    });
+    expect(postResp.status).toBe(400);
+
+    const dataDir = process.env.OD_DATA_DIR;
+    if (!dataDir) throw new Error('OD_DATA_DIR is required for daemon route tests');
+    const versionRoot = path.join(dataDir, 'projects', projectId, '.file-versions');
+    const marker = path.join(versionRoot, 'sentinel', 'manifest.json');
+    await mkdir(path.dirname(marker), { recursive: true });
+    await writeFile(marker, '{}');
+
+    const deleteResp = await fetch(`${baseUrl}/api/projects/${projectId}/folders`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '.file-versions' }),
+    });
+    expect(deleteResp.status).toBe(400);
+    expect((await stat(marker)).isFile()).toBe(true);
   });
 
   // PR #974: `fromTrustedPicker` is privileged the same way `baseDir`
@@ -756,7 +1441,7 @@ describe('project locations routes', () => {
     const loc0 = body.locations[0]!;
     expect(loc0.id).toBe('default');
     expect(loc0.builtIn).toBe(true);
-    expect(loc0.name).toBe('Composer Design projects');
+    expect(loc0.name).toBe('ComposerDesign projects');
   });
 
   it('PUT /api/project-locations creates external roots and GET returns them alongside default', async () => {

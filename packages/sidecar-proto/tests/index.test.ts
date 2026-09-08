@@ -9,7 +9,7 @@ import {
   normalizeDaemonSidecarMessage,
   normalizeDesktopSidecarMessage,
   normalizeNamespace,
-  normalizeSidecarStamp,
+  normalizeSidecarRuntimeLayout,
   OPEN_DESIGN_SIDECAR_CONTRACT,
   SIDECAR_MESSAGES,
   SIDECAR_SOURCES,
@@ -42,7 +42,7 @@ describe("open-design sidecar contract", () => {
     });
     expect(OPEN_DESIGN_SIDECAR_CONTRACT.updateActions).toBe(DESKTOP_UPDATE_ACTIONS);
     expect(OPEN_DESIGN_SIDECAR_CONTRACT.updateChannels).toBe(DESKTOP_UPDATE_CHANNELS);
-    expect(Object.values(DESKTOP_UPDATE_CHANNELS)).toEqual(["beta", "betas", "prerelease", "preview", "stable"]);
+    expect(Object.values(DESKTOP_UPDATE_CHANNELS)).toEqual(["beta", "prerelease", "stable"]);
     expect(OPEN_DESIGN_SIDECAR_CONTRACT.updateModes).toBe(DESKTOP_UPDATE_MODES);
     expect(OPEN_DESIGN_SIDECAR_CONTRACT.updateStates).toBe(DESKTOP_UPDATE_STATES);
   });
@@ -58,16 +58,16 @@ describe("open-design sidecar contract", () => {
   });
 
   it("accepts exactly app, mode, namespace, ipc, and source", () => {
-    expect(normalizeSidecarStamp(validStamp)).toEqual(validStamp);
+    expect(normalizeSidecarRuntimeLayout(validStamp)).toEqual(validStamp);
   });
 
   it("rejects legacy or extra stamp fields", () => {
-    expect(() => normalizeSidecarStamp({ ...validStamp, runtimeToken: "legacy" })).toThrow();
-    expect(() => normalizeSidecarStamp({ ...validStamp, role: "web-sidecar" })).toThrow();
+    expect(() => normalizeSidecarRuntimeLayout({ ...validStamp, runtimeToken: "legacy" })).toThrow();
+    expect(() => normalizeSidecarRuntimeLayout({ ...validStamp, role: "web-sidecar" })).toThrow();
   });
 
   it("rejects non-contract sidecar sources", () => {
-    expect(() => normalizeSidecarStamp({ ...validStamp, source: "custom-script" })).toThrow();
+    expect(() => normalizeSidecarRuntimeLayout({ ...validStamp, source: "custom-script" })).toThrow();
   });
 
   it("validates daemon IPC messages", () => {
@@ -90,6 +90,27 @@ describe("open-design sidecar contract", () => {
       type: SIDECAR_MESSAGES.MINT_IMPORT_TOKEN,
     };
     expect(normalizeDaemonSidecarMessage(message)).toEqual(message);
+  });
+
+  it("accepts only loopback HTTP origins for packaged web registration", () => {
+    const message = {
+      input: { url: "http://127.0.0.1:64248" },
+      type: SIDECAR_MESSAGES.REGISTER_WEB_URL,
+    };
+    expect(normalizeDaemonSidecarMessage(message)).toEqual(message);
+
+    expect(() =>
+      normalizeDaemonSidecarMessage({
+        input: { url: "https://open-design.ai" },
+        type: SIDECAR_MESSAGES.REGISTER_WEB_URL,
+      }),
+    ).toThrow(/loopback|http/i);
+    expect(() =>
+      normalizeDaemonSidecarMessage({
+        input: { url: "http://127.0.0.1:64248/projects/project-1" },
+        type: SIDECAR_MESSAGES.REGISTER_WEB_URL,
+      }),
+    ).toThrow(/origin/i);
   });
 
   it("rejects malformed mint-import-token payloads", () => {
@@ -130,6 +151,17 @@ describe("open-design sidecar contract", () => {
 
   it("validates desktop IPC message inputs", () => {
     expect(normalizeDesktopSidecarMessage({ type: SIDECAR_MESSAGES.SHOW })).toEqual({ type: "show" });
+    expect(normalizeDesktopSidecarMessage({
+      input: { deeplinkUrl: "opendesign://workspace/invite/continue?nonce=hot" },
+      type: SIDECAR_MESSAGES.SHOW,
+    })).toEqual({
+      input: { deeplinkUrl: "opendesign://workspace/invite/continue?nonce=hot" },
+      type: "show",
+    });
+    expect(() => normalizeDesktopSidecarMessage({
+      input: { deeplinkUrl: "https://example.com/invite" },
+      type: SIDECAR_MESSAGES.SHOW,
+    })).toThrow(/opendesign scheme/);
     expect(normalizeDesktopSidecarMessage({ input: { expression: "location.href" }, type: SIDECAR_MESSAGES.EVAL })).toEqual({
       input: { expression: "location.href" },
       type: "eval",
@@ -193,6 +225,180 @@ describe("open-design sidecar contract", () => {
         type: SIDECAR_MESSAGES.EXPORT_PDF,
       }),
     ).toThrow();
+  });
+
+  it("validates desktop render-slides IPC message inputs", () => {
+    expect(
+      normalizeDesktopSidecarMessage({
+        input: {
+          baseHref: "http://127.0.0.1:7456/api/projects/proj/raw/deck/",
+          deck: true,
+          editable: true,
+          html: "<!doctype html><section class=\"slide\">One</section>",
+          outputDir: "/data/export-render/abc123",
+          pageImageFormat: "jpeg",
+          stitch: true,
+          paginate: true,
+          width: 1280,
+          height: 720,
+        },
+        type: SIDECAR_MESSAGES.RENDER_SLIDES,
+      }),
+    ).toEqual({
+      input: {
+        baseHref: "http://127.0.0.1:7456/api/projects/proj/raw/deck/",
+        deck: true,
+        editable: true,
+        html: "<!doctype html><section class=\"slide\">One</section>",
+        outputDir: "/data/export-render/abc123",
+        pageImageFormat: "jpeg",
+        stitch: true,
+        paginate: true,
+        width: 1280,
+        height: 720,
+      },
+      type: "render-slides",
+    });
+    // `deck: false` round-trips (explicit page mode) and a non-boolean is rejected.
+    expect(
+      normalizeDesktopSidecarMessage({
+        input: { html: "<p>x</p>", deck: false },
+        type: SIDECAR_MESSAGES.RENDER_SLIDES,
+      }),
+    ).toEqual({ input: { html: "<p>x</p>", deck: false }, type: "render-slides" });
+    expect(() =>
+      normalizeDesktopSidecarMessage({
+        input: { html: "<p>x</p>", deck: "yes" },
+        type: SIDECAR_MESSAGES.RENDER_SLIDES,
+      }),
+    ).toThrow();
+    expect(() =>
+      normalizeDesktopSidecarMessage({
+        input: { html: "<p>x</p>", editable: "yes" },
+        type: SIDECAR_MESSAGES.RENDER_SLIDES,
+      }),
+    ).toThrow();
+    // outputDir must be absolute — a relative path is rejected so a malformed
+    // request can't make desktop write outside the daemon scratch dir.
+    expect(() =>
+      normalizeDesktopSidecarMessage({
+        input: { html: "<p>x</p>", outputDir: "export-render/abc" },
+        type: SIDECAR_MESSAGES.RENDER_SLIDES,
+      }),
+    ).toThrow(/absolute path/);
+    // index: a non-negative integer round-trips; negative / fractional / non-number reject.
+    expect(
+      normalizeDesktopSidecarMessage({
+        input: { html: "<p>x</p>", index: 1 },
+        type: SIDECAR_MESSAGES.RENDER_SLIDES,
+      }),
+    ).toEqual({ input: { html: "<p>x</p>", index: 1 }, type: "render-slides" });
+    for (const badIndex of [-1, 1.5, Number.NaN, "0"]) {
+      expect(() =>
+        normalizeDesktopSidecarMessage({
+          input: { html: "<p>x</p>", index: badIndex },
+          type: SIDECAR_MESSAGES.RENDER_SLIDES,
+        }),
+      ).toThrow();
+    }
+    // Minimal input (only html) round-trips with nothing extra.
+    expect(
+      normalizeDesktopSidecarMessage({
+        input: { html: "<p>x</p>" },
+        type: SIDECAR_MESSAGES.RENDER_SLIDES,
+      }),
+    ).toEqual({ input: { html: "<p>x</p>" }, type: "render-slides" });
+    // Invalid: empty html, bad enum, non-boolean stitch, unknown key.
+    expect(() =>
+      normalizeDesktopSidecarMessage({ input: { html: "" }, type: SIDECAR_MESSAGES.RENDER_SLIDES }),
+    ).toThrow();
+    expect(() =>
+      normalizeDesktopSidecarMessage({
+        input: { html: "<p>x</p>", pageImageFormat: "webp" },
+        type: SIDECAR_MESSAGES.RENDER_SLIDES,
+      }),
+    ).toThrow();
+    expect(() =>
+      normalizeDesktopSidecarMessage({
+        input: { html: "<p>x</p>", stitch: "yes" },
+        type: SIDECAR_MESSAGES.RENDER_SLIDES,
+      }),
+    ).toThrow();
+    expect(() =>
+      normalizeDesktopSidecarMessage({
+        input: { html: "<p>x</p>", paginate: "yes" },
+        type: SIDECAR_MESSAGES.RENDER_SLIDES,
+      }),
+    ).toThrow();
+    expect(() =>
+      normalizeDesktopSidecarMessage({
+        input: { html: "<p>x</p>", bogus: 1 },
+        type: SIDECAR_MESSAGES.RENDER_SLIDES,
+      }),
+    ).toThrow();
+  });
+
+  it("validates deterministic desktop frame-render IPC inputs", () => {
+    expect(
+      normalizeDesktopSidecarMessage({
+        input: {
+          baseHref: "file:///project/composition/",
+          fps: 30,
+          height: 720,
+          html: "<!doctype html><main data-composition-id=\"main\"></main>",
+          outputDir: "/tmp/open-design-frames",
+          width: 1280,
+        },
+        type: SIDECAR_MESSAGES.RENDER_FRAMES,
+      }),
+    ).toEqual({
+      input: {
+        baseHref: "file:///project/composition/",
+        fps: 30,
+        height: 720,
+        html: "<!doctype html><main data-composition-id=\"main\"></main>",
+        outputDir: "/tmp/open-design-frames",
+        width: 1280,
+      },
+      type: "render-frames",
+    });
+
+    for (const input of [
+      { fps: 0, height: 720, html: "<p>x</p>", outputDir: "/tmp/x", width: 1280 },
+      { fps: 241, height: 720, html: "<p>x</p>", outputDir: "/tmp/x", width: 1280 },
+      { height: 0, html: "<p>x</p>", outputDir: "/tmp/x", width: 1280 },
+      { height: 720, html: "", outputDir: "/tmp/x", width: 1280 },
+      { height: 720, html: "<p>x</p>", outputDir: "relative", width: 1280 },
+      { height: 720, html: "<p>x</p>", outputDir: "/tmp/x", width: 8193 },
+      { bogus: true, height: 720, html: "<p>x</p>", outputDir: "/tmp/x", width: 1280 },
+    ]) {
+      expect(() => normalizeDesktopSidecarMessage({
+        input,
+        type: SIDECAR_MESSAGES.RENDER_FRAMES,
+      })).toThrow();
+    }
+  });
+
+  it("accepts PNG/JPEG artifact image export and rejects WebP up front", () => {
+    // The off-screen Electron renderer (nativeImage) can only encode PNG/JPEG.
+    for (const imageFormat of ["png", "jpeg"] as const) {
+      expect(
+        normalizeDesktopSidecarMessage({
+          input: { deck: false, format: "image", html: "<p>x</p>", imageFormat, title: "Shot" },
+          type: SIDECAR_MESSAGES.EXPORT_ARTIFACT,
+        }),
+      ).toEqual({
+        input: { deck: false, format: "image", html: "<p>x</p>", imageFormat, title: "Shot" },
+        type: "export-artifact",
+      });
+    }
+    // WebP must fail fast with a clear error rather than silently downgrade to PNG.
+    expect(() =>
+      normalizeDesktopSidecarMessage({
+        input: { deck: false, format: "image", html: "<p>x</p>", imageFormat: "webp", title: "Shot" },
+        type: SIDECAR_MESSAGES.EXPORT_ARTIFACT,
+      }),
+    ).toThrow(/unsupported artifact export image format/);
   });
 
   it("validates desktop update IPC message inputs", () => {

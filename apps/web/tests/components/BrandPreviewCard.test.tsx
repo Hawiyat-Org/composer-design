@@ -3,15 +3,31 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { BrandSummary } from '@open-design/contracts';
+import type { BrandSummary, WorkspaceCollabContext } from '@open-design/contracts';
+import { workspaceContextFixture } from '../helpers/workspace-context';
+
+const workspaceContextState = vi.hoisted(() => ({
+  context: null as WorkspaceCollabContext | null,
+  resourceReadIdentity: undefined as
+    | { context: WorkspaceCollabContext; generation: string }
+    | null
+    | undefined,
+  loading: false,
+}));
+const fetchProjectFileTextMock = vi.hoisted(() => vi.fn(async () => null as string | null));
+
+vi.mock('../../src/collab/useWorkspaceContext', () => ({
+  useWorkspaceContext: () => workspaceContextState,
+  workspaceResourceReadContext: (state: typeof workspaceContextState) => state.context,
+}));
 
 vi.mock('../../src/providers/registry', () => ({
   projectRawUrl: (projectId: string, filePath: string) => `/raw/${projectId}/${filePath}`,
+  fetchProjectFileText: fetchProjectFileTextMock,
 }));
 
 import { BrandPreviewCard } from '../../src/components/BrandPreviewCard';
 import { I18nProvider } from '../../src/i18n';
-import { consumePendingHomeChip, consumePendingHomeNotice } from '../../src/runtime/home-intent';
 
 const rampBrand: BrandSummary = {
   meta: {
@@ -52,6 +68,10 @@ describe('BrandPreviewCard', () => {
         json: async () => ({}),
       }),
     );
+    workspaceContextState.context = null;
+    workspaceContextState.resourceReadIdentity = undefined;
+    fetchProjectFileTextMock.mockClear();
+    fetchProjectFileTextMock.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -86,164 +106,104 @@ describe('BrandPreviewCard', () => {
     });
   });
 
-  it('queues a visible confirmation notice naming the brand on Use in new chat', async () => {
-    // Drain any latched intent from a prior test so the assertion is clean.
-    consumePendingHomeChip();
-    consumePendingHomeNotice();
-
+  it('closes the brand asset preview modal with Escape', async () => {
     render(
       <I18nProvider initial="en">
-        <BrandPreviewCard summary={rampBrand} variant="panel" onApplyDesignSystem={vi.fn()} />
+        <BrandPreviewCard summary={rampBrand} variant="panel" />
       </I18nProvider>,
     );
 
-    fireEvent.click(screen.getByTestId('brand-preview-use'));
+    fireEvent.click(screen.getByRole('button', { name: /landing page/i }));
+    expect(screen.getByRole('dialog', { name: /landing page/i })).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
 
     await waitFor(() => {
-      expect(consumePendingHomeChip()).toBe('prototype');
+      expect(screen.queryByRole('dialog', { name: /landing page/i })).toBeNull();
     });
-    // The notice makes the otherwise-silent navigate+apply verifiable on Home.
-    expect(consumePendingHomeNotice()).toBe('Using Ramp');
   });
 
-  it('shows a Needs input badge and hint when the backing run awaits the user', () => {
-    const blocked: BrandSummary = {
-      ...rampBrand,
-      meta: { ...rampBrand.meta, status: 'needs_input', designSystemId: undefined },
+  it('resets the real kit preview and font read when only the read generation advances', async () => {
+    const context = workspaceContextFixture({
+      workspaceId: 'workspace-preview',
+      workspaceType: 'personal',
+      workspaceMemberId: 'member-preview',
+    });
+    workspaceContextState.context = context;
+    workspaceContextState.resourceReadIdentity = { context, generation: 'generation-a' };
+
+    const view = render(
+      <I18nProvider initial="en">
+        <BrandPreviewCard summary={rampBrand} variant="panel" />
+      </I18nProvider>,
+    );
+    await waitFor(() => expect(fetchProjectFileTextMock).toHaveBeenCalledTimes(1));
+    const logo = screen.getByTestId('brand-preview-card').querySelector('img');
+    expect(logo?.getAttribute('src')).toContain('/api/brands/brand-ramp/logo');
+    fireEvent.error(logo!);
+    expect(screen.getByTestId('brand-preview-card').querySelector('img')?.getAttribute('src'))
+      .toBe('/raw/project-ramp/logos/ramp.svg');
+
+    workspaceContextState.resourceReadIdentity = { context, generation: 'generation-b' };
+    view.rerender(
+      <I18nProvider initial="en">
+        <BrandPreviewCard summary={rampBrand} variant="panel" />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => {
+      expect(fetchProjectFileTextMock).toHaveBeenCalledTimes(2);
+      expect(screen.getByTestId('brand-preview-card').querySelector('img')?.getAttribute('src'))
+        .toContain('/api/brands/brand-ramp/logo');
+    });
+  });
+
+  it('keeps the card in place when a canonical scoped delete is denied', async () => {
+    workspaceContextState.context = {
+      workspaceId: 'workspace-delete',
+      workspaceType: 'team',
+      workspaceMemberId: 'member-delete',
+      role: 'member',
+      memberStatus: 'active',
+      lifecycleState: 'active',
+      billingState: 'active',
+      planId: null,
+      providerMode: 'platform_credits',
+      seatSummary: { seatLimit: 3, usedSeats: 2, availableSeats: 1, isSeatFull: false },
+      permissions: {
+        canManageMembers: false,
+        canManageBilling: false,
+        canInviteMembers: false,
+        canManageAutoRecharge: false,
+        canShareProjects: true,
+        canWriteSyncedFiles: false,
+        canViewWorkspaceSettings: false,
+        canManageSharedResources: false,
+      },
     };
-
-    render(
-      <I18nProvider initial="en">
-        <BrandPreviewCard summary={blocked} variant="panel" onApplyDesignSystem={vi.fn()} />
-      </I18nProvider>,
-    );
-
-    expect(screen.getByText('Needs input')).toBeTruthy();
-    expect(
-      screen.getByText(
-        'Extraction paused — open the project to finish verification or answer the question.',
-      ),
-    ).toBeTruthy();
-  });
-
-  it('does not mount design-system iframes for an in-progress brand', () => {
-    const extracting: BrandSummary = {
-      ...rampBrand,
-      meta: { ...rampBrand.meta, status: 'extracting' },
-    };
-
-    const { container } = render(
-      <I18nProvider initial="en">
-        <BrandPreviewCard summary={extracting} variant="panel" onApplyDesignSystem={vi.fn()} />
-      </I18nProvider>,
-    );
-
-    expect(screen.getByText('Extracting…')).toBeTruthy();
-    expect(container.querySelectorAll('iframe')).toHaveLength(0);
-  });
-
-  it('clears the parent detail after deleting a brand', async () => {
-    const events: string[] = [];
-    vi.stubGlobal('confirm', vi.fn(() => true));
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        if (String(input).startsWith('/api/brands/') && init?.method === 'DELETE') {
-          events.push('fetch-delete');
-        }
-        return { ok: true, json: async () => ({}) };
-      }),
-    );
-
-    render(
-      <I18nProvider initial="en">
-        <BrandPreviewCard
-          summary={rampBrand}
-          variant="panel"
-          onBeforeMutation={() => {
-            events.push('clear-preview');
-          }}
-          onChanged={() => {
-            events.push('refresh');
-          }}
-        />
-      </I18nProvider>,
-    );
-
-    fireEvent.click(screen.getByTestId('brand-preview-delete'));
-
-    await waitFor(() => {
-      expect(events).toContain('refresh');
-    });
-    expect(events).toEqual(['fetch-delete', 'clear-preview', 'refresh']);
-  });
-
-  it('keeps the parent detail selected when deleting a brand fails', async () => {
-    const onBeforeMutation = vi.fn();
-    vi.stubGlobal('confirm', vi.fn(() => true));
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        if (String(input).startsWith('/api/brands/') && init?.method === 'DELETE') {
-          throw new Error('delete failed');
-        }
-        return { ok: true, json: async () => ({}) };
-      }),
-    );
-
-    render(
-      <I18nProvider initial="en">
-        <BrandPreviewCard
-          summary={rampBrand}
-          variant="panel"
-          onBeforeMutation={onBeforeMutation}
-          onChanged={vi.fn()}
-        />
-      </I18nProvider>,
-    );
-
-    fireEvent.click(screen.getByTestId('brand-preview-delete'));
-
-    await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('/api/brands/brand-ramp', { method: 'DELETE' });
-      expect((screen.getByTestId('brand-preview-delete') as HTMLButtonElement).disabled).toBe(false);
-    });
-    expect(onBeforeMutation).not.toHaveBeenCalled();
-  });
-
-  it('keeps the parent detail selected when deleting a brand returns an HTTP failure', async () => {
-    const onBeforeMutation = vi.fn();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 403 } as Response);
     const onChanged = vi.fn();
-    vi.stubGlobal('confirm', vi.fn(() => true));
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        if (String(input).startsWith('/api/brands/') && init?.method === 'DELETE') {
-          return { ok: false, json: async () => ({}) };
-        }
-        return { ok: true, json: async () => ({}) };
-      }),
-    );
 
     render(
       <I18nProvider initial="en">
-        <BrandPreviewCard
-          summary={rampBrand}
-          variant="panel"
-          onBeforeMutation={onBeforeMutation}
-          onChanged={onChanged}
-        />
+        <BrandPreviewCard summary={rampBrand} variant="panel" onChanged={onChanged} />
       </I18nProvider>,
     );
-
     fireEvent.click(screen.getByTestId('brand-preview-delete'));
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('/api/brands/brand-ramp', { method: 'DELETE' });
+      expect(fetchMock).toHaveBeenCalledWith('/api/brands/brand-ramp', expect.objectContaining({
+        method: 'DELETE',
+        headers: expect.objectContaining({
+          'x-od-workspace-id': 'workspace-delete',
+          'x-od-workspace-member-id': 'member-delete',
+        }),
+      }));
+      expect(onChanged).not.toHaveBeenCalled();
+      expect(window.location.pathname).toBe('/brands/brand-ramp');
       expect((screen.getByTestId('brand-preview-delete') as HTMLButtonElement).disabled).toBe(false);
     });
-    expect(onBeforeMutation).not.toHaveBeenCalled();
-    expect(onChanged).not.toHaveBeenCalled();
-    expect(window.location.pathname).toBe('/brands/brand-ramp');
   });
 });

@@ -356,7 +356,7 @@ export function ExamplesTab({ skills: rawSkills, onUsePrompt }: Props) {
       <div className="examples-toolbar">
         <div className="examples-search">
           <span className="search-icon" aria-hidden>
-            <Icon name="search" size={13} />
+            <Icon name="search" size={14} />
           </span>
           <input
             type="search"
@@ -708,18 +708,6 @@ function ExampleCard({
                       : t('common.exportPdf')}
                   </span>
                 </button>
-                {isDeck ? (
-                  <button
-                    type="button"
-                    className="share-menu-item"
-                    role="menuitem"
-                    title={t('examples.exportPptxLocked')}
-                    disabled
-                  >
-                    <span className="share-menu-icon">📊</span>
-                    <span>{t('examples.exportPptxLocked')}</span>
-                  </button>
-                ) : null}
                 <div className="share-menu-divider" />
                 <button
                   type="button"

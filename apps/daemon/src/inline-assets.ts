@@ -27,7 +27,7 @@
 // Memory profile: the helper holds one Buffer-as-string copy of the
 // owner HTML plus one string copy of each sibling asset body, plus the
 // concatenated output. The daemon is local-first (single-user, on the
-// developer's machine — see open_design_architecture.md), so the
+// developer's machine — see composer_design_architecture.md), so the
 // effective ceiling is the size of the user's own project; no hard
 // cap is enforced. If you're surfacing this endpoint to non-trusted
 // callers later, you'll want a bounded-concurrency reader and an

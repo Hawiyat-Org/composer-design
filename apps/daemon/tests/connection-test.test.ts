@@ -10,21 +10,43 @@ import { pathToFileURL } from 'node:url';
 import { Socks5ProxyAgent } from 'undici';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as platform from '@open-design/platform';
+
+const { resolveSystemProxyEnvMock } = vi.hoisted(() => ({
+  resolveSystemProxyEnvMock: vi.fn(() => ({})),
+}));
+
+vi.mock('@open-design/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@open-design/platform')>()),
+  resolveSystemProxyEnv: resolveSystemProxyEnvMock,
+}));
+
 import {
   createAgentSink,
   isSmokeOkReply,
   mergeNoProxyWithLoopbackDefaults,
   proxyDispatcherRequestInit,
   redactSecrets,
+  resolveOpenAIConnectionTestRunProviderPackage,
   resolveConnectionTestTimeoutMs,
   testAgentConnection,
   testProviderConnection,
   validateBaseUrlResolved,
+  validateUserProviderBaseUrl,
   type DnsLookupAddress,
 } from '../src/connectionTest.js';
+import {
+  applyAgentLaunchEnv,
+  getAgentDef,
+  resolveAgentLaunch,
+  spawnEnvForAgent,
+} from '../src/agents.js';
+import { readAppConfig, writeAppConfig } from '../src/app-config.js';
 import { listProviderModels } from '../src/integrations/provider-models.js';
+import { readVelaCredentialRevision } from '../src/integrations/vela.js';
 import { startServer } from '../src/server.js';
-import { rememberLiveModels } from '../src/runtimes/models.js';
+import { getRememberedLiveModels, rememberLiveModels } from '../src/runtimes/models.js';
+import { amrModelLoadingCache } from '../src/runtimes/amr-model-cache.js';
+import { buildAmrModelCacheKey } from '../src/runtimes/amr-model-probe.js';
 
 type FetchInput = Parameters<typeof fetch>[0];
 type FetchInit = Parameters<typeof fetch>[1];
@@ -153,6 +175,10 @@ async function withFakeKimi<T>(script: string, run: () => Promise<T>): Promise<T
   return withFakeAgent('kimi', script, run);
 }
 
+async function withFakeAntigravity<T>(script: string, run: () => Promise<T>): Promise<T> {
+  return withFakeAgent('agy', script, run);
+}
+
 async function waitForFile(file: string, timeoutMs = 5_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -188,6 +214,7 @@ beforeAll(async () => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  amrModelLoadingCache.resetForTests();
 });
 
 afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
@@ -201,9 +228,22 @@ describe('POST /api/provider/models', () => {
       );
       return jsonResponse({
         data: [
-          { id: 'gpt-4o-mini', object: 'model' },
+          {
+            id: 'gpt-4o-mini',
+            object: 'model',
+            metadata: { cost: 'low', capability: 'standard' },
+            enabled: false,
+          },
+          {
+            id: 'gpt-4o',
+            object: 'model',
+            metadata: { cost: 'medium', capability: 'advanced' },
+            default: true,
+          },
           { id: 'gpt-4o', object: 'model' },
-          { id: 'gpt-4o', object: 'model' },
+          { id: 'wan2-1-14b-t2v-250225', object: 'model' },
+          { id: 'text-embedding-3-large', object: 'model' },
+          { id: 'dall-e-3', object: 'model' },
         ],
       });
     });
@@ -220,13 +260,65 @@ describe('POST /api/provider/models', () => {
     });
 
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toMatchObject({
+    const body = (await res.json()) as {
+      ok: boolean;
+      kind: string;
+      models?: Array<Record<string, unknown>>;
+    };
+    expect(body).toMatchObject({
       ok: true,
       kind: 'success',
       models: [
-        { id: 'gpt-4o', label: 'gpt-4o' },
-        { id: 'gpt-4o-mini', label: 'gpt-4o-mini' },
+        {
+          id: 'gpt-4o-mini',
+          label: 'gpt-4o-mini',
+          metadata: { cost: 'low', capability: 'standard' },
+        },
+        {
+          id: 'gpt-4o',
+          label: 'gpt-4o',
+          metadata: { cost: 'medium', capability: 'advanced' },
+        },
       ],
+    });
+    expect(body.models?.[0]?.enabled).toBeUndefined();
+    expect(body.models?.[0]?.default).toBeUndefined();
+    expect(body.models?.[1]?.enabled).toBeUndefined();
+    expect(body.models?.[1]?.default).toBeUndefined();
+  });
+
+  // Regression for #5367: a gateway's /models catalogue can list embedding
+  // models alongside real chat models. `BAAI/bge-large-en-v1.5` (reported via
+  // SiliconFlow) doesn't contain any of the existing exclusion substrings
+  // (`embedding`, `rerank`, ...), so it was surfacing as a "loaded" chat model
+  // in the picker and then 404ing the moment a user actually tested it.
+  it('excludes the BGE embedding family from an OpenAI-compatible /models catalogue', async () => {
+    const fetchMock = passThroughOrUpstream(() =>
+      jsonResponse({
+        data: [
+          { id: 'deepseek-ai/DeepSeek-V3', object: 'model' },
+          { id: 'BAAI/bge-large-en-v1.5', object: 'model' },
+          { id: 'BAAI/bge-reranker-v2-m3', object: 'model' },
+        ],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await realFetch(`${baseUrl}/api/provider/models`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        protocol: 'openai',
+        baseUrl: 'https://api.siliconflow.cn/v1',
+        apiKey: 'sk-siliconflow',
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      ok: true,
+      kind: 'success',
+      models: [{ id: 'deepseek-ai/DeepSeek-V3', label: 'deepseek-ai/DeepSeek-V3' }],
     });
   });
 
@@ -306,8 +398,8 @@ describe('POST /api/provider/models', () => {
     await expect(res.json()).resolves.toMatchObject({
       ok: true,
       models: [
-        { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
         { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
+        { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
       ],
     });
   });
@@ -353,8 +445,8 @@ describe('POST /api/provider/models', () => {
     await expect(res.json()).resolves.toMatchObject({
       ok: true,
       models: [
-        { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
         { id: 'gemini-custom', label: 'Gemini Custom' },
+        { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
       ],
     });
   });
@@ -524,6 +616,37 @@ describe('POST /api/provider/models', () => {
     }
   });
 
+  it('lets an operator-allowlisted internal endpoint reach the upstream model fetch (#3225)', async () => {
+    // The exact symptom in #3225 — "Could not fetch models: Internal IPs
+    // blocked". With the host opted in via OD_ALLOWED_INTERNAL_HOSTS, model
+    // discovery must reach the internal gateway instead of returning forbidden.
+    vi.stubEnv('OD_ALLOWED_INTERNAL_HOSTS', '10.0.0.5');
+    const fetchMock = passThroughOrUpstream(() =>
+      jsonResponse({ data: [{ id: 'gpt-4o-internal' }] }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const res = await realFetch(`${baseUrl}/api/provider/models`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          protocol: 'openai',
+          baseUrl: 'http://10.0.0.5:11434/v1',
+          apiKey: 'sk-good',
+        }),
+      });
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body).not.toMatchObject({ kind: 'forbidden' });
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          String(input).includes('10.0.0.5'),
+        ),
+      ).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('reports timeout when model listing is aborted by the probe timer', async () => {
     // The DNS-aware validator runs before the probe timer is installed; stub
     // the resolver so the test doesn't race against real DNS while fake
@@ -645,6 +768,38 @@ describe('POST /api/test/connection provider mode', () => {
     expect(body.status).toBe(401);
   });
 
+  it('maps NVIDIA DEGRADED errors to actionable upstream detail', async () => {
+    vi.stubGlobal(
+      'fetch',
+      passThroughOrUpstream((url) => {
+        expect(url).toBe('https://integrate.api.nvidia.com/v1/chat/completions');
+        return jsonResponse(
+          { error: { message: 'DEGRADED function id=abc123' } },
+          { status: 400 },
+        );
+      }),
+    );
+
+    const res = await realFetch(`${baseUrl}/api/test/connection`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'provider',
+        protocol: 'openai',
+        baseUrl: 'https://integrate.api.nvidia.com/v1',
+        apiKey: 'nvapi-test',
+        model: 'minimaxai/minimax-m3',
+      }),
+    });
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.ok).toBe(false);
+    expect(body.kind).toBe('upstream_unavailable');
+    expect(body.status).toBe(400);
+    expect(body.detail).toContain('selected NVIDIA model instance');
+    expect(body.detail).toContain('Try a different model');
+    expect(body.detail).not.toContain('function id');
+  });
+
   it('does not add a duplicate version segment for versioned OpenAI-compatible subpaths', async () => {
     const fetchMock = vi.fn((input: FetchInput, init?: FetchInit) => {
       const url = String(input);
@@ -677,6 +832,91 @@ describe('POST /api/test/connection provider mode', () => {
       'https://api.deepinfra.com/v1/openai/chat/completions',
       expect.anything(),
     );
+  });
+
+  it('returns static AWS Bedrock model seeds without calling upstream fetch', async () => {
+    const fetchMock = passThroughOrUpstream(() => jsonResponse({ error: 'unexpected upstream call' }, { status: 500 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await realFetch(`${baseUrl}/api/provider/models`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        protocol: 'bedrock',
+        baseUrl: 'https://bedrock-runtime.us-east-1.amazonaws.com',
+        apiKey: '',
+      }),
+    });
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(res.status).toBe(200);
+    expect(body).toMatchObject({
+      ok: true,
+      kind: 'success',
+    });
+    expect(body.models).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+        }),
+      ]),
+    );
+    expect(
+      fetchMock.mock.calls.some(
+        ([input]) => !String(input).startsWith(baseUrl),
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects malformed AWS Bedrock model-list URLs before static seeds', async () => {
+    const fetchMock = passThroughOrUpstream(() => jsonResponse({ error: 'unexpected upstream call' }, { status: 500 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await realFetch(`${baseUrl}/api/provider/models`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        protocol: 'bedrock',
+        baseUrl: 'not-a-url',
+        apiKey: '',
+      }),
+    });
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(res.status).toBe(200);
+    expect(body).toMatchObject({
+      ok: false,
+      kind: 'invalid_base_url',
+    });
+    expect(
+      fetchMock.mock.calls.some(
+        ([input]) => !String(input).startsWith(baseUrl),
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects forbidden AWS Bedrock model-list URLs before static seeds', async () => {
+    const fetchMock = passThroughOrUpstream(() => jsonResponse({ error: 'unexpected upstream call' }, { status: 500 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await realFetch(`${baseUrl}/api/provider/models`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        protocol: 'bedrock',
+        baseUrl: 'http://10.0.0.8:8080',
+        apiKey: '',
+      }),
+    });
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(res.status).toBe(200);
+    expect(body).toMatchObject({
+      ok: false,
+      kind: 'forbidden',
+    });
+    expect(
+      fetchMock.mock.calls.some(
+        ([input]) => !String(input).startsWith(baseUrl),
+      ),
+    ).toBe(false);
   });
 
   it('checks SenseAudio non-chat model availability without probing chat completions', async () => {
@@ -776,6 +1016,36 @@ describe('POST /api/test/connection provider mode', () => {
     );
   });
 
+  it('reports AWS Bedrock connection tests as unsupported without calling upstream fetch', async () => {
+    const fetchMock = passThroughOrUpstream(() => jsonResponse({ error: 'unexpected upstream call' }, { status: 500 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await realFetch(`${baseUrl}/api/test/connection`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'provider',
+        protocol: 'bedrock',
+        baseUrl: 'https://bedrock-runtime.us-east-1.amazonaws.com',
+        apiKey: '',
+        model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+      }),
+    });
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(res.status).toBe(200);
+    expect(body).toMatchObject({
+      ok: false,
+      kind: 'unknown',
+      model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    });
+    expect(String(body.detail)).toContain('AWS Bedrock BYOK requires AWS credential signing');
+    expect(
+      fetchMock.mock.calls.some(
+        ([input]) => !String(input).startsWith(baseUrl),
+      ),
+    ).toBe(false);
+  });
+
   it('maps a 404 to not_found_model', async () => {
     vi.stubGlobal(
       'fetch',
@@ -798,6 +1068,45 @@ describe('POST /api/test/connection provider mode', () => {
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.kind).toBe('not_found_model');
     expect(body.status).toBe(404);
+  });
+
+  it('maps OpenRouter no-endpoints 404 responses to not_found_model', async () => {
+    vi.stubGlobal(
+      'fetch',
+      passThroughOrUpstream(() =>
+        jsonResponse(
+          {
+            error: {
+              message: 'No endpoints found for anthropic/claude-3.7-sonnet.',
+            },
+          },
+          { status: 404 },
+        ),
+      ),
+    );
+
+    const res = await realFetch(`${baseUrl}/api/test/connection`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'provider',
+        protocol: 'openai',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        apiKey: 'sk-or-test',
+        model: 'anthropic/claude-3.7-sonnet',
+      }),
+    });
+    const body = (await res.json()) as Record<string, unknown>;
+
+    expect(body).toMatchObject({
+      ok: false,
+      kind: 'not_found_model',
+      status: 404,
+      model: 'anthropic/claude-3.7-sonnet',
+    });
+    expect(body.detail).toBe(
+      'No endpoints found for anthropic/claude-3.7-sonnet.',
+    );
   });
 
   it('maps an ambiguous 404 to invalid_base_url', async () => {
@@ -907,15 +1216,8 @@ describe('POST /api/test/connection provider mode', () => {
       'fetch',
       passThroughOrUpstream(() =>
         jsonResponse({
-          choices: [
-            {
-              message: {
-                role: 'assistant',
-                content:
-                  "There's an issue with the selected model (abcde). It may not exist.",
-              },
-            },
-          ],
+          output_text:
+            "There's an issue with the selected model (abcde). It may not exist.",
         }),
       ),
     );
@@ -1245,6 +1547,63 @@ describe('POST /api/test/connection provider mode', () => {
     expect(secondBody).not.toHaveProperty('max_tokens');
   });
 
+  it('retries Azure-hosted OpenAI protocol alias connection tests when max_tokens is rejected', async () => {
+    const fetchMock = passThroughOrUpstream((url, init) => {
+      if (url.endsWith('/models')) {
+        return jsonResponse({
+          data: [{ id: 'gpt-chat-latest', object: 'model' }],
+        });
+      }
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if ('max_tokens' in body) {
+        return jsonResponse({
+          error: {
+            message: "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+            type: 'invalid_request_error',
+            param: 'max_tokens',
+            code: 'unsupported_parameter',
+          },
+        }, { status: 400 });
+      }
+      return jsonResponse({
+        choices: [{ message: { role: 'assistant', content: 'ok' } }],
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await realFetch(`${baseUrl}/api/test/connection`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'provider',
+        protocol: 'openai',
+        baseUrl: 'https://resource.services.ai.azure.com/api/projects/project/openai/v1',
+        apiKey: 'azure-key',
+        model: 'gpt-chat-latest',
+      }),
+    });
+
+    const responseBody = (await res.json()) as Record<string, unknown>;
+    expect(responseBody.ok).toBe(true);
+    const chatCalls = fetchMock.mock.calls.filter(
+      ([input]) => String(input).endsWith('/chat/completions'),
+    );
+    expect(chatCalls).toHaveLength(2);
+    const firstBody = JSON.parse(String(chatCalls[0]![1]?.body));
+    const secondBody = JSON.parse(String(chatCalls[1]![1]?.body));
+    expect(firstBody).toMatchObject({
+      model: 'gpt-chat-latest',
+      max_tokens: 100,
+      stream: false,
+    });
+    expect(secondBody).toMatchObject({
+      model: 'gpt-chat-latest',
+      max_completion_tokens: 100,
+      stream: false,
+    });
+    expect(secondBody).not.toHaveProperty('max_tokens');
+  });
+
   it('retries Azure deployment-mode connection tests with max_completion_tokens when max_tokens is rejected', async () => {
     const fetchMock = passThroughOrUpstream((_url, init) => {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
@@ -1372,11 +1731,9 @@ describe('POST /api/test/connection provider mode', () => {
     }
   });
 
-  it('keeps max_tokens for legacy OpenAI connection tests', async () => {
+  it('uses max_output_tokens for native OpenAI connection tests', async () => {
     const fetchMock = passThroughOrUpstream(() =>
-      jsonResponse({
-        choices: [{ message: { role: 'assistant', content: 'ok' } }],
-      }),
+      jsonResponse({ output_text: 'ok' }),
     );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -1397,12 +1754,16 @@ describe('POST /api/test/connection provider mode', () => {
       ([input]) => !String(input).startsWith(baseUrl),
     );
     expect(upstream).toBeDefined();
+    expect(String(upstream?.[0])).toBe('https://api.openai.com/v1/responses');
     const [, upstreamInit] = upstream!;
     expect(JSON.parse(String(upstreamInit?.body))).toMatchObject({
       model: 'gpt-4o',
-      max_tokens: 100,
-      stream: false,
+      input: 'Reply with only: ok',
+      max_output_tokens: 100,
     });
+    expect(JSON.parse(String(upstreamInit?.body))).not.toHaveProperty(
+      'max_tokens',
+    );
     expect(JSON.parse(String(upstreamInit?.body))).not.toHaveProperty(
       'max_completion_tokens',
     );
@@ -1447,6 +1808,82 @@ describe('POST /api/test/connection provider mode', () => {
     expect(JSON.parse(String(upstreamInit?.body))).not.toHaveProperty(
       'max_completion_tokens',
     );
+  });
+
+  it('binds non-OpenAI openai-protocol connection tests to the BYOK OpenCode compatible route', async () => {
+    expect(resolveOpenAIConnectionTestRunProviderPackage({
+      protocol: 'openai',
+      baseUrl: 'https://api.moonshot.cn/v1',
+      apiKey: 'moonshot-key',
+      model: 'kimi-k2.7-code',
+    })).toBe('@ai-sdk/openai-compatible');
+
+    const fetchMock = passThroughOrUpstream((url) => {
+      if (url === 'https://api.moonshot.cn/v1/models') {
+        return jsonResponse({
+          data: [{ id: 'kimi-k2.7-code', object: 'model' }],
+        });
+      }
+      return jsonResponse({
+        choices: [{ message: { role: 'assistant', content: 'ok' } }],
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await realFetch(`${baseUrl}/api/test/connection`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'provider',
+        protocol: 'openai',
+        baseUrl: 'https://api.moonshot.cn/v1',
+        apiKey: 'moonshot-key',
+        model: 'kimi-k2.7-code',
+      }),
+    });
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.ok).toBe(true);
+    const upstream = fetchMock.mock.calls.find(
+      ([input]) => String(input) === 'https://api.moonshot.cn/v1/chat/completions',
+    );
+    expect(upstream).toBeDefined();
+  });
+
+  it('binds native OpenAI connection tests to the BYOK OpenCode responses route', async () => {
+    expect(resolveOpenAIConnectionTestRunProviderPackage({
+      protocol: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'openai-key',
+      model: 'gpt-5.5',
+    })).toBe('@ai-sdk/openai');
+
+    const fetchMock = passThroughOrUpstream((url) => {
+      if (url === 'https://api.openai.com/v1/models') {
+        return jsonResponse({
+          data: [{ id: 'gpt-5.5', object: 'model' }],
+        });
+      }
+      return jsonResponse({ output_text: 'ok' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await realFetch(`${baseUrl}/api/test/connection`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'provider',
+        protocol: 'openai',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'openai-key',
+        model: 'gpt-5.5',
+      }),
+    });
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.ok).toBe(true);
+    const upstream = fetchMock.mock.calls.find(
+      ([input]) => String(input) === 'https://api.openai.com/v1/responses',
+    );
+    expect(upstream).toBeDefined();
   });
 
   it('keeps max_tokens for Azure gpt-4o connection tests on the default deployment path', async () => {
@@ -1844,7 +2281,7 @@ describe('POST /api/test/connection provider mode', () => {
     const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnv').mockReturnValue({});
 
     try {
-      const { close, requestInit } = proxyDispatcherRequestInit();
+      const { close, requestInit } = proxyDispatcherRequestInit({});
 
       expect(proxySpy).toHaveBeenCalledWith();
       expect(requestInit).toEqual({});
@@ -2067,6 +2504,215 @@ describe('POST /api/test/connection agent mode', () => {
     );
   });
 
+  it('concretizes explicit AMR default before the strict fake Vela connection smoke prompt', async () => {
+    const markerDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'od-conn-test-amr-default-'));
+    const logPath = path.join(markerDir, 'invocations.jsonl');
+    const previousLog = process.env.FAKE_VELA_INVOCATION_LOG;
+    const previousLogSetModel = process.env.FAKE_VELA_LOG_SET_MODEL;
+    const previousRequireSetModel = process.env.FAKE_VELA_REQUIRE_SET_MODEL;
+    try {
+      process.env.FAKE_VELA_INVOCATION_LOG = logPath;
+      process.env.FAKE_VELA_LOG_SET_MODEL = '1';
+      delete process.env.FAKE_VELA_REQUIRE_SET_MODEL;
+
+      await withFakeAgent(
+        'vela',
+        `void import(${JSON.stringify(pathToFileURL(FAKE_VELA_FIXTURE).href)});\n`,
+        async () => {
+          const result = await testAgentConnection({
+            agentId: 'amr',
+            model: 'default',
+          });
+
+          expect(result).toMatchObject({
+            ok: true,
+            kind: 'success',
+            agentName: 'AMR',
+            sample: 'Hello from fake vela.',
+          });
+        },
+      );
+
+      const raw = await fsp.readFile(logPath, 'utf8');
+      const methods = raw
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as { method: string })
+        .map((entry) => entry.method);
+      expect(methods).toEqual(['new', 'set_model:deepseek-v4-flash']);
+    } finally {
+      if (previousLog === undefined) delete process.env.FAKE_VELA_INVOCATION_LOG;
+      else process.env.FAKE_VELA_INVOCATION_LOG = previousLog;
+      if (previousLogSetModel === undefined) delete process.env.FAKE_VELA_LOG_SET_MODEL;
+      else process.env.FAKE_VELA_LOG_SET_MODEL = previousLogSetModel;
+      if (previousRequireSetModel === undefined) delete process.env.FAKE_VELA_REQUIRE_SET_MODEL;
+      else process.env.FAKE_VELA_REQUIRE_SET_MODEL = previousRequireSetModel;
+      await fsp.rm(markerDir, { recursive: true, force: true });
+    }
+  });
+
+  it('refreshes AMR connection-test default resolution when file credentials change', async () => {
+    const tempHome = await fsp.mkdtemp(path.join(os.tmpdir(), 'od-conn-test-amr-home-'));
+    const logPath = path.join(tempHome, 'invocations.jsonl');
+    const previousHome = process.env.HOME;
+    const previousUserProfile = process.env.USERPROFILE;
+    const previousLog = process.env.FAKE_VELA_INVOCATION_LOG;
+    const previousLogSetModel = process.env.FAKE_VELA_LOG_SET_MODEL;
+    const previousRequireSetModel = process.env.FAKE_VELA_REQUIRE_SET_MODEL;
+    const previousPreset = process.env.FAKE_VELA_MODEL_PRESET_JSON;
+    const previousList = process.env.FAKE_VELA_MODEL_LIST_JSON;
+    const writeAmrConfig = async (runtimeKey: string, userId: string) => {
+      const configPath = path.join(tempHome, '.amr', 'config.json');
+      await fsp.mkdir(path.dirname(configPath), { recursive: true });
+      await fsp.writeFile(
+        configPath,
+        JSON.stringify({
+          profiles: {
+            local: {
+              runtimeKey,
+              linkUrl: 'https://openrouter.example/v1',
+              user: { id: userId, email: `${userId}@example.test` },
+            },
+          },
+        }),
+        'utf8',
+      );
+    };
+    const setCatalog = (modelId: string) => {
+      const preset = JSON.stringify({
+        source: 'preset',
+        data: [{ id: modelId, default: true }],
+      });
+      const remote = JSON.stringify({
+        source: 'remote',
+        data: [{ id: modelId, default: true }],
+      });
+      process.env.FAKE_VELA_MODEL_PRESET_JSON = preset;
+      process.env.FAKE_VELA_MODEL_LIST_JSON = remote;
+    };
+    try {
+      process.env.HOME = tempHome;
+      process.env.USERPROFILE = tempHome;
+      process.env.FAKE_VELA_INVOCATION_LOG = logPath;
+      process.env.FAKE_VELA_LOG_SET_MODEL = '1';
+      delete process.env.FAKE_VELA_REQUIRE_SET_MODEL;
+
+      await withFakeAgent(
+        'vela',
+        `void import(${JSON.stringify(pathToFileURL(FAKE_VELA_FIXTURE).href)});\n`,
+        async () => {
+          await writeAmrConfig('rt-before', 'user-before');
+          setCatalog('before-upgrade-model');
+          expect(await testAgentConnection({ agentId: 'amr', model: 'default' }))
+            .toMatchObject({ ok: true, kind: 'success', model: 'before-upgrade-model' });
+
+          await writeAmrConfig('rt-after', 'user-after');
+          setCatalog('after-upgrade-model');
+          expect(await testAgentConnection({ agentId: 'amr', model: 'default' }))
+            .toMatchObject({ ok: true, kind: 'success', model: 'after-upgrade-model' });
+        },
+      );
+
+      const methods = (await fsp.readFile(logPath, 'utf8'))
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as { method: string })
+        .map((entry) => entry.method);
+      expect(methods).toEqual([
+        'new',
+        'set_model:before-upgrade-model',
+        'new',
+        'set_model:after-upgrade-model',
+      ]);
+    } finally {
+      if (previousHome === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHome;
+      if (previousUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = previousUserProfile;
+      if (previousLog === undefined) delete process.env.FAKE_VELA_INVOCATION_LOG;
+      else process.env.FAKE_VELA_INVOCATION_LOG = previousLog;
+      if (previousLogSetModel === undefined) delete process.env.FAKE_VELA_LOG_SET_MODEL;
+      else process.env.FAKE_VELA_LOG_SET_MODEL = previousLogSetModel;
+      if (previousRequireSetModel === undefined) delete process.env.FAKE_VELA_REQUIRE_SET_MODEL;
+      else process.env.FAKE_VELA_REQUIRE_SET_MODEL = previousRequireSetModel;
+      if (previousPreset === undefined) delete process.env.FAKE_VELA_MODEL_PRESET_JSON;
+      else process.env.FAKE_VELA_MODEL_PRESET_JSON = previousPreset;
+      if (previousList === undefined) delete process.env.FAKE_VELA_MODEL_LIST_JSON;
+      else process.env.FAKE_VELA_MODEL_LIST_JSON = previousList;
+      await fsp.rm(tempHome, { recursive: true, force: true });
+    }
+  });
+
+  it('shares AMR model cache invalidation with connection-test default resolution', async () => {
+    const previousPreset = process.env.FAKE_VELA_MODEL_PRESET_JSON;
+    const previousList = process.env.FAKE_VELA_MODEL_LIST_JSON;
+    const setCatalog = (presetModelId: string, remoteModelId: string) => {
+      process.env.FAKE_VELA_MODEL_PRESET_JSON = JSON.stringify({
+        source: 'preset',
+        data: [{ id: presetModelId, default: true }],
+      });
+      process.env.FAKE_VELA_MODEL_LIST_JSON = JSON.stringify({
+        source: 'remote',
+        data: [{ id: remoteModelId, default: true }],
+      });
+    };
+    try {
+      await withFakeAgent(
+        'vela',
+        `void import(${JSON.stringify(pathToFileURL(FAKE_VELA_FIXTURE).href)});\n`,
+        async () => {
+          const def = getAgentDef('amr');
+          expect(def).toBeDefined();
+          const launch = resolveAgentLaunch(def!, {});
+          expect(launch.launchPath).toBeTruthy();
+          const env = applyAgentLaunchEnv(
+            spawnEnvForAgent(
+              def!.id,
+              {
+                ...process.env,
+                ...(def!.env || {}),
+              },
+              {},
+              undefined,
+              { resolvedBin: launch.selectedPath },
+            ),
+            launch,
+          );
+          const normalProbeCacheKey = buildAmrModelCacheKey({
+            launchPath: launch.launchPath!,
+            env,
+            credentialRevision: readVelaCredentialRevision(env),
+          });
+
+          setCatalog('preset-before-upgrade', 'remote-before-upgrade');
+          expect(await testAgentConnection({ agentId: 'amr', model: 'default' }))
+            .toMatchObject({ ok: true, kind: 'success', model: 'preset-before-upgrade' });
+
+          for (let attempt = 0; attempt < 20; attempt += 1) {
+            const warmed = await testAgentConnection({ agentId: 'amr', model: 'default' });
+            if (warmed.model === 'remote-before-upgrade') break;
+            await new Promise((resolve) => setTimeout(resolve, 25));
+          }
+          expect(await testAgentConnection({ agentId: 'amr', model: 'default' }))
+            .toMatchObject({ ok: true, kind: 'success', model: 'remote-before-upgrade' });
+
+          setCatalog('preset-after-upgrade', 'remote-after-upgrade');
+          amrModelLoadingCache.invalidate(normalProbeCacheKey);
+
+          expect(await testAgentConnection({ agentId: 'amr', model: 'default' }))
+            .toMatchObject({ ok: true, kind: 'success', model: 'preset-after-upgrade' });
+        },
+      );
+    } finally {
+      if (previousPreset === undefined) delete process.env.FAKE_VELA_MODEL_PRESET_JSON;
+      else process.env.FAKE_VELA_MODEL_PRESET_JSON = previousPreset;
+      if (previousList === undefined) delete process.env.FAKE_VELA_MODEL_LIST_JSON;
+      else process.env.FAKE_VELA_MODEL_LIST_JSON = previousList;
+    }
+  });
+
   it('resolves the AMR connection-test scope from the merged launch env', async () => {
     rememberLiveModels('amr', [{ id: 'local-env-model', label: 'local-env-model' }], 'local');
     const previousProfile = process.env.OPEN_DESIGN_AMR_PROFILE;
@@ -2121,6 +2767,123 @@ setImmediate(() => process.exit(0));
         });
       },
     );
+  });
+
+  it('keeps service tier overrides when connection tests omit model but settings has one', async () => {
+    if (!process.env.OD_DATA_DIR) {
+      throw new Error('OD_DATA_DIR is required for service tier settings tests');
+    }
+    const markerDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'od-conn-test-service-tier-'));
+    const argvFile = path.join(markerDir, 'argv.json');
+    const previousConfig = await readAppConfig(process.env.OD_DATA_DIR);
+    try {
+      await writeAppConfig(process.env.OD_DATA_DIR, {
+        agentModels: { codex: { model: 'gpt-5.5' } },
+      });
+      await withFakeCodex(
+        `
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+if (args[0] === 'debug' && args[1] === 'models') {
+  console.log(JSON.stringify([{ id: 'gpt-5.5', name: 'gpt-5.5', service_tiers: [{ id: 'priority', label: 'Fast' }] }]));
+  process.exit(0);
+}
+if (args[0] === 'login' && args[1] === 'status') {
+  console.log('Logged in');
+  process.exit(0);
+}
+fs.writeFileSync(${JSON.stringify(argvFile)}, JSON.stringify(args));
+console.log(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: 'ok' } }));
+setImmediate(() => process.exit(0));
+`,
+        async () => {
+          const res = await realFetch(`${baseUrl}/api/test/connection`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'agent',
+              agentId: 'codex',
+              serviceTier: 'priority',
+            }),
+          });
+          expect(res.status).toBe(200);
+          await expect(res.json()).resolves.toMatchObject({
+            ok: true,
+            kind: 'success',
+            agentName: 'Codex CLI',
+            model: 'gpt-5.5',
+          });
+
+          const args = JSON.parse(await fsp.readFile(argvFile, 'utf8')) as string[];
+          expect(args).toContain('--model');
+          expect(args).toContain('gpt-5.5');
+          expect(args).toContain('service_tier="priority"');
+        },
+      );
+    } finally {
+      await fsp.rm(markerDir, { recursive: true, force: true });
+      await writeAppConfig(process.env.OD_DATA_DIR, {
+        agentModels: previousConfig.agentModels ?? null,
+      });
+    }
+  });
+
+  it('keeps service tier overrides when connection tests omit model and settings has none', async () => {
+    if (!process.env.OD_DATA_DIR) {
+      throw new Error('OD_DATA_DIR is required for service tier settings tests');
+    }
+    const markerDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'od-conn-test-service-tier-'));
+    const argvFile = path.join(markerDir, 'argv.json');
+    const previousConfig = await readAppConfig(process.env.OD_DATA_DIR);
+    try {
+      await writeAppConfig(process.env.OD_DATA_DIR, { agentModels: null });
+      await withFakeCodex(
+        `
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+if (args[0] === 'debug' && args[1] === 'models') {
+  console.log(JSON.stringify([{ id: 'gpt-5.5', name: 'gpt-5.5', service_tiers: [{ id: 'priority', label: 'Fast' }] }]));
+  process.exit(0);
+}
+if (args[0] === 'login' && args[1] === 'status') {
+  console.log('Logged in');
+  process.exit(0);
+}
+fs.writeFileSync(${JSON.stringify(argvFile)}, JSON.stringify(args));
+console.log(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: 'ok' } }));
+setImmediate(() => process.exit(0));
+`,
+        async () => {
+          await realFetch(`${baseUrl}/api/agents`);
+          const res = await realFetch(`${baseUrl}/api/test/connection`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'agent',
+              agentId: 'codex',
+              serviceTier: 'priority',
+            }),
+          });
+          expect(res.status).toBe(200);
+          await expect(res.json()).resolves.toMatchObject({
+            ok: true,
+            kind: 'success',
+            agentName: 'Codex CLI',
+            model: 'gpt-5.5',
+          });
+
+          const args = JSON.parse(await fsp.readFile(argvFile, 'utf8')) as string[];
+          expect(args).toContain('--model');
+          expect(args).toContain('gpt-5.5');
+          expect(args).toContain('service_tier="priority"');
+        },
+      );
+    } finally {
+      await fsp.rm(markerDir, { recursive: true, force: true });
+      await writeAppConfig(process.env.OD_DATA_DIR, {
+        agentModels: previousConfig.agentModels ?? null,
+      });
+    }
   });
 
   it('spawns agent tests with draft allowlisted CLI env', async () => {
@@ -2205,7 +2968,7 @@ console.log(JSON.stringify({ type: 'item.completed', item: { type: 'agent_messag
 setImmediate(() => process.exit(0));
 `,
         async () => {
-          // These keys come from the process environment, not Composer Design
+          // These keys come from the process environment, not ComposerDesign
           // BYOK/agentCliEnv. Preserve them so local CLI API-key auth works.
           const res = await realFetch(`${baseUrl}/api/test/connection`, {
             method: 'POST',
@@ -2375,6 +3138,48 @@ process.stdin.on('end', () => {
       else process.env.ANTHROPIC_AUTH_TOKEN = previousToken;
       await fsp.rm(markerDir, { recursive: true, force: true });
     }
+  });
+
+  it('reports the concrete model resolved from a Claude alias', async () => {
+    await withFakeClaude(
+      `
+console.log(JSON.stringify({
+  type: 'system',
+  subtype: 'init',
+  model: 'claude-opus-5',
+  session_id: 'test-session',
+}));
+let input = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => { input += chunk; });
+process.stdin.on('end', () => {
+  JSON.parse(input.trim());
+  console.log(JSON.stringify({
+    type: 'assistant',
+    message: {
+      id: 'msg_1',
+      content: [{ type: 'text', text: 'ok' }],
+      stop_reason: 'end_turn',
+    },
+  }));
+});
+`,
+      async () => {
+        const result = await testAgentConnection({
+          agentId: 'claude',
+          model: 'opus',
+        });
+
+        expect(result).toMatchObject({
+          ok: true,
+          kind: 'success',
+          model: 'opus',
+          resolvedModel: 'claude-opus-5',
+          agentName: 'Claude Code',
+          sample: 'ok',
+        });
+      },
+    );
   });
 
   it('waits for the Codex process before accepting early success text', async () => {
@@ -3140,18 +3945,22 @@ process.stdin.on('end', () => {
             sample: 'ok',
           });
 
-          await expect(fsp.readFile(argvFile, 'utf8')).resolves.toBe(
-            JSON.stringify([
-              'run',
-              '--format',
-              'json',
-              '-m',
-              'github-copilot/gpt-4o',
-              '--pure',
-              '--title',
-              'Connection test',
-            ]),
-          );
+          // `--dir` pins OpenCode's workspace to the probe's own temp cwd, so
+          // a connection test cannot adopt the repository root as its
+          // worktree. The path is minted per probe; everything around it still
+          // has to match byte-for-byte, since the 1.3 compatibility this test
+          // guards is a property of the argument ORDER.
+          const argv = JSON.parse(await fsp.readFile(argvFile, 'utf8')) as string[];
+          expect(argv.slice(0, 3)).toEqual(['run', '--format', 'json']);
+          expect(argv[3]).toBe('--dir');
+          expect(path.isAbsolute(argv[4] ?? '')).toBe(true);
+          expect(argv.slice(5)).toEqual([
+            '-m',
+            'github-copilot/gpt-4o',
+            '--pure',
+            '--title',
+            'Connection test',
+          ]);
           await expect(fsp.readFile(stdinFile, 'utf8')).resolves.toBe('Reply with only: ok');
         },
       );
@@ -3160,7 +3969,116 @@ process.stdin.on('end', () => {
     }
   });
 
-  it('launches Kimi connection tests without the legacy acp positional arg', async () => {
+  it('does not reuse another OpenCode binary variant catalog for an OPENCODE_BIN connection test', async () => {
+    const markerDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'od-opencode-variant-scope-'));
+    const bin = path.join(markerDir, 'opencode-other');
+    const argvFile = path.join(markerDir, 'argv.json');
+    const previousModels = getRememberedLiveModels('opencode');
+    rememberLiveModels('opencode', [{
+      id: 'openai/gpt-5.6-sol',
+      label: 'openai/gpt-5.6-sol',
+      reasoningOptions: [{ id: 'high', label: 'high' }],
+    }]);
+    try {
+      await fsp.writeFile(
+        bin,
+        `#!/usr/bin/env node
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+fs.writeFileSync(${JSON.stringify(argvFile)}, JSON.stringify(args));
+process.stdin.resume();
+process.stdin.on('end', () => console.log(JSON.stringify({ type: 'text', part: { text: 'ok' } })));
+`,
+      );
+      await fsp.chmod(bin, 0o755);
+
+      const result = await testAgentConnection({
+        agentId: 'opencode',
+        model: 'openai/gpt-5.6-sol',
+        reasoning: 'high',
+        agentCliEnv: { opencode: { OPENCODE_BIN: bin } },
+      });
+
+      expect(result).toMatchObject({ ok: true, kind: 'success', agentName: 'OpenCode' });
+      const argv = JSON.parse(await fsp.readFile(argvFile, 'utf8')) as string[];
+      expect(argv).toContain('openai/gpt-5.6-sol');
+      expect(argv).not.toContain('--variant');
+      expect(argv).not.toContain('high');
+    } finally {
+      rememberLiveModels('opencode', previousModels);
+      await fsp.rm(markerDir, { recursive: true, force: true });
+    }
+  });
+
+  it('surfaces OpenCode provider connectivity errors captured before timeout (#4999)', async () => {
+    await withFakeOpenCode(
+      `
+const args = process.argv.slice(2);
+if (args[0] === 'models') {
+  console.log('ollama/qwen3.5-9b');
+  process.exit(0);
+}
+console.error('Cannot connect to API: Unable to connect. Is the computer able to access the url?');
+console.log('UNRELATED_STDOUT_TAIL_MARKER');
+setInterval(() => {}, 1000);
+`,
+      async () => {
+        const result = await testAgentConnection({
+          agentId: 'opencode',
+          model: 'ollama/qwen3.5-9b',
+        });
+
+        expect(result.ok).toBe(false);
+        expect(result.kind).toBe('upstream_unavailable');
+        expect(result.detail).toContain('OpenCode reported a provider connectivity failure');
+        expect(result.detail).toContain('Cannot connect to API');
+        expect(result.detail).not.toContain('UNRELATED_STDOUT_TAIL_MARKER');
+        expect(result.diagnostics?.phase).toBe('connection_smoke_test');
+        expect(result.diagnostics?.stderrTail).toContain('Cannot connect to API');
+      },
+    );
+  });
+
+  it.each([
+    [
+      'Unable to connect fallback',
+      'Unable to connect. Is the computer able to access the url?',
+      'Unable to connect',
+    ],
+    [
+      'URL typo fallback',
+      'Was there a typo in the url or port?',
+      'Was there a typo in the url or port?',
+    ],
+  ])(
+    'surfaces OpenCode provider connectivity errors from %s before timeout (#4999)',
+    async (_name, stderrLine, expectedDetail) => {
+      await withFakeOpenCode(
+        `
+const args = process.argv.slice(2);
+if (args[0] === 'models') {
+  console.log('ollama/qwen3.5-9b');
+  process.exit(0);
+}
+console.error(${JSON.stringify(stderrLine)});
+setInterval(() => {}, 1000);
+`,
+        async () => {
+          const result = await testAgentConnection({
+            agentId: 'opencode',
+            model: 'ollama/qwen3.5-9b',
+          });
+
+          expect(result.ok).toBe(false);
+          expect(result.kind).toBe('upstream_unavailable');
+          expect(result.detail).toContain(expectedDetail);
+          expect(result.diagnostics?.phase).toBe('connection_smoke_test');
+        },
+      );
+    },
+  );
+
+  it('launches Kimi connection tests through the ACP transport', async () => {
     const markerDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'od-kimi-argv-'));
     const argvFile = path.join(markerDir, 'argv.json');
     try {
@@ -3169,21 +4087,11 @@ process.stdin.on('end', () => {
 const fs = require('node:fs');
 const args = process.argv.slice(2);
 fs.writeFileSync(${JSON.stringify(argvFile)}, JSON.stringify(args));
-if (args.includes('acp')) {
-  console.error('error: too many arguments. Expected 0 arguments but got 1.');
+if (args.length !== 1 || args[0] !== 'acp') {
+  console.error('missing acp transport arg');
   process.exit(1);
 }
-const promptIndex = args.indexOf('-p');
-if (promptIndex === -1 || args[promptIndex + 1] !== 'Reply with only: ok') {
-  console.error('missing connection-test prompt');
-  process.exit(1);
-}
-const outputFormatIndex = args.indexOf('--output-format');
-if (outputFormatIndex === -1 || args[outputFormatIndex + 1] !== 'stream-json') {
-  console.error('missing --output-format stream-json');
-  process.exit(1);
-}
-console.log(JSON.stringify({ role: 'assistant', content: 'ok' }));
+console.log(JSON.stringify({ jsonrpc: '2.0', method: 'session/update', params: { update: { sessionUpdate: 'agent_message_chunk', content: { text: 'ok' } } } }));
 `,
         async () => {
           const res = await realFetch(`${baseUrl}/api/test/connection`, {
@@ -3205,20 +4113,96 @@ console.log(JSON.stringify({ role: 'assistant', content: 'ok' }));
           });
 
           await expect(fsp.readFile(argvFile, 'utf8')).resolves.toBe(
-            JSON.stringify([
-              '-p',
-              'Reply with only: ok',
-              '--output-format',
-              'stream-json',
-              '--model',
-              'moonshot-v1-32k',
-            ]),
+            JSON.stringify(['acp']),
           );
         },
       );
     } finally {
       await fsp.rm(markerDir, { recursive: true, force: true });
     }
+  });
+
+  // Regression for #4281: agy print mode is silent on stdout/stderr for
+  // BOTH missing-auth and quota-exhausted failures — it exits 0 without
+  // echoing the upstream error, so the only place the failure shape
+  // surfaces is agy's `--log-file`. Before the fix the connection test
+  // never handed agy a `--log-file` and never inspected it, so every
+  // silent failure collapsed into `kind: 'unknown'` / "Test failed: exit
+  // 0". These three cases pin the actionable auth / quota / fallback
+  // results that let Settings tell the user how to recover.
+  //
+  // The fake agy writes the caller-supplied log body to whatever
+  // `--log-file` path the daemon passes, then exits 0 with no stdout —
+  // exactly the not-logged-in / quota shape captured from the real CLI.
+  const fakeAgyScript = (logBody: string) => `
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+if (args[0] === '--version') {
+  console.log('1.0.3-test');
+  process.exit(0);
+}
+const logIdx = args.indexOf('--log-file');
+const logPath = logIdx !== -1 ? args[logIdx + 1] : null;
+let stdin = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => { stdin += chunk; });
+process.stdin.on('end', () => {
+  const body = ${JSON.stringify(logBody)};
+  if (logPath && body) {
+    try { fs.writeFileSync(logPath, body); } catch {}
+  }
+  // Silent clean exit — no assistant text on stdout, matching agy's
+  // real print-mode behavior when it cannot establish a connection.
+  process.exit(0);
+});
+`;
+
+  it('surfaces antigravity missing-auth as agent_auth_required instead of "exit 0" (#4281)', async () => {
+    await withFakeAntigravity(
+      fakeAgyScript(
+        [
+          'Propagating selected model override to backend: label="Gemini 3.1 Pro (High)"',
+          'error getting token source: You are not logged into Antigravity',
+        ].join('\n'),
+      ),
+      async () => {
+        const result = await testAgentConnection({ agentId: 'antigravity' });
+        expect(result.ok).toBe(false);
+        expect(result.kind).toBe('agent_auth_required');
+        expect(result.agentName).toBe('Antigravity');
+        // The old bug surfaced the bare process-exit line as the detail.
+        expect(result.detail).not.toBe('exit 0');
+        expect(result.detail).toContain('sign in');
+      },
+    );
+  });
+
+  it('surfaces antigravity quota exhaustion as rate_limited (#4281)', async () => {
+    await withFakeAntigravity(
+      fakeAgyScript(
+        [
+          'Propagating selected model override to backend: label="Gemini 3.1 Pro (High)"',
+          'upstream error: code = 429 RESOURCE_EXHAUSTED: Individual quota reached',
+        ].join('\n'),
+      ),
+      async () => {
+        const result = await testAgentConnection({ agentId: 'antigravity' });
+        expect(result.ok).toBe(false);
+        expect(result.kind).toBe('rate_limited');
+        expect(result.detail).toContain('quota');
+      },
+    );
+  });
+
+  it('falls back to agent_auth_required when antigravity exits silently with no log signal (#4281)', async () => {
+    await withFakeAntigravity(fakeAgyScript(''), async () => {
+      const result = await testAgentConnection({ agentId: 'antigravity' });
+      expect(result.ok).toBe(false);
+      // A silent clean exit almost always means missing OAuth; it must
+      // never regress back to the opaque `unknown` / "exit 0" result.
+      expect(result.kind).toBe('agent_auth_required');
+      expect(result.kind).not.toBe('unknown');
+    });
   });
 
   it('keeps OpenCode smoke tests green when git bootstrap is unavailable', async () => {
@@ -4005,5 +4989,72 @@ describe('validateBaseUrlResolved (DNS-aware base URL validation)', () => {
     const result = await validateBaseUrlResolved('https://offline.example.com/v1', failingLookup);
     expect(result.error).toBeUndefined();
     expect(failingLookup).toHaveBeenCalledOnce();
+  });
+
+  it('exempts a literal internal IP passed via allowedInternalHosts without resolving DNS (#3225)', async () => {
+    const lookup = lookupReturning([]);
+    const result = await validateBaseUrlResolved('http://10.0.0.5:4000/v1', lookup, {
+      allowedInternalHosts: ['10.0.0.5'],
+    });
+    expect(result.error).toBeUndefined();
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it('exempts an allowlisted hostname even though it resolves into private space (#3225)', async () => {
+    const result = await validateBaseUrlResolved(
+      'https://litellm.internal:4000/v1',
+      lookupReturning([{ address: '10.0.0.5', family: 4 }]),
+      { allowedInternalHosts: ['litellm.internal'] },
+    );
+    expect(result.error).toBeUndefined();
+  });
+
+  it('exempts a non-allowlisted hostname whose resolved address is itself allowlisted (#3225)', async () => {
+    const result = await validateBaseUrlResolved(
+      'https://gateway.example.com/v1',
+      lookupReturning([{ address: '10.0.0.5', family: 4 }]),
+      { allowedInternalHosts: ['10.0.0.5'] },
+    );
+    expect(result.error).toBeUndefined();
+  });
+
+  it('still blocks a resolved private address that is NOT on the allowlist (#3225)', async () => {
+    const result = await validateBaseUrlResolved(
+      'https://other.example.com/v1',
+      lookupReturning([{ address: '192.168.1.5', family: 4 }]),
+      { allowedInternalHosts: ['10.0.0.5'] },
+    );
+    expect(result).toMatchObject({ error: 'Internal IPs blocked', forbidden: true });
+  });
+});
+
+describe('validateUserProviderBaseUrl: OD_ALLOWED_INTERNAL_HOSTS opt-in (issue #3225)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('exempts an operator-allowlisted literal internal IP for user-configured endpoints', async () => {
+    vi.stubEnv('OD_ALLOWED_INTERNAL_HOSTS', '10.0.0.5');
+    const result = await validateUserProviderBaseUrl('http://10.0.0.5:4000/v1');
+    expect(result.error).toBeUndefined();
+  });
+
+  it('exempts a hostname that resolves into private space when that hostname is allowlisted', async () => {
+    vi.stubEnv('OD_ALLOWED_INTERNAL_HOSTS', 'litellm.internal');
+    const lookup = vi.fn(async () => [{ address: '10.0.0.5', family: 4 }]);
+    const result = await validateUserProviderBaseUrl('http://litellm.internal:4000/v1', lookup);
+    expect(result.error).toBeUndefined();
+  });
+
+  it('still blocks a private endpoint that is not on the allowlist', async () => {
+    vi.stubEnv('OD_ALLOWED_INTERNAL_HOSTS', '10.0.0.5');
+    const result = await validateUserProviderBaseUrl('http://192.168.1.5:4000/v1');
+    expect(result).toMatchObject({ error: 'Internal IPs blocked', forbidden: true });
+  });
+
+  it('keeps the attacker-controllable asset guard strict — the plain resolver never consults the allowlist', async () => {
+    vi.stubEnv('OD_ALLOWED_INTERNAL_HOSTS', '10.0.0.5');
+    const result = await validateBaseUrlResolved('http://10.0.0.5:4000/v1');
+    expect(result).toMatchObject({ error: 'Internal IPs blocked', forbidden: true });
   });
 });

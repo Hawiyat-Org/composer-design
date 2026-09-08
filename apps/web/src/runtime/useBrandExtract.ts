@@ -1,16 +1,17 @@
-// `useBrandExtract` — kick off an agent-driven brand extraction.
+// `useBrandExtract` — kick off a programmatic-first brand extraction.
 //
 // Extraction is no longer an in-place SSE pipeline. `POST /api/brands { url }`
-// reserves a brand record and stands up a backing `brand` project with the
-// target site open in an in-app browser tab plus a seeded prompt. The caller
-// navigates into that project and auto-sends the first prompt, so the agent
-// runs the extraction live — measuring the page, synthesizing the kit, and
-// registering the design system, pausing for the user when an anti-bot wall
-// needs a human. This hook just drives the kickoff request and exposes a
+// reserves a brand record, stands up a backing `brand` project with the target
+// site open in an in-app browser tab, and persists a real programmatic
+// transcript before returning. The deterministic pass then registers the design
+// system in the background, pausing for the user/agent fallback when an anti-bot
+// wall needs a human. This hook just drives the kickoff request and exposes a
 // coarse status the New Brand modal / onboarding step render.
 
 import { useCallback, useRef, useState } from 'react';
-import type { BrandExtractStartResponse } from '@open-design/contracts';
+import type { BrandExtractStartResponse, BrandStatus, WorkspaceCollabContext } from '@open-design/contracts';
+import { useI18n } from '../i18n';
+import { workspaceProjectHeaders } from '../state/projects';
 
 /** Coarse kickoff phase. */
 export type BrandExtractPhase = 'idle' | 'starting' | 'done' | 'error';
@@ -23,6 +24,14 @@ export interface BrandExtractState {
   projectId: string | null;
   /** Seeded conversation the first prompt auto-sends into. */
   conversationId: string | null;
+  /** Outcome of the synchronous programmatic-first pass: `ready` means a usable
+   *  design system was finalized before the response returned; `extracting`
+   *  means it was skipped / blocked and still needs the agent. Null until done. */
+  extractStatus: BrandStatus | null;
+  /** The `user:<id>` design system registered by phase 1, present when ready. */
+  designSystemId: string | null;
+  /** Display name of the extracted brand (falls back to the source hostname). */
+  brandName: string | null;
   /** Human-readable failure reason when `phase === 'error'`. */
   error: string | null;
 }
@@ -32,6 +41,9 @@ const INITIAL_STATE: BrandExtractState = {
   brandId: null,
   projectId: null,
   conversationId: null,
+  extractStatus: null,
+  designSystemId: null,
+  brandName: null,
   error: null,
 };
 
@@ -39,11 +51,29 @@ export interface UseBrandExtract {
   state: BrandExtractState;
   /** Start an extraction. Resolves to the kickoff result, or null on failure
    *  (in which case `state.error` is set). */
-  run: (url: string) => Promise<BrandExtractStartResponse | null>;
+  run: (
+    url: string,
+    options?: {
+      description?: string;
+      designMd?: string;
+      throwOnError?: boolean;
+      /**
+       * The caller's active workspace, so the daemon can bind the freshly
+       * created backing project into it (see `bindBrandProjectIntoRequestWorkspace`
+       * in `apps/daemon/src/brand-routes.ts`). Omitted is explicitly unscoped.
+       * Without this, a team member's brand/design-system extraction project
+       * has no `workspace_projects` row at all, and POST /api/runs + POST
+       * /api/chat's workspace-identity gate then 403s the very first agent
+       * turn against it (spec 04 §9.3, recvqb1t4FrckM).
+       */
+      workspaceContext?: WorkspaceCollabContext | null;
+    },
+  ) => Promise<BrandExtractStartResponse | null>;
   reset: () => void;
 }
 
 export function useBrandExtract(): UseBrandExtract {
+  const { locale } = useI18n();
   const [state, setState] = useState<BrandExtractState>(INITIAL_STATE);
   const inFlightRef = useRef(false);
 
@@ -52,27 +82,45 @@ export function useBrandExtract(): UseBrandExtract {
     setState(INITIAL_STATE);
   }, []);
 
-  const run = useCallback(async (url: string): Promise<BrandExtractStartResponse | null> => {
+  const run = useCallback(async (
+    url: string,
+    options: {
+      description?: string;
+      designMd?: string;
+      throwOnError?: boolean;
+      workspaceContext?: WorkspaceCollabContext | null;
+    } = {},
+  ): Promise<BrandExtractStartResponse | null> => {
     if (inFlightRef.current) return null;
     inFlightRef.current = true;
     setState({ ...INITIAL_STATE, phase: 'starting' });
+
+    const fail = (message: string): null => {
+      inFlightRef.current = false;
+      setState({ ...INITIAL_STATE, phase: 'error', error: message });
+      if (options.throwOnError) throw new Error(message);
+      return null;
+    };
 
     let resp: Response;
     try {
       resp = await fetch('/api/brands', {
         method: 'POST',
         cache: 'no-store',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ url }),
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...(options.workspaceContext ? workspaceProjectHeaders(options.workspaceContext) : {}),
+        },
+        body: JSON.stringify({
+          ...(url.trim() ? { url } : {}),
+          ...(options.description?.trim() ? { description: options.description.trim() } : {}),
+          ...(options.designMd?.trim() ? { designMd: options.designMd.trim() } : {}),
+          locale,
+        }),
       });
     } catch (err) {
-      inFlightRef.current = false;
-      setState({
-        ...INITIAL_STATE,
-        phase: 'error',
-        error: err instanceof Error ? err.message : 'Could not reach the daemon',
-      });
-      return null;
+      return fail(err instanceof Error ? err.message : 'Could not reach the daemon');
     }
 
     if (!resp.ok) {
@@ -83,22 +131,14 @@ export function useBrandExtract(): UseBrandExtract {
       } catch {
         // Non-JSON error body; keep the status-based message.
       }
-      inFlightRef.current = false;
-      setState({ ...INITIAL_STATE, phase: 'error', error: message });
-      return null;
+      return fail(message);
     }
 
     let result: BrandExtractStartResponse;
     try {
       result = (await resp.json()) as BrandExtractStartResponse;
     } catch (err) {
-      inFlightRef.current = false;
-      setState({
-        ...INITIAL_STATE,
-        phase: 'error',
-        error: err instanceof Error ? err.message : 'Malformed extraction response',
-      });
-      return null;
+      return fail(err instanceof Error ? err.message : 'Malformed extraction response');
     }
 
     inFlightRef.current = false;
@@ -107,10 +147,13 @@ export function useBrandExtract(): UseBrandExtract {
       brandId: result.id,
       projectId: result.projectId,
       conversationId: result.conversationId,
+      extractStatus: result.status,
+      designSystemId: result.designSystemId ?? null,
+      brandName: result.brandName ?? null,
       error: null,
     });
     return result;
-  }, []);
+  }, [locale]);
 
   return { state, run, reset };
 }

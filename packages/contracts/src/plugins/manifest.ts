@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 export const OPEN_DESIGN_PLUGIN_SPEC_VERSION = '1.0.0';
 
-export const OpenDesignSpecVersionSchema = z.string().min(1);
+export const ComposerDesignSpecVersionSchema = z.string().min(1);
 
 export const ReferenceSchema = z.object({
   ref:  z.string().optional(),
@@ -138,7 +138,7 @@ export type PluginConnectorRef = z.infer<typeof PluginConnectorRefSchema>;
 
 export const PluginManifestSchema = z.object({
   $schema:     z.string().optional(),
-  specVersion: OpenDesignSpecVersionSchema.optional(),
+  specVersion: ComposerDesignSpecVersionSchema.optional(),
   name:        z.string().min(1).regex(/^[a-z0-9][a-z0-9._-]*$/),
   title:       z.string().optional(),
   title_i18n:  LocalizedTextSchema.optional(),
@@ -151,6 +151,11 @@ export const PluginManifestSchema = z.object({
   }).passthrough().optional(),
   license:  z.string().optional(),
   homepage: z.string().optional(),
+  // ISO 8601 timestamp of when the plugin was first published to its
+  // catalog. Shipped metadata — unlike the installed-record timestamps it
+  // does not depend on when a particular machine seeded its database, so
+  // recency ordering survives fresh installs and catalog re-stamps.
+  publishedAt: z.string().optional(),
   icon:     z.string().optional(),
   tags:     z.array(z.string()).optional(),
   compat: z.object({

@@ -3,13 +3,13 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { OpenDesignHostUpdaterStatusListener, OpenDesignHostUpdaterStatusSnapshot } from '@open-design/host';
-import { installMockOpenDesignHost } from '@open-design/host/testing';
+import type { ComposerDesignHostUpdaterStatusListener, ComposerDesignHostUpdaterStatusSnapshot } from '@open-design/host';
+import { installMockComposerDesignHost } from '@open-design/host/testing';
 
 import { UpdaterPopup } from '../../src/components/UpdaterPopup';
 import { I18nProvider } from '../../src/i18n';
 
-function idleStatus(): OpenDesignHostUpdaterStatusSnapshot {
+function idleStatus(): ComposerDesignHostUpdaterStatusSnapshot {
   return {
     arch: 'arm64',
     capabilities: {
@@ -28,7 +28,7 @@ function idleStatus(): OpenDesignHostUpdaterStatusSnapshot {
   };
 }
 
-function downloadedStatus(overrides: Partial<OpenDesignHostUpdaterStatusSnapshot> = {}): OpenDesignHostUpdaterStatusSnapshot {
+function downloadedStatus(overrides: Partial<ComposerDesignHostUpdaterStatusSnapshot> = {}): ComposerDesignHostUpdaterStatusSnapshot {
   return {
     ...idleStatus(),
     availableVersion: '1.2.3-beta.4',
@@ -38,7 +38,7 @@ function downloadedStatus(overrides: Partial<OpenDesignHostUpdaterStatusSnapshot
   };
 }
 
-function payloadDownloadedStatus(overrides: Partial<OpenDesignHostUpdaterStatusSnapshot> = {}): OpenDesignHostUpdaterStatusSnapshot {
+function payloadDownloadedStatus(overrides: Partial<ComposerDesignHostUpdaterStatusSnapshot> = {}): ComposerDesignHostUpdaterStatusSnapshot {
   return downloadedStatus({
     artifact: {
       name: 'open-design-1.2.3-beta.4-mac-arm64-payload.zip',
@@ -87,7 +87,7 @@ describe('UpdaterPopup', () => {
         state: 'error',
       }),
     ]) {
-      restoreHost = installMockOpenDesignHost({
+      restoreHost = installMockComposerDesignHost({
         host: {
           updater: {
             status: vi.fn(async () => status),
@@ -109,7 +109,7 @@ describe('UpdaterPopup', () => {
   });
 
   it('shows only the ready indicator until the user opens the install prompt', async () => {
-    restoreHost = installMockOpenDesignHost({
+    restoreHost = installMockComposerDesignHost({
       host: {
         updater: {
           status: vi.fn(async () => downloadedStatus()),
@@ -125,13 +125,66 @@ describe('UpdaterPopup', () => {
 
     fireEvent.click(button);
 
-    expect(await screen.findByRole('dialog', { name: 'Update ready' })).toBeTruthy();
-    expect(screen.getByText('Composer Design 1.2.3-beta.4 is ready. Composer Design will close and open the installer.')).toBeTruthy();
+    const dialog = await screen.findByRole('dialog', { name: 'Update ready' });
+    expect(dialog).toBeTruthy();
+    expect(dialog.className).toBe('updater-popup is-ready');
+    expect(screen.getByText('ComposerDesign 1.2.3-beta.4 is ready. ComposerDesign will close and open the installer.')).toBeTruthy();
+    expect(screen.getByTestId('updater-silent-update-checkbox')).toBeChecked();
     expect(screen.getByTestId('updater-install-button').textContent).toBe('Install update');
+    expect(screen.queryByRole('button', { name: 'Collapse' })).toBeNull();
+  });
+
+  it('uses reinstall copy and the learn-more link for forced installer reinstalls', async () => {
+    restoreHost = installMockComposerDesignHost({
+      host: {
+        updater: {
+          status: vi.fn(async () => downloadedStatus({
+            reinstall: {
+              installedVersion: '1.0.0-beta.9',
+              minVersion: '1.2.0-beta.1',
+              reason: 'outer-below-min',
+              url: 'https://example.com/reinstall-help',
+            },
+          })),
+        },
+      },
+    });
+
+    render(<UpdaterPopup />);
+
+    fireEvent.click(await screen.findByTestId('entry-nav-updater'));
+
+    await screen.findByRole('dialog', { name: 'Update ready' });
+    expect(
+      screen.getByText('ComposerDesign 1.2.3-beta.4 requires a full reinstall. ComposerDesign will close and open the installer.'),
+    ).toBeTruthy();
+    expect(screen.getByTestId('updater-reinstall-learn-more')).toBeTruthy();
+  });
+
+  it('omits the learn-more link when the reinstall requirement carries no url', async () => {
+    restoreHost = installMockComposerDesignHost({
+      host: {
+        updater: {
+          status: vi.fn(async () => downloadedStatus({
+            reinstall: { minVersion: '1.2.0-beta.1', reason: 'outer-version-unreadable' },
+          })),
+        },
+      },
+    });
+
+    render(<UpdaterPopup />);
+
+    fireEvent.click(await screen.findByTestId('entry-nav-updater'));
+
+    await screen.findByRole('dialog', { name: 'Update ready' });
+    expect(
+      screen.getByText('ComposerDesign 1.2.3-beta.4 requires a full reinstall. ComposerDesign will close and open the installer.'),
+    ).toBeTruthy();
+    expect(screen.queryByTestId('updater-reinstall-learn-more')).toBeNull();
   });
 
   it('uses localized ready prompt copy from the app i18n provider', async () => {
-    restoreHost = installMockOpenDesignHost({
+    restoreHost = installMockComposerDesignHost({
       host: {
         updater: {
           status: vi.fn(async () => downloadedStatus()),
@@ -149,11 +202,11 @@ describe('UpdaterPopup', () => {
 
     expect(await screen.findByRole('dialog', { name: '更新已就绪' })).toBeTruthy();
     expect(screen.getByTestId('updater-install-button').textContent).toBe('安装更新');
-    expect(screen.getByText('Composer Design 1.2.3-beta.4 已就绪。Composer Design 会关闭并打开安装器。')).toBeTruthy();
+    expect(screen.getByText('ComposerDesign 1.2.3-beta.4 已就绪。ComposerDesign 会关闭并打开安装器。')).toBeTruthy();
   });
 
   it('uses install-and-restart copy for payload updates', async () => {
-    restoreHost = installMockOpenDesignHost({
+    restoreHost = installMockComposerDesignHost({
       host: {
         updater: {
           status: vi.fn(async () => payloadDownloadedStatus()),
@@ -173,11 +226,198 @@ describe('UpdaterPopup', () => {
 
     expect(await screen.findByRole('dialog', { name: '更新已就绪' })).toBeTruthy();
     expect(screen.getByTestId('updater-install-button').textContent).toBe('安装并重启');
-    expect(screen.getByText('Composer Design 1.2.3-beta.4 已就绪。Composer Design 会关闭并自动重启。')).toBeTruthy();
+    expect(screen.getByText('ComposerDesign 1.2.3-beta.4 已就绪。ComposerDesign 会关闭并自动重启。')).toBeTruthy();
+  });
+
+  it('seeds the default silent-update preference only after a successful daemon GET', async () => {
+    const persistSilentUpdates = vi.fn(async () => undefined);
+    restoreHost = installMockComposerDesignHost({
+      host: {
+        updater: {
+          status: vi.fn(async () => downloadedStatus()),
+        },
+      },
+    });
+
+    const view = render(
+      <UpdaterPopup onAllowSilentUpdatesChange={persistSilentUpdates} />,
+    );
+
+    fireEvent.click(await screen.findByTestId('entry-nav-updater'));
+    expect((screen.getByTestId('updater-silent-update-checkbox') as HTMLInputElement).checked).toBe(true);
+    // Before a successful GET, undefined must not be treated as "no preference".
+    expect(persistSilentUpdates).not.toHaveBeenCalled();
+
+    view.rerender(
+      <UpdaterPopup
+        silentUpdatePreferenceReady
+        onAllowSilentUpdatesChange={persistSilentUpdates}
+      />,
+    );
+    await waitFor(() => expect(persistSilentUpdates).toHaveBeenCalledWith(true));
+  });
+
+  it('does not seed when daemon GET failed (ready=false) even if bootstrap finished', async () => {
+    const persistSilentUpdates = vi.fn(async () => undefined);
+    restoreHost = installMockComposerDesignHost({
+      host: {
+        updater: {
+          status: vi.fn(async () => downloadedStatus()),
+        },
+      },
+    });
+
+    render(
+      <UpdaterPopup
+        // Bootstrap completed but GET returned null — must not seed over a
+        // daemon-backed opt-out we never successfully read.
+        silentUpdatePreferenceReady={false}
+        onAllowSilentUpdatesChange={persistSilentUpdates}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId('entry-nav-updater'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(persistSilentUpdates).not.toHaveBeenCalled();
+  });
+
+  it('does not seed true over a daemon opt-out that was temporarily undefined during hydration', async () => {
+    const persistSilentUpdates = vi.fn(async () => undefined);
+    restoreHost = installMockComposerDesignHost({
+      host: {
+        updater: {
+          status: vi.fn(async () => downloadedStatus()),
+        },
+      },
+    });
+
+    const view = render(
+      <UpdaterPopup onAllowSilentUpdatesChange={persistSilentUpdates} />,
+    );
+    fireEvent.click(await screen.findByTestId('entry-nav-updater'));
+    expect(persistSilentUpdates).not.toHaveBeenCalled();
+
+    // Daemon hydrate lands with an explicit opt-out after the prompt opened.
+    view.rerender(
+      <UpdaterPopup
+        allowSilentUpdates={false}
+        silentUpdatePreferenceReady
+        onAllowSilentUpdatesChange={persistSilentUpdates}
+      />,
+    );
+
+    await waitFor(() => {
+      expect((screen.getByTestId('updater-silent-update-checkbox') as HTMLInputElement).checked).toBe(false);
+    });
+    expect(persistSilentUpdates).not.toHaveBeenCalled();
+  });
+
+  it('re-enables the checkbox after seed when the parent re-renders with the saved true', async () => {
+    let resolveSave: (() => void) | null = null;
+    const persistSilentUpdates = vi.fn(
+      () => new Promise<void>((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+    restoreHost = installMockComposerDesignHost({
+      host: {
+        updater: {
+          status: vi.fn(async () => downloadedStatus()),
+        },
+      },
+    });
+
+    const view = render(
+      <UpdaterPopup
+        silentUpdatePreferenceReady
+        onAllowSilentUpdatesChange={persistSilentUpdates}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId('entry-nav-updater'));
+    await waitFor(() => expect(persistSilentUpdates).toHaveBeenCalledWith(true));
+    const checkbox = screen.getByTestId('updater-silent-update-checkbox') as HTMLInputElement;
+    expect(checkbox.disabled).toBe(true);
+
+    // Real parent shape: config updates mid-flight when the write is accepted.
+    view.rerender(
+      <UpdaterPopup
+        allowSilentUpdates={true}
+        silentUpdatePreferenceReady
+        onAllowSilentUpdatesChange={persistSilentUpdates}
+      />,
+    );
+
+    await act(async () => {
+      resolveSave?.();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect((screen.getByTestId('updater-silent-update-checkbox') as HTMLInputElement).disabled).toBe(false);
+    });
+    expect(screen.queryByTestId('updater-silent-update-error')).toBeNull();
+  });
+
+  it('persists silent-update toggles immediately and reverts when the non-optimistic save fails', async () => {
+    // Parent-shaped: only mutate app config after the daemon write succeeds.
+    let appConfig: { allowSilentUpdates?: boolean } = { allowSilentUpdates: false };
+    const persistSilentUpdates = vi.fn(async (value: boolean) => {
+      await Promise.reject(new Error('daemon offline'));
+      appConfig = { allowSilentUpdates: value };
+    });
+    restoreHost = installMockComposerDesignHost({
+      host: {
+        updater: {
+          status: vi.fn(async () => downloadedStatus()),
+        },
+      },
+    });
+
+    render(
+      <UpdaterPopup
+        allowSilentUpdates={appConfig.allowSilentUpdates}
+        silentUpdatePreferenceReady
+        onAllowSilentUpdatesChange={persistSilentUpdates}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId('entry-nav-updater'));
+    const checkbox = screen.getByTestId('updater-silent-update-checkbox') as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+    expect(persistSilentUpdates).not.toHaveBeenCalled();
+
+    await act(async () => {
+      fireEvent.click(checkbox);
+    });
+    await waitFor(() => expect(persistSilentUpdates).toHaveBeenCalledWith(true));
+    await waitFor(() => {
+      expect((screen.getByTestId('updater-silent-update-checkbox') as HTMLInputElement).checked).toBe(false);
+    });
+    expect(screen.getByTestId('updater-silent-update-error')).toBeTruthy();
+    // App-wide config must not keep the rejected value.
+    expect(appConfig.allowSilentUpdates).toBe(false);
+  });
+
+  it('renders an explicit disabled silent update preference as unchecked', async () => {
+    restoreHost = installMockComposerDesignHost({
+      host: {
+        updater: {
+          status: vi.fn(async () => downloadedStatus()),
+        },
+      },
+    });
+
+    render(<UpdaterPopup allowSilentUpdates={false} silentUpdatePreferenceReady />);
+
+    fireEvent.click(await screen.findByTestId('entry-nav-updater'));
+    expect((screen.getByTestId('updater-silent-update-checkbox') as HTMLInputElement).checked).toBe(false);
   });
 
   it('dismisses the confirmation prompt before installation starts', async () => {
-    restoreHost = installMockOpenDesignHost({
+    restoreHost = installMockComposerDesignHost({
       host: {
         updater: {
           status: vi.fn(async () => downloadedStatus()),
@@ -199,12 +439,14 @@ describe('UpdaterPopup', () => {
 
   it('keeps the prompt in handoff loading after opening the installer', async () => {
     let status = downloadedStatus();
-    let resolveInstall: (status: OpenDesignHostUpdaterStatusSnapshot) => void = () => undefined;
-    const install = vi.fn(() => new Promise<OpenDesignHostUpdaterStatusSnapshot>((resolve) => {
+    let resolveInstall: (status: ComposerDesignHostUpdaterStatusSnapshot) => void = () => undefined;
+    const install = vi.fn(() => new Promise<ComposerDesignHostUpdaterStatusSnapshot>((resolve) => {
       resolveInstall = resolve;
     }));
-    const quit = vi.fn(async () => ({ ok: true as const }));
-    restoreHost = installMockOpenDesignHost({
+    const quit = vi.fn()
+      .mockResolvedValueOnce({ ok: true as const })
+      .mockImplementationOnce(() => new Promise<never>(() => undefined));
+    restoreHost = installMockComposerDesignHost({
       host: {
         updater: {
           install,
@@ -253,7 +495,7 @@ describe('UpdaterPopup', () => {
       },
     }));
     const quit = vi.fn(async () => ({ ok: true as const }));
-    restoreHost = installMockOpenDesignHost({
+    restoreHost = installMockComposerDesignHost({
       host: {
         updater: {
           install,
@@ -281,8 +523,8 @@ describe('UpdaterPopup', () => {
         vi.advanceTimersByTime(10_000);
       });
 
-      expect(screen.getByRole('dialog', { name: 'Update ready' })).toBeTruthy();
-      expect(screen.getByTestId('updater-install-button').textContent).toBe('Install update');
+      expect(screen.getByRole('dialog', { name: 'Could not quit' })).toBeTruthy();
+      expect(screen.getByTestId('updater-install-button').textContent).toBe('Quit ComposerDesign');
       expect(screen.getByTestId('updater-install-button').getAttribute('disabled')).toBeNull();
       fireEvent.click(screen.getByTestId('updater-install-button'));
 
@@ -291,14 +533,21 @@ describe('UpdaterPopup', () => {
         await Promise.resolve();
       });
 
-      expect(install).toHaveBeenCalledTimes(2);
+      expect(install).toHaveBeenCalledTimes(1);
       expect(quit).toHaveBeenCalledTimes(2);
+      expect(screen.getByTestId('updater-install-button').getAttribute('disabled')).not.toBeNull();
+
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+
+      expect(screen.getByTestId('updater-install-button').getAttribute('disabled')).toBeNull();
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('keeps install failures internal and leaves the ready prompt usable', async () => {
+  it('shows install failures and leaves the ready prompt usable', async () => {
     const install = vi.fn(async () => downloadedStatus({
       error: {
         code: 'open-installer-failed',
@@ -306,7 +555,7 @@ describe('UpdaterPopup', () => {
       },
       state: 'error',
     }));
-    restoreHost = installMockOpenDesignHost({
+    restoreHost = installMockComposerDesignHost({
       host: {
         updater: {
           install,
@@ -321,15 +570,14 @@ describe('UpdaterPopup', () => {
     fireEvent.click(screen.getByTestId('updater-install-button'));
 
     await waitFor(() => expect(install).toHaveBeenCalledWith({ payload: { source: 'updater-prompt' } }));
-    expect(screen.queryByText('fixture open failed')).toBeNull();
-    expect(screen.queryByRole('dialog', { name: 'Update failed' })).toBeNull();
+    expect(await screen.findByRole('alert')).toHaveTextContent('The installer could not be opened.');
     expect(await screen.findByRole('dialog', { name: 'Update ready' })).toBeTruthy();
     expect(screen.getByTestId('updater-install-button').getAttribute('disabled')).toBeNull();
   });
 
   it('reacts to updater subscription events by showing the ready indicator only', async () => {
-    const listeners = new Set<OpenDesignHostUpdaterStatusListener>();
-    restoreHost = installMockOpenDesignHost({
+    const listeners = new Set<ComposerDesignHostUpdaterStatusListener>();
+    restoreHost = installMockComposerDesignHost({
       host: {
         updater: {
           status: vi.fn(async () => idleStatus()),

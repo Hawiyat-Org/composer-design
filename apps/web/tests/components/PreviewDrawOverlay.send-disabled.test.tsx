@@ -26,6 +26,7 @@ describe('PreviewDrawOverlay send disabled (streaming) localization', () => {
     fireEvent.change(note, { target: { value: 'looks good' } });
 
     const send = screen.getByRole('button', { name: 'Send' });
+    // Queue now lives in the submit dropdown; open it to reach the fallback.
     const queue = screen.getByRole('button', { name: 'Queue' });
     // The localized reason reaches the DOM as the button's tooltip...
     expect(send.getAttribute('title')).toBe('Task running');

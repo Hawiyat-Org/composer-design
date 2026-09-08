@@ -33,13 +33,36 @@ import type { IconName } from '../Icon';
 // independently of the default-binding mapping.
 export type ChipScenarioPluginId =
   | DefaultScenarioPluginId
-  | 'example-hyperframes';
+  | 'example-hyperframes'
+  // Powered-preview scenarios: real-time GPU / off-main-thread artifacts that
+  // render in the cross-origin-isolated "powered preview" iframe. Kept as
+  // explicit members — like example-hyperframes — so the rail can name a
+  // scenario the default table has not mapped yet; both are mapped today.
+  | 'example-webgl-experience';
 
 export type ChipAction =
   | {
       kind: 'apply-scenario';
       pluginId: ChipScenarioPluginId;
       projectKind: ProjectKind;
+      /**
+       * Product-owned default route; the daemon resolves and stamps it.
+       *
+       * Set it on every first-level output type in `CREATE_RAIL_ORDER`: the
+       * user picked a task type, not a plugin, so the create must travel as
+       * `pluginSelectionProvenance: 'automatic-default'` and let the daemon
+       * re-derive `pluginId` from the metadata. Forwarding the id instead
+       * reads as a user pin — which is real authority elsewhere (it opts a
+       * project out of OD Next), so the project is left with no
+       * `automatic_default` scenario binding and the header offers to restore
+       * an automatic scenario it never left.
+       *
+       * Only truthful when `pluginId` is exactly what
+       * `defaultScenarioPluginIdForProjectMetadata` resolves for the metadata
+       * this same chip stamps — otherwise dropping the id binds a different
+       * plugin. `chips.automatic-default.test.ts` pins both halves.
+       */
+      automaticDefault?: boolean;
       inputs?: Record<string, unknown>;
       projectMetadata?: ProjectMetadata;
     }
@@ -69,6 +92,12 @@ export interface HomeHeroChip {
   icon: IconName;
   group: ChipGroup;
   hint?: string;
+  // Scenario subtitle shown under the title on the illustrated card rail
+  // (e.g. "Interactive app mockups"). English inline fallback only — the
+  // rendered copy is localized through the `homeHero.chip.<id>Desc` Dict key
+  // (see `homeHeroChipDescription` in HomeHero.tsx). Kept on the data table so
+  // the catalog reads as a self-contained scenario taxonomy.
+  description?: string;
   action: ChipAction;
 }
 
@@ -82,6 +111,7 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
     label: 'Create Brand Kit',
     icon: 'swatchbook',
     group: 'create',
+    description: 'Extract a brand design system',
     hint: 'Extract a brand kit from a website, then apply it in any chat.',
     // Distinct from the plugin-bound create chips: this dispatches straight
     // into the Brand Kit tab's extraction flow instead of binding a scenario
@@ -91,8 +121,9 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
   {
     id: 'prototype',
     label: 'Prototype',
-    icon: 'palette',
+    icon: 'artboard',
     group: 'create',
+    description: 'Interactive app mockups',
     // Prototype now binds to the bundled `example-web-prototype` plugin,
     // which ships `assets/template.html` (single-file HTML prototype
     // seed), `references/layouts.md` (paste-ready section layouts), and
@@ -106,13 +137,44 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
       kind: 'apply-scenario',
       pluginId: 'example-web-prototype',
       projectKind: 'prototype',
+      automaticDefault: true,
     },
   },
+  {
+    id: 'web-clone',
+    label: 'Website clone',
+    icon: 'globe',
+    group: 'create',
+    description: 'Recreate an existing website',
+    hint: 'Paste a site URL and recreate its structure, visuals, and interactions from real source evidence.',
+    // Website reproduction is its own creation workflow (start from a target
+    // URL, source-first recon, preserve real structure/assets), so it binds
+    // the bundled `example-web-clone` skill instead of the blank prototype
+    // seed. The project still stores `kind: 'prototype'` for preview
+    // behavior; `intent: 'web-clone'` routes the scenario plugin and splits
+    // the analytics `project_kind` (see contracts scenario-defaults/events).
+    action: {
+      kind: 'apply-scenario',
+      pluginId: 'example-web-clone',
+      projectKind: 'prototype',
+      automaticDefault: true,
+      projectMetadata: {
+        kind: 'prototype',
+        intent: 'web-clone',
+      },
+    },
+  },
+  // Wireframe and Mobile app are NOT here: they are second-level scenes under
+  // Prototype, not task types. Each is the Prototype chip plus the metadata
+  // refinement it carries in `home-hero/sub-chips.ts` (a lo-fi fidelity, mobile
+  // platform targets), so they have no chip id, no action and no route of their
+  // own to diverge from their parent's.
   {
     id: 'deck',
     label: 'Slide deck',
     icon: 'present',
     group: 'create',
+    description: 'Presentations & pitch decks',
     // Slide deck binds to `example-simple-deck`, which ships a 353-line
     // `assets/template.html` (the 1920×1080 + scale-to-fit + nav + print
     // framework paired with proven slide CSS), 8 paste-ready layouts in
@@ -127,6 +189,37 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
       kind: 'apply-scenario',
       pluginId: 'example-simple-deck',
       projectKind: 'deck',
+      automaticDefault: true,
+    },
+  },
+  {
+    id: 'document',
+    label: 'Document',
+    icon: 'file-text',
+    group: 'create',
+    description: 'Resumes, reports & PDFs',
+    hint: 'Draft a polished document — resume, report, or PDF — you can export.',
+    // Documents (resumes / reports / PDFs) route through the generic
+    // od-new-generation scenario under the `other` kind; there is no
+    // dedicated bundled document seed yet, so the agent composes the
+    // document layout from the brief.
+    action: {
+      kind: 'apply-scenario',
+      pluginId: 'od-new-generation',
+      projectKind: 'other',
+      automaticDefault: true,
+      inputs: {
+        artifactKind: 'document',
+        audience: 'readers',
+        topic: 'the user brief',
+      },
+      projectMetadata: {
+        kind: 'other',
+        // Analytics-only tag: splits this card's projects out of generic
+        // `other` so `project_kind` reports `document` (matches the task_chip).
+        // No product behavior keys off `intent: 'document'`.
+        intent: 'document',
+      },
     },
   },
   {
@@ -134,23 +227,58 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
     label: 'HyperFrames',
     icon: 'orbit',
     group: 'create',
+    description: 'Motion graphics & loops',
     hint: 'Author HTML-based motion: captions, audio-reactive visuals, scene transitions.',
     // HyperFrames is its own bundled scenario (motion-graphics
     // specialisation of Video). It surfaces in PluginsHomeSection's
     // primary category list, so the rail picks it up too rather than
     // hiding the specialised bucket behind the generic Video chip.
-    action: { kind: 'apply-scenario', pluginId: 'example-hyperframes', projectKind: 'video' },
+    action: {
+      kind: 'apply-scenario',
+      pluginId: 'example-hyperframes',
+      projectKind: 'video',
+      automaticDefault: true,
+      projectMetadata: {
+        kind: 'video',
+        intent: 'hyperframes',
+        videoModel: 'hyperframes-html',
+      },
+    },
+  },
+  {
+    id: 'webgl',
+    label: 'WebGL experience',
+    icon: 'sparkles',
+    group: 'create',
+    description: 'Shaders, 3D & generative GPU visuals',
+    hint: 'Build a full-screen real-time WebGL2 shader / 3D scene that runs live on the GPU.',
+    // Powered-preview scenario: binds the bundled `example-webgl-experience`
+    // plugin (shader/3D seed + P0 checklist). The artifact auto-detects into
+    // powered preview via its `getContext('webgl2')` call.
+    action: {
+      kind: 'apply-scenario',
+      pluginId: 'example-webgl-experience',
+      projectKind: 'prototype',
+      automaticDefault: true,
+      projectMetadata: {
+        kind: 'prototype',
+        intent: 'webgl-experience',
+        fidelity: 'high-fidelity',
+      },
+    },
   },
   {
     id: 'live-artifact',
     label: 'Live artifact',
-    icon: 'refresh',
+    icon: 'bar-chart-box',
     group: 'create',
+    description: 'Data-backed live dashboards',
     hint: 'Build a refreshable artifact backed by connector or local data.',
     action: {
       kind: 'apply-scenario',
       pluginId: 'example-live-artifact',
       projectKind: 'prototype',
+      automaticDefault: true,
       projectMetadata: {
         kind: 'prototype',
         intent: 'live-artifact',
@@ -163,10 +291,12 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
     label: 'Image',
     icon: 'image',
     group: 'create',
+    description: 'Posters, graphics & art',
     action: {
       kind: 'apply-scenario',
       pluginId: 'od-media-generation',
       projectKind: 'image',
+      automaticDefault: true,
       inputs: {
         mediaKind: 'image',
         subject: 'a polished product concept',
@@ -178,12 +308,14 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
   {
     id: 'video',
     label: 'Video',
-    icon: 'play',
+    icon: 'video-ai',
     group: 'create',
+    description: 'Clips, reels & promos',
     action: {
       kind: 'apply-scenario',
       pluginId: 'od-media-generation',
       projectKind: 'video',
+      automaticDefault: true,
       inputs: {
         mediaKind: 'video',
         subject: 'a short product reveal',
@@ -197,10 +329,12 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
     label: 'Audio',
     icon: 'mic',
     group: 'create',
+    description: 'Voiceovers, music & SFX',
     action: {
       kind: 'apply-scenario',
       pluginId: 'od-media-generation',
       projectKind: 'audio',
+      automaticDefault: true,
       inputs: {
         mediaKind: 'audio',
         subject: 'a concise audio identity for a product',
@@ -214,7 +348,7 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
     label: 'Create plugin',
     icon: 'edit',
     group: 'migrate',
-    hint: 'Author a reusable Composer Design plugin and add it to My plugins.',
+    hint: 'Author a reusable ComposerDesign plugin and add it to My plugins.',
     action: { kind: 'create-plugin' },
   },
   {
@@ -246,6 +380,52 @@ export const HOME_HERO_CHIPS: ReadonlyArray<HomeHeroChip> = [
 export function chipsForGroup(group: ChipGroup): HomeHeroChip[] {
   return HOME_HERO_CHIPS.filter((c) => c.group === group);
 }
+
+// Fixed Home information architecture. Only these ten output types are
+// top-level choices. Action-only create entries (for example Create Design
+// System) are intentionally excluded.
+export const CREATE_RAIL_ORDER = [
+  'prototype',
+  'deck',
+  'image',
+  'document',
+  'hyperframes',
+  'web-clone',
+  'video',
+  'audio',
+  'live-artifact',
+  'webgl',
+] as const;
+
+// Chip ids the onboarding "build a design system" teaser intentionally omits.
+// Video and Audio are pure-media outputs and the least central to the
+// design-system story, so they are omitted to keep the teaser chips to a
+// single tidy row. Website clone starts
+// from someone else's site rather than the user's design system, so it stays
+// off the design-system teaser too.
+const ONBOARDING_ARTIFACT_OMIT = new Set<string>(['web-clone', 'video', 'audio']);
+
+// The artifact chips shown on the onboarding "build a design system" step — a
+// curated single-row subset of the create rail. Derived from CREATE_RAIL_ORDER
+// (not a separately maintained list) so it stays in the same priority order as
+// the Home rail and never drifts from the real template catalog.
+export const ONBOARDING_ARTIFACT_CHIP_IDS = CREATE_RAIL_ORDER.filter(
+  (id) => !ONBOARDING_ARTIFACT_OMIT.has(id),
+);
+
+// The top-level Home chips in their exact product order. Action-only catalog
+// entries must not leak into the rail or template picker.
+export function orderedCreateChips(): HomeHeroChip[] {
+  const create = chipsForGroup('create');
+  return CREATE_RAIL_ORDER
+    .map((id) => create.find((c) => c.id === id))
+    .filter((c): c is HomeHeroChip => Boolean(c));
+}
+
+// Cross-surface handoff: the workspace tabs-bar "+" fan picks a template
+// outside the hero; HomeHero listens for this window event and applies the
+// chip exactly as if its own template picker had been clicked.
+export const HOME_APPLY_TEMPLATE_EVENT = 'open-design:home-apply-template';
 
 // Helper used by tests + the rail component to pull the chip metadata
 // off a click target without round-tripping through React state.

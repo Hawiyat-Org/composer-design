@@ -9,22 +9,26 @@ import {
   OPEN_DESIGN_HOST_VERSION,
   clearHostBrowserData,
   checkHostUpdater,
-  detectOpenDesignHostClientType,
+  detectComposerDesignHostClientType,
+  getLatestHostPreviewNavigationFailure,
   getHostUpdaterStatus,
-  getOpenDesignHost,
+  getComposerDesignHost,
   installHostUpdater,
-  isOpenDesignHostAvailable,
-  isOpenDesignHostBridge,
-  normalizeOpenDesignHostProjectImportResult,
+  isComposerDesignHostAvailable,
+  isComposerDesignHostBridge,
+  normalizeComposerDesignHostProjectImportResult,
   openHostExternalUrl,
   pickAndImportHostProject,
   printHostPdf,
   openHostProjectPath,
   quitHostAfterUpdaterInstallerOpen,
+  setHostUpdaterMenuLabels,
   setHostPetVisible,
+  subscribeHostUpdaterOpenDialog,
   subscribeHostUpdater,
+  subscribeHostPreviewNavigationFailure,
 } from "../src/index.js";
-import { createMockOpenDesignHost, installMockOpenDesignHost } from "../src/testing.js";
+import { createMockComposerDesignHost, installMockComposerDesignHost } from "../src/testing.js";
 
 const hostRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -59,49 +63,54 @@ describe("open-design host contract", () => {
   });
 
   it("recognizes the canonical bridge shape", () => {
-    const host = createMockOpenDesignHost();
-    expect(isOpenDesignHostBridge(host)).toBe(true);
+    const host = createMockComposerDesignHost();
+    expect(isComposerDesignHostBridge(host)).toBe(true);
     expect(host.version).toBe(OPEN_DESIGN_HOST_VERSION);
   });
 
   it("rejects legacy or incomplete bridge shapes", () => {
-    expect(isOpenDesignHostBridge({ version: OPEN_DESIGN_HOST_VERSION })).toBe(false);
-    expect(isOpenDesignHostBridge({ ...createMockOpenDesignHost(), version: 1 })).toBe(false);
-    expect(isOpenDesignHostBridge({
-      ...createMockOpenDesignHost(),
+    expect(isComposerDesignHostBridge({ version: OPEN_DESIGN_HOST_VERSION })).toBe(false);
+    expect(isComposerDesignHostBridge({ ...createMockComposerDesignHost(), version: 1 })).toBe(false);
+    expect(isComposerDesignHostBridge({
+      ...createMockComposerDesignHost(),
       browser: {},
     })).toBe(false);
-    expect(isOpenDesignHostBridge({
-      ...createMockOpenDesignHost(),
+    expect(isComposerDesignHostBridge({
+      ...createMockComposerDesignHost(),
       capture: {},
     })).toBe(false);
-    expect(isOpenDesignHostBridge({
-      ...createMockOpenDesignHost(),
+    expect(isComposerDesignHostBridge({
+      ...createMockComposerDesignHost(),
       shell: { openExternal: async () => ({ ok: true }) },
     })).toBe(false);
-    expect(isOpenDesignHostBridge({
-      ...createMockOpenDesignHost(),
-      updater: { status: async () => createMockOpenDesignHost().updater.status() },
+    expect(isComposerDesignHostBridge({
+      ...createMockComposerDesignHost(),
+      updater: { status: async () => createMockComposerDesignHost().updater.status() },
+    })).toBe(false);
+    const { "clear-cache": _clearCache, ...updaterWithoutClearCache } = createMockComposerDesignHost().updater;
+    expect(isComposerDesignHostBridge({
+      ...createMockComposerDesignHost(),
+      updater: updaterWithoutClearCache,
     })).toBe(false);
   });
 
   it("reads the bridge through the package-owned global accessor", () => {
     const scope: Record<string, unknown> = {};
-    scope[OPEN_DESIGN_HOST_GLOBAL] = createMockOpenDesignHost();
-    expect(getOpenDesignHost(scope)?.client.type).toBe("desktop");
-    expect(isOpenDesignHostAvailable(scope)).toBe(true);
-    expect(detectOpenDesignHostClientType(scope)).toBe("desktop");
+    scope[OPEN_DESIGN_HOST_GLOBAL] = createMockComposerDesignHost();
+    expect(getComposerDesignHost(scope)?.client.type).toBe("desktop");
+    expect(isComposerDesignHostAvailable(scope)).toBe(true);
+    expect(detectComposerDesignHostClientType(scope)).toBe("desktop");
   });
 
   it("falls back to web when no host is installed", () => {
-    expect(getOpenDesignHost({})).toBeNull();
-    expect(isOpenDesignHostAvailable({})).toBe(false);
-    expect(detectOpenDesignHostClientType({})).toBe("web");
+    expect(getComposerDesignHost({})).toBeNull();
+    expect(isComposerDesignHostAvailable({})).toBe(false);
+    expect(detectComposerDesignHostClientType({})).toBe("web");
   });
 
   it("wraps host action throws into structured failures", async () => {
     const scope: Record<string, unknown> = {};
-    scope[OPEN_DESIGN_HOST_GLOBAL] = createMockOpenDesignHost({
+    scope[OPEN_DESIGN_HOST_GLOBAL] = createMockComposerDesignHost({
       shell: {
         openPath: vi.fn(async () => {
           throw new Error("failed");
@@ -116,7 +125,7 @@ describe("open-design host contract", () => {
   });
 
   it("normalizes privileged project-import results into host-owned identifiers", () => {
-    const result = normalizeOpenDesignHostProjectImportResult({
+    const result = normalizeComposerDesignHostProjectImportResult({
       ok: true,
       response: {
         project: {
@@ -139,7 +148,7 @@ describe("open-design host contract", () => {
   });
 
   it("accepts imported folders with no detected entry file", () => {
-    const result = normalizeOpenDesignHostProjectImportResult({
+    const result = normalizeComposerDesignHostProjectImportResult({
       ok: true,
       response: {
         project: {
@@ -162,11 +171,11 @@ describe("open-design host contract", () => {
   });
 
   it("preserves canceled and structured failure project-import results", () => {
-    expect(normalizeOpenDesignHostProjectImportResult({ canceled: true, ok: false })).toEqual({
+    expect(normalizeComposerDesignHostProjectImportResult({ canceled: true, ok: false })).toEqual({
       canceled: true,
       ok: false,
     });
-    expect(normalizeOpenDesignHostProjectImportResult({
+    expect(normalizeComposerDesignHostProjectImportResult({
       ok: false,
       reason: "daemon returned HTTP 500",
       details: { code: "boom" },
@@ -178,7 +187,7 @@ describe("open-design host contract", () => {
   });
 
   it("rejects malformed successful project-import results before they reach web callers", () => {
-    expect(normalizeOpenDesignHostProjectImportResult({
+    expect(normalizeComposerDesignHostProjectImportResult({
       ok: true,
       response: {
         project: { id: "project-1" },
@@ -207,7 +216,7 @@ describe("open-design host contract", () => {
     const print = vi.fn(async () => ({ ok: true as const }));
     const setVisible = vi.fn();
     const scope: Record<string, unknown> = {};
-    scope[OPEN_DESIGN_HOST_GLOBAL] = createMockOpenDesignHost({
+    scope[OPEN_DESIGN_HOST_GLOBAL] = createMockComposerDesignHost({
       browser: { clearData },
       shell: { openExternal, openPath },
       project: { pickAndImport },
@@ -245,7 +254,7 @@ describe("open-design host contract", () => {
       },
       channel: "beta" as const,
       currentVersion: "1.0.0-beta.0",
-      downloadPath: "/tmp/Open Design Beta.dmg",
+      downloadPath: "/tmp/Composer Design Beta.dmg",
       enabled: true,
       mode: "package-launcher" as const,
       platform: "darwin",
@@ -258,9 +267,12 @@ describe("open-design host contract", () => {
     const statusFn = vi.fn(async () => status);
     const unsubscribe = vi.fn();
     const subscribe = vi.fn(() => unsubscribe);
+    const unsubscribeOpenDialog = vi.fn();
+    const subscribeOpenDialog = vi.fn(() => unsubscribeOpenDialog);
+    const setMenuLabels = vi.fn(async () => ({ ok: true as const }));
     const scope: Record<string, unknown> = {};
-    scope[OPEN_DESIGN_HOST_GLOBAL] = createMockOpenDesignHost({
-      updater: { check, install, quit, status: statusFn, subscribe },
+    scope[OPEN_DESIGN_HOST_GLOBAL] = createMockComposerDesignHost({
+      updater: { check, install, quit, setMenuLabels, status: statusFn, subscribe, subscribeOpenDialog },
     });
 
     await expect(getHostUpdaterStatus({ payload: { source: "mount" } }, scope)).resolves.toEqual({
@@ -281,16 +293,53 @@ describe("open-design host contract", () => {
 
     const listener = vi.fn();
     expect(subscribeHostUpdater(listener, scope)).toBe(unsubscribe);
+    const openDialogListener = vi.fn();
+    expect(subscribeHostUpdaterOpenDialog(openDialogListener, scope)).toBe(unsubscribeOpenDialog);
+    await expect(setHostUpdaterMenuLabels({
+      check: "Check for Updates…",
+      checking: "Checking for Updates…",
+      downloading: "Downloading Update…",
+      install: "Install Update…",
+      installing: "Installing Update…",
+      restart: "Restart to Update ComposerDesign…",
+    }, scope)).resolves.toEqual({ ok: true });
     expect(statusFn).toHaveBeenCalledWith({ payload: { source: "mount" } });
     expect(check).toHaveBeenCalledWith({ payload: { source: "button" } });
     expect(install).toHaveBeenCalledWith({ payload: { source: "popup" } });
     expect(quit).toHaveBeenCalledWith({ payload: { source: "opened-popup" } });
     expect(subscribe).toHaveBeenCalledWith(listener);
+    expect(subscribeOpenDialog).toHaveBeenCalledWith(openDialogListener);
+    expect(setMenuLabels).toHaveBeenCalledOnce();
+  });
+
+  it("routes optional preview navigation failure subscriptions", () => {
+    const failure = {
+      errorCode: -3,
+      eventId: 1,
+      frameName: "od-artifact-preview-srcdoc-preview-host-1",
+      occurredAtMs: 1234,
+      validatedUrl: "about:srcdoc",
+    };
+    const unsubscribe = vi.fn();
+    const subscribeNavigationFailure = vi.fn(() => unsubscribe);
+    const getLatestNavigationFailure = vi.fn(() => failure);
+    const scope: Record<string, unknown> = {};
+    scope[OPEN_DESIGN_HOST_GLOBAL] = createMockComposerDesignHost({
+      preview: { getLatestNavigationFailure, subscribeNavigationFailure },
+    });
+    const listener = vi.fn();
+
+    expect(getLatestHostPreviewNavigationFailure(scope)).toBe(failure);
+    expect(getLatestNavigationFailure).toHaveBeenCalledOnce();
+    expect(subscribeHostPreviewNavigationFailure(listener, scope)).toBe(unsubscribe);
+    expect(subscribeNavigationFailure).toHaveBeenCalledWith(listener);
+    expect(getLatestHostPreviewNavigationFailure({})).toBeNull();
+    expect(subscribeHostPreviewNavigationFailure(listener, {})).toEqual(expect.any(Function));
   });
 
   it("wraps updater action throws into structured failures", async () => {
     const scope: Record<string, unknown> = {};
-    scope[OPEN_DESIGN_HOST_GLOBAL] = createMockOpenDesignHost({
+    scope[OPEN_DESIGN_HOST_GLOBAL] = createMockComposerDesignHost({
       updater: {
         check: vi.fn(async () => {
           throw new Error("updater failed");
@@ -306,9 +355,9 @@ describe("open-design host contract", () => {
 
   it("installs and restores test hosts without exposing callers to the global key", () => {
     const scope: Record<string, unknown> = {};
-    const restore = installMockOpenDesignHost({ scope });
-    expect(getOpenDesignHost(scope)).not.toBeNull();
+    const restore = installMockComposerDesignHost({ scope });
+    expect(getComposerDesignHost(scope)).not.toBeNull();
     restore();
-    expect(getOpenDesignHost(scope)).toBeNull();
+    expect(getComposerDesignHost(scope)).toBeNull();
   });
 });

@@ -15,12 +15,25 @@ import type { Request } from 'express';
 import {
   ANALYTICS_HEADER_DEVICE_ID,
   ANALYTICS_HEADER_CLIENT_TYPE,
+  ANALYTICS_HEADER_ATTRIBUTION_QUALITY,
+  ANALYTICS_HEADER_DISTRIBUTION_MECHANISM,
+  ANALYTICS_HEADER_ENTRY_SURFACE,
+  ANALYTICS_HEADER_EXTERNAL_PLUGIN_ID,
+  ANALYTICS_HEADER_EXTERNAL_PLUGIN_VERSION,
+  ANALYTICS_HEADER_HOST_PRODUCT,
   ANALYTICS_HEADER_LOCALE,
+  ANALYTICS_HEADER_MCP_SESSION_ID,
+  ANALYTICS_HEADER_PUBLISHER_CLASS,
   ANALYTICS_HEADER_REQUEST_ID,
   ANALYTICS_HEADER_SESSION_ID,
   anonymizeArtifactId as anonymizeArtifactIdShared,
   type AnalyticsClientType,
+  type AnalyticsAttributionQuality,
   type AnalyticsConfigResponse,
+  type AnalyticsDistributionMechanism,
+  type AnalyticsEntrySurface,
+  type AnalyticsHostProduct,
+  type AnalyticsPublisherClass,
   EVENT_SCHEMA_VERSION,
 } from '@open-design/contracts/analytics';
 import { readAppConfig } from './app-config.js';
@@ -52,6 +65,14 @@ export interface AnalyticsContext {
   clientType: AnalyticsClientType;
   locale: string;
   requestId: string | null;
+  entrySurface?: AnalyticsEntrySurface;
+  hostProduct?: AnalyticsHostProduct;
+  externalPluginId?: string;
+  externalPluginVersion?: string;
+  distributionMechanism?: AnalyticsDistributionMechanism;
+  publisherClass?: AnalyticsPublisherClass;
+  attributionQuality?: AnalyticsAttributionQuality;
+  mcpSessionId?: string;
 }
 
 // Read context from an incoming request. Returns null when the web client did
@@ -64,10 +85,65 @@ export function readAnalyticsContext(req: Request): AnalyticsContext | null {
   const sessionId = headerString(req, ANALYTICS_HEADER_SESSION_ID) ?? deviceId;
   const clientHeader = headerString(req, ANALYTICS_HEADER_CLIENT_TYPE);
   const clientType: AnalyticsClientType =
-    clientHeader === 'desktop' ? 'desktop' : 'web';
+    clientHeader === 'desktop'
+      ? 'desktop'
+      : clientHeader === 'external_mcp'
+        ? 'external_mcp'
+        : 'web';
   const locale = headerString(req, ANALYTICS_HEADER_LOCALE) ?? 'en';
   const requestId = headerString(req, ANALYTICS_HEADER_REQUEST_ID);
-  return { deviceId, sessionId, clientType, locale, requestId };
+  const entrySurface = boundedHeader(
+    req,
+    ANALYTICS_HEADER_ENTRY_SURFACE,
+    ['composer_design_ui', 'od_cli', 'external_mcp'] as const,
+  );
+  const hostProduct = boundedHeader(
+    req,
+    ANALYTICS_HEADER_HOST_PRODUCT,
+    ['codex_desktop', 'codex_cli', 'codex_unknown', 'claude_code', 'unknown'] as const,
+  );
+  const distributionMechanism = boundedHeader(
+    req,
+    ANALYTICS_HEADER_DISTRIBUTION_MECHANISM,
+    ['git_marketplace', 'local_repo', 'manual', 'unknown'] as const,
+  );
+  const publisherClass = boundedHeader(
+    req,
+    ANALYTICS_HEADER_PUBLISHER_CLASS,
+    ['composer_design_first_party', 'third_party', 'unknown'] as const,
+  );
+  const attributionQuality = boundedHeader(
+    req,
+    ANALYTICS_HEADER_ATTRIBUTION_QUALITY,
+    ['self_reported', 'session_correlated'] as const,
+  );
+  const externalPluginId = boundedFreeTextHeader(
+    req,
+    ANALYTICS_HEADER_EXTERNAL_PLUGIN_ID,
+  );
+  const externalPluginVersion = boundedFreeTextHeader(
+    req,
+    ANALYTICS_HEADER_EXTERNAL_PLUGIN_VERSION,
+  );
+  const mcpSessionId = boundedFreeTextHeader(
+    req,
+    ANALYTICS_HEADER_MCP_SESSION_ID,
+  );
+  return {
+    deviceId,
+    sessionId,
+    clientType,
+    locale,
+    requestId,
+    ...(entrySurface ? { entrySurface } : {}),
+    ...(hostProduct ? { hostProduct } : {}),
+    ...(externalPluginId ? { externalPluginId } : {}),
+    ...(externalPluginVersion ? { externalPluginVersion } : {}),
+    ...(distributionMechanism ? { distributionMechanism } : {}),
+    ...(publisherClass ? { publisherClass } : {}),
+    ...(attributionQuality ? { attributionQuality } : {}),
+    ...(mcpSessionId ? { mcpSessionId } : {}),
+  };
 }
 
 function headerString(req: Request, name: string): string | null {
@@ -75,6 +151,23 @@ function headerString(req: Request, name: string): string | null {
   if (Array.isArray(raw)) return raw[0]?.trim() || null;
   if (typeof raw === 'string') return raw.trim() || null;
   return null;
+}
+
+function boundedHeader<const Values extends readonly string[]>(
+  req: Request,
+  name: string,
+  values: Values,
+): Values[number] | undefined {
+  const value = headerString(req, name);
+  return value && values.includes(value) ? value : undefined;
+}
+
+function boundedFreeTextHeader(req: Request, name: string): string | undefined {
+  const value = headerString(req, name);
+  if (!value || value.length > 128 || !/^[A-Za-z0-9._:@/-]+$/u.test(value)) {
+    return undefined;
+  }
+  return value;
 }
 
 export interface PosthogConfig {
@@ -104,6 +197,44 @@ export function readPublicConfigResponse(
   return { enabled: true, env: cfg.env, key: cfg.key, host: cfg.host };
 }
 
+export type AnalyticsCaptureErrorType =
+  | 'not_configured'
+  | 'metrics_consent_disabled'
+  | 'config_read_failed'
+  | 'enqueue_failed';
+
+export interface AnalyticsCaptureResult {
+  status: 'queued' | 'not_expected' | 'failed';
+  acknowledgement: 'local_buffer' | 'none';
+  errorType: AnalyticsCaptureErrorType | null;
+}
+
+export function normalizeAnalyticsCaptureResult(value: unknown): AnalyticsCaptureResult {
+  if (value && typeof value === 'object') {
+    const candidate = value as Partial<AnalyticsCaptureResult>;
+    if (
+      (candidate.status === 'queued'
+        || candidate.status === 'not_expected'
+        || candidate.status === 'failed')
+      && (candidate.acknowledgement === 'local_buffer'
+        || candidate.acknowledgement === 'none')
+    ) {
+      return {
+        status: candidate.status,
+        acknowledgement: candidate.acknowledgement,
+        errorType: candidate.errorType ?? null,
+      };
+    }
+  }
+  // Compatibility for injected/legacy capture implementations. A returned
+  // call proves only local queue admission, never remote PostHog ingestion.
+  return {
+    status: 'queued',
+    acknowledgement: 'local_buffer',
+    errorType: null,
+  };
+}
+
 export interface AnalyticsService {
   capture(args: {
     eventName: string;
@@ -111,7 +242,7 @@ export interface AnalyticsService {
     appVersion: string;
     properties: Record<string, unknown>;
     insertId: string;
-  }): void;
+  }): Promise<AnalyticsCaptureResult>;
   /**
    * Safety / reliability events (renderer crashes, daemon uncaught errors,
    * SSE health, etc.) that intentionally BYPASS the user's analytics
@@ -135,12 +266,30 @@ export interface AnalyticsService {
     properties: Record<string, unknown>;
     insertId?: string;
   }): Promise<void>;
+  mergeAnonymousPerson(args: {
+    anonymousDistinctId: string;
+    distinctId: string;
+    properties?: Record<string, unknown>;
+    insertId?: string;
+  }): Promise<void>;
+  identifyGroup(args: {
+    context: AnalyticsContext;
+    groupType: 'workspace';
+    groupKey: string;
+    properties: Record<string, unknown>;
+  }): Promise<void>;
   shutdown(): Promise<void>;
 }
 
 const NOOP_SERVICE: AnalyticsService = {
-  capture: () => undefined,
+  capture: async () => ({
+    status: 'not_expected',
+    acknowledgement: 'none',
+    errorType: 'not_configured',
+  }),
   captureSafety: async () => undefined,
+  mergeAnonymousPerson: async () => undefined,
+  identifyGroup: async () => undefined,
   shutdown: async () => undefined,
 };
 
@@ -169,7 +318,7 @@ export function createAnalyticsService(args: {
   // assumes a server deployment where the ingestion request originates from a
   // datacenter IP, so GeoIP would mis-attribute every user to the server's
   // location — hence it stamps `$geoip_disable: true` and PostHog skips
-  // country enrichment. Composer Design's daemon runs on the USER'S OWN machine,
+  // country enrichment. ComposerDesign's daemon runs on the USER'S OWN machine,
   // so the request's source IP is the user's real public IP, identical to what
   // posthog-js already sends. Leaving the default on stripped country from
   // every daemon-emitted event (run_created, run_finished, *_result, …) —
@@ -188,46 +337,95 @@ export function createAnalyticsService(args: {
   client.on?.('error', () => undefined);
 
   return {
-    capture: ({ eventName, context, appVersion, properties, insertId }) => {
+    capture: async ({ eventName, context, appVersion, properties, insertId }) => {
       // Defense-in-depth consent re-check. The route handler already gates
       // on header presence, but a future header leak or a Settings toggle
       // mid-request would still let events through without this. Reading
       // app-config.json adds one small file read per event; the daemon is
       // not on a hot critical path here.
-      void (async () => {
-        try {
-          const appCfg = await readAppConfig(args.dataDir);
-          if (appCfg.telemetry?.metrics !== true) return;
-          client.capture({
-            distinctId: context.deviceId,
-            event: eventName,
-            properties: {
-              ...properties,
-              event_id: insertId,
-              event_schema_version: EVENT_SCHEMA_VERSION,
-              env: cfg.env,
-              ui_version: appVersion,
-              app_version: appVersion,
-              session_id: context.sessionId,
-              // v2 rename: was `anonymous_id`. Value unchanged.
-              device_id: context.deviceId,
-              client_type: context.clientType,
-              locale: context.locale,
-              // Canonical PostHog OS props so backend events join the same
-              // OS breakdown as posthog-js (which the daemon can't auto-fill).
-              $os: DAEMON_OS_NAME,
-              $os_version: DAEMON_OS_VERSION,
-              ...(context.requestId ? { request_id: context.requestId } : {}),
-              // $insert_id is PostHog's dedup key — passing the same id
-              // from web and daemon prevents the mirrored result event
-              // from being counted twice.
-              $insert_id: insertId,
-            },
-          });
-        } catch {
-          // Swallowed by design; capture failures must never propagate.
-        }
-      })();
+      let appCfg;
+      try {
+        appCfg = await readAppConfig(args.dataDir);
+      } catch {
+        return {
+          status: 'failed',
+          acknowledgement: 'none',
+          errorType: 'config_read_failed',
+        };
+      }
+      if (appCfg.telemetry?.metrics !== true) {
+        return {
+          status: 'not_expected',
+          acknowledgement: 'none',
+          errorType: 'metrics_consent_disabled',
+        };
+      }
+      try {
+        client.capture({
+          distinctId: context.deviceId,
+          event: eventName,
+          properties: {
+            ...properties,
+            event_id: insertId,
+            event_schema_version: EVENT_SCHEMA_VERSION,
+            env: cfg.env,
+            ui_version: appVersion,
+            app_version: appVersion,
+            session_id: context.sessionId,
+            // v2 rename: was `anonymous_id`. Value unchanged.
+            device_id: context.deviceId,
+            client_type: context.clientType,
+            ...(context.entrySurface
+              ? { entry_surface: context.entrySurface }
+              : {}),
+            ...(context.hostProduct
+              ? { host_product: context.hostProduct }
+              : {}),
+            ...(context.externalPluginId
+              ? { external_plugin_id: context.externalPluginId }
+              : {}),
+            ...(context.externalPluginVersion
+              ? { external_plugin_version: context.externalPluginVersion }
+              : {}),
+            ...(context.distributionMechanism
+              ? { distribution_mechanism: context.distributionMechanism }
+              : {}),
+            ...(context.publisherClass
+              ? { publisher_class: context.publisherClass }
+              : {}),
+            ...(context.attributionQuality
+              ? { attribution_quality: context.attributionQuality }
+              : {}),
+            ...(context.mcpSessionId
+              ? { mcp_session_id: context.mcpSessionId }
+              : {}),
+            locale: context.locale,
+            // Canonical PostHog OS props so backend events join the same
+            // OS breakdown as posthog-js (which the daemon can't auto-fill).
+            $os: DAEMON_OS_NAME,
+            $os_version: DAEMON_OS_VERSION,
+            ...(context.requestId ? { request_id: context.requestId } : {}),
+            // $insert_id is PostHog's dedup key — passing the same id
+            // from web and daemon prevents the mirrored result event
+            // from being counted twice.
+            $insert_id: insertId,
+          },
+        });
+        // posthog-node exposes local queueing here, not a per-event remote
+        // ingestion acknowledgement. Keep that boundary explicit.
+        return {
+          status: 'queued',
+          acknowledgement: 'local_buffer',
+          errorType: null,
+        };
+      } catch {
+        // Swallowed by design; capture failures must never affect the Run.
+        return {
+          status: 'failed',
+          acknowledgement: 'none',
+          errorType: 'enqueue_failed',
+        };
+      }
     },
     captureSafety: async ({ eventName, distinctId, appVersion, properties, insertId }) => {
       // No consent re-check here — that's the entire point of this surface.
@@ -270,6 +468,44 @@ export function createAnalyticsService(args: {
         // path is best-effort observability into a degraded state.
       }
     },
+    mergeAnonymousPerson: async ({ anonymousDistinctId, distinctId, properties, insertId }) => {
+      try {
+        const appCfg = await readAppConfig(args.dataDir);
+        if (appCfg.telemetry?.metrics !== true) return;
+        if (!anonymousDistinctId || !distinctId || anonymousDistinctId === distinctId) return;
+        const setProperties = cleanPosthogPersonProperties(properties ?? {});
+        client.capture({
+          distinctId,
+          event: '$identify',
+          properties: {
+            distinct_id: distinctId,
+            $anon_distinct_id: anonymousDistinctId,
+            ...(Object.keys(setProperties).length > 0 ? { $set: setProperties } : {}),
+            event_schema_version: EVENT_SCHEMA_VERSION,
+            env: cfg.env,
+            $insert_id: insertId ?? `identify-${crypto.randomUUID()}`,
+          },
+        });
+      } catch {
+        // Attribution merge failures must not block app startup or consent.
+      }
+    },
+    identifyGroup: async ({ context, groupType, groupKey, properties }) => {
+      try {
+        const appCfg = await readAppConfig(args.dataDir);
+        if (appCfg.telemetry?.metrics !== true) return;
+        const cleanProperties = cleanPosthogPersonProperties(properties);
+        if (!groupKey || Object.keys(cleanProperties).length === 0) return;
+        client.groupIdentify({
+          groupType,
+          groupKey,
+          distinctId: context.deviceId,
+          properties: cleanProperties,
+        });
+      } catch {
+        // Group updates are best-effort and must never affect product reads.
+      }
+    },
     shutdown: async () => {
       try {
         await client.shutdown();
@@ -278,6 +514,30 @@ export function createAnalyticsService(args: {
       }
     },
   };
+}
+
+function cleanPosthogPersonProperties(properties: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(properties)) {
+    if (!key || key === '__proto__' || key === 'constructor') continue;
+    if (value == null) continue;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed || trimmed.toLowerCase() === 'unknown') continue;
+      out[key] = trimmed;
+      continue;
+    }
+    if (Array.isArray(value)) {
+      const cleaned = value
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0 && item.toLowerCase() !== 'unknown');
+      if (cleaned.length > 0) out[key] = cleaned;
+      continue;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') out[key] = value;
+  }
+  return out;
 }
 
 const SYNTHETIC_DISTINCT_ID = `daemon-anon-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
