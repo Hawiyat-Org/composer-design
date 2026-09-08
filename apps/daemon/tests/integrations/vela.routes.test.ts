@@ -1507,7 +1507,7 @@ describe('POST /api/integrations/vela/login', () => {
     await waitForVelaLoginIdle();
   });
 
-  it('passes OpenDesign attribution device id to vela login', async () => {
+  it('passes ComposerDesign attribution device id to vela login', async () => {
     const dataDir = process.env.OD_DATA_DIR as string;
     const previous = await readAppConfig(dataDir);
     const dumpPath = path.join(tmpHome, 'vela-env-attribution.json');
@@ -1521,7 +1521,7 @@ describe('POST /api/integrations/vela/login', () => {
       const { status } = await postJson(`${baseUrl}/api/integrations/vela/login`, {
         attribution: {
           entryId: 'od-amr-entry-onboarding',
-          sourceProduct: 'open_design',
+          sourceProduct: 'composer_design',
           sourceDetail: 'onboarding_amr_sign_in_continue',
           occurredAt: '2026-06-16T08:00:00.000Z',
           odDeviceId: 'body-should-not-win',
@@ -1531,7 +1531,7 @@ describe('POST /api/integrations/vela/login', () => {
 
       await waitForFile(dumpPath);
       const env = JSON.parse(readFileSync(dumpPath, 'utf8'));
-      expect(env.OPEN_DESIGN_AMR_ORIGIN).toBe('open_design');
+      expect(env.OPEN_DESIGN_AMR_ORIGIN).toBe('composer_design');
       expect(env.OPEN_DESIGN_AMR_ENTRY_ID).toBe('od-amr-entry-onboarding');
       expect(env.OPEN_DESIGN_AMR_ENTRY_SOURCE).toBe(
         'onboarding_amr_sign_in_continue',
@@ -1603,7 +1603,7 @@ describe('POST /api/integrations/vela/login', () => {
           'x-od-analytics-external-plugin-id': 'open-design',
           'x-od-analytics-external-plugin-version': '0.4.0',
           'x-od-analytics-distribution-mechanism': 'git_marketplace',
-          'x-od-analytics-publisher-class': 'open_design_first_party',
+          'x-od-analytics-publisher-class': 'composer_design_first_party',
         },
       );
       expect(status).toBe(202);
@@ -1617,7 +1617,7 @@ describe('POST /api/integrations/vela/login', () => {
       expect(env.OPEN_DESIGN_EXTERNAL_PLUGIN_ID).toBe('open-design');
       expect(env.OPEN_DESIGN_EXTERNAL_PLUGIN_VERSION).toBe('0.4.0');
       expect(env.OPEN_DESIGN_DISTRIBUTION_MECHANISM).toBe('git_marketplace');
-      expect(env.OPEN_DESIGN_PUBLISHER_CLASS).toBe('open_design_first_party');
+      expect(env.OPEN_DESIGN_PUBLISHER_CLASS).toBe('composer_design_first_party');
     } finally {
       await writeAppConfig(dataDir, previous as unknown as Record<string, unknown>);
     }
@@ -1646,7 +1646,7 @@ describe('POST /api/integrations/vela/login', () => {
           'x-od-analytics-external-plugin-id': 'open-design',
           'x-od-analytics-external-plugin-version': '0.4.0',
           'x-od-analytics-distribution-mechanism': 'git_marketplace',
-          'x-od-analytics-publisher-class': 'open_design_first_party',
+          'x-od-analytics-publisher-class': 'composer_design_first_party',
         },
       );
       expect(status).toBe(202);
@@ -1661,7 +1661,7 @@ describe('POST /api/integrations/vela/login', () => {
     }
   });
 
-  it('omits OpenDesign attribution device id without analytics consent headers', async () => {
+  it('omits ComposerDesign attribution device id without analytics consent headers', async () => {
     const dataDir = process.env.OD_DATA_DIR as string;
     const previous = await readAppConfig(dataDir);
     const dumpPath = path.join(tmpHome, 'vela-env-attribution-no-headers.json');
@@ -1675,7 +1675,7 @@ describe('POST /api/integrations/vela/login', () => {
       const { status } = await postJson(`${baseUrl}/api/integrations/vela/login`, {
         attribution: {
           entryId: 'od-amr-entry-onboarding',
-          sourceProduct: 'open_design',
+          sourceProduct: 'composer_design',
           sourceDetail: 'onboarding_amr_sign_in_continue',
           occurredAt: '2026-06-16T08:00:00.000Z',
           odDeviceId: 'body-should-be-dropped',
@@ -1692,7 +1692,7 @@ describe('POST /api/integrations/vela/login', () => {
     }
   });
 
-  it('omits OpenDesign attribution device id when telemetry metrics are disabled', async () => {
+  it('omits ComposerDesign attribution device id when telemetry metrics are disabled', async () => {
     const dataDir = process.env.OD_DATA_DIR as string;
     const previous = await readAppConfig(dataDir);
     const dumpPath = path.join(tmpHome, 'vela-env-attribution-metrics-off.json');
@@ -1706,7 +1706,7 @@ describe('POST /api/integrations/vela/login', () => {
       const { status } = await postJson(`${baseUrl}/api/integrations/vela/login`, {
         attribution: {
           entryId: 'od-amr-entry-onboarding',
-          sourceProduct: 'open_design',
+          sourceProduct: 'composer_design',
           sourceDetail: 'onboarding_amr_sign_in_continue',
           occurredAt: '2026-06-16T08:00:00.000Z',
           odDeviceId: 'body-should-be-dropped',
@@ -2514,7 +2514,7 @@ describe('ALL /api/integrations/vela/message-center/*', () => {
 });
 
 describe('POST /api/integrations/vela/analytics-entry', () => {
-  it('mirrors OpenDesign AMR entry clicks to the AMR analytics ingest shape', async () => {
+  it('mirrors ComposerDesign AMR entry clicks to the AMR analytics ingest shape', async () => {
     const requests: unknown[] = [];
     const captureServer = createServer((req, res) => {
       let raw = '';
@@ -2537,13 +2537,13 @@ describe('POST /api/integrations/vela/analytics-entry', () => {
     process.env.OPEN_DESIGN_AMR_ANALYTICS_ENV = 'test';
 
     const payload = {
-      pageName: 'open_design',
+      pageName: 'composer_design',
       sourcePageName: 'chat_panel',
       area: 'amr_entry',
       element: 'chat_error_recharge',
       action: 'click_amr_entry',
       entryId: 'od-amr-entry-123',
-      sourceProduct: 'open_design',
+      sourceProduct: 'composer_design',
       sourceDetail: 'chat_error_recharge',
       entryOccurredAt: '2026-06-03T12:00:00.000Z',
     };
@@ -2568,7 +2568,7 @@ describe('POST /api/integrations/vela/analytics-entry', () => {
             common: {
               eventId: 'od-amr-entry-od-amr-entry-123',
               eventTime: '2026-06-03T12:00:00.000Z',
-              registryKey: 'open_design_amr_entry',
+              registryKey: 'composer_design_amr_entry',
               eventName: 'amr_entry',
               eventType: 'click',
               platform: 'web',
@@ -2614,13 +2614,13 @@ describe('POST /api/integrations/vela/analytics-entry', () => {
     process.env.OPEN_DESIGN_AMR_ANALYTICS_ENV = 'test';
 
     const payload = {
-      pageName: 'open_design',
+      pageName: 'composer_design',
       sourcePageName: 'home',
       area: 'amr_entry',
       element: 'deepseek_workbench_badge',
       action: 'click_amr_entry',
       entryId: 'od-amr-entry-campaign',
-      sourceProduct: 'open_design',
+      sourceProduct: 'composer_design',
       sourceDetail: 'deepseek_workbench_badge',
       entryOccurredAt: '2026-08-06T12:00:00.000Z',
       campaignId: 'deepseek_v4_flash',
@@ -2674,13 +2674,13 @@ describe('POST /api/integrations/vela/analytics-entry', () => {
     process.env.OPEN_DESIGN_AMR_ANALYTICS_ENV = 'test';
 
     const payload = {
-      pageName: 'open_design',
+      pageName: 'composer_design',
       sourcePageName: 'chat_panel',
       area: 'amr_entry',
       element: 'chat_error_recharge',
       action: 'click_amr_entry',
       entryId: 'od-amr-entry-456',
-      sourceProduct: 'open_design',
+      sourceProduct: 'composer_design',
       sourceDetail: 'chat_error_recharge',
       entryOccurredAt: '2026-06-03T12:00:00.000Z',
       odRole: 'pm',
@@ -2711,7 +2711,7 @@ describe('POST /api/integrations/vela/analytics-entry', () => {
     }
   });
 
-  it('mirrors OpenDesign onboarding profile snapshots with the header-derived device id', async () => {
+  it('mirrors ComposerDesign onboarding profile snapshots with the header-derived device id', async () => {
     const requests: unknown[] = [];
     const captureServer = createServer((req, res) => {
       let raw = '';
@@ -2734,13 +2734,13 @@ describe('POST /api/integrations/vela/analytics-entry', () => {
     process.env.OPEN_DESIGN_AMR_ANALYTICS_ENV = 'test';
 
     const payload = {
-      pageName: 'open_design',
+      pageName: 'composer_design',
       sourcePageName: 'onboarding',
       area: 'onboarding',
       element: 'about_you_submit',
       action: 'submit_profile',
       entryId: 'od-amr-entry-profile',
-      sourceProduct: 'open_design',
+      sourceProduct: 'composer_design',
       sourceDetail: 'onboarding_amr_sign_in_continue',
       entryOccurredAt: '2026-06-03T12:00:00.000Z',
       profileOccurredAt: '2026-06-03T12:03:00.000Z',
@@ -2771,7 +2771,7 @@ describe('POST /api/integrations/vela/analytics-entry', () => {
             common: {
               eventId: 'od-onboarding-profile-od-amr-entry-profile',
               eventTime: '2026-06-03T12:03:00.000Z',
-              registryKey: 'open_design_onboarding_profile',
+              registryKey: 'composer_design_onboarding_profile',
               eventName: 'onboarding_profile',
               eventType: 'result',
               platform: 'web',
@@ -2794,13 +2794,13 @@ describe('POST /api/integrations/vela/analytics-entry', () => {
 
   it('drops an over-long profile value rather than mirroring it', () => {
     const base = {
-      pageName: 'open_design',
+      pageName: 'composer_design',
       sourcePageName: 'chat_panel',
       area: 'amr_entry',
       element: 'chat_error_recharge',
       action: 'click_amr_entry',
       entryId: 'od-amr-entry-789',
-      sourceProduct: 'open_design',
+      sourceProduct: 'composer_design',
       sourceDetail: 'chat_error_recharge',
       entryOccurredAt: '2026-06-03T12:00:00.000Z',
     };
@@ -2832,13 +2832,13 @@ describe('POST /api/integrations/vela/analytics-entry', () => {
 
   it('rejects malformed AMR onboarding profile analytics payloads', async () => {
     const base = {
-      pageName: 'open_design',
+      pageName: 'composer_design',
       sourcePageName: 'onboarding',
       area: 'onboarding',
       element: 'about_you_submit',
       action: 'submit_profile',
       entryId: 'od-amr-entry-profile',
-      sourceProduct: 'open_design',
+      sourceProduct: 'composer_design',
       sourceDetail: 'onboarding_amr_sign_in_continue',
       entryOccurredAt: '2026-06-03T12:00:00.000Z',
       profileOccurredAt: '2026-06-03T12:03:00.000Z',
@@ -2859,7 +2859,7 @@ describe('POST /api/integrations/vela/analytics-entry', () => {
 
     const { status, body } = await postJson<{ error: string }>(
       `${baseUrl}/api/integrations/vela/analytics-profile`,
-      { payload: { pageName: 'open_design' } },
+      { payload: { pageName: 'composer_design' } },
     );
 
     expect(status).toBe(400);
@@ -2868,13 +2868,13 @@ describe('POST /api/integrations/vela/analytics-entry', () => {
 
   it('rejects non-onboarding sources for AMR onboarding profile analytics', async () => {
     const payload = {
-      pageName: 'open_design',
+      pageName: 'composer_design',
       sourcePageName: 'onboarding',
       area: 'onboarding',
       element: 'about_you_submit',
       action: 'submit_profile',
       entryId: 'od-amr-entry-profile',
-      sourceProduct: 'open_design',
+      sourceProduct: 'composer_design',
       sourceDetail: 'settings_amr_console',
       entryOccurredAt: '2026-06-03T12:00:00.000Z',
       profileOccurredAt: '2026-06-03T12:03:00.000Z',
@@ -2895,7 +2895,7 @@ describe('POST /api/integrations/vela/analytics-entry', () => {
   it('rejects malformed AMR entry analytics payloads', async () => {
     const { status, body } = await postJson<{ error: string }>(
       `${baseUrl}/api/integrations/vela/analytics-entry`,
-      { payload: { pageName: 'open_design' } },
+      { payload: { pageName: 'composer_design' } },
     );
 
     expect(status).toBe(400);
@@ -2925,13 +2925,13 @@ describe('POST /api/integrations/vela/analytics-entry', () => {
     process.env.OPEN_DESIGN_AMR_ANALYTICS_ENV = 'test';
 
     const payload = {
-      pageName: 'open_design',
+      pageName: 'composer_design',
       sourcePageName: 'chat_panel',
       area: 'amr_entry',
       element: 'chat_error_recharge',
       action: 'click_amr_entry',
       entryId: 'od-amr-entry-no-consent',
-      sourceProduct: 'open_design',
+      sourceProduct: 'composer_design',
       sourceDetail: 'chat_error_recharge',
       entryOccurredAt: '2026-06-03T12:00:00.000Z',
     };
@@ -2984,13 +2984,13 @@ describe('POST /api/integrations/vela/analytics-entry', () => {
     process.env.OPEN_DESIGN_AMR_ANALYTICS_ENV = 'test';
 
     const payload = {
-      pageName: 'open_design',
+      pageName: 'composer_design',
       sourcePageName: 'chat_panel',
       area: 'amr_entry',
       element: 'chat_error_recharge',
       action: 'click_amr_entry',
       entryId: 'od-amr-entry-metrics-off',
-      sourceProduct: 'open_design',
+      sourceProduct: 'composer_design',
       sourceDetail: 'chat_error_recharge',
       entryOccurredAt: '2026-06-03T12:00:00.000Z',
     };
@@ -3300,13 +3300,13 @@ describe('login → status round-trip (E2E across the three routes)', () => {
 
 describe('parseAmrEntryAnalyticsPayload — entry sources added in this PR', () => {
   const payloadFor = (source: string, page: string) => ({
-    pageName: 'open_design',
+    pageName: 'composer_design',
     sourcePageName: page,
     area: 'amr_entry',
     element: source,
     action: 'click_amr_entry',
     entryId: 'od-amr-entry-x',
-    sourceProduct: 'open_design',
+    sourceProduct: 'composer_design',
     sourceDetail: source,
     entryOccurredAt: '2026-06-03T12:00:00.000Z',
   });

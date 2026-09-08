@@ -127,7 +127,7 @@ export async function ensureMcpDaemonUrl(
   if (plan.action === "none") {
     if (daemonUrl != null) return daemonUrl;
     throw new Error(
-      `The registered OpenDesign runtime is unavailable and cannot be launched (${plan.reason}).`,
+      `The registered ComposerDesign runtime is unavailable and cannot be launched (${plan.reason}).`,
     );
   }
 
@@ -145,7 +145,7 @@ export async function ensureMcpDaemonUrl(
     if (daemonUrl != null && await probeDaemon(daemonUrl)) return daemonUrl;
   }
   throw new Error(
-    `OpenDesign was launched headlessly but its daemon did not become ready within ${timeoutMs}ms.`,
+    `ComposerDesign was launched headlessly but its daemon did not become ready within ${timeoutMs}ms.`,
   );
 }
 

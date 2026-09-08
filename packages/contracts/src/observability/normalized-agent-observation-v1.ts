@@ -593,7 +593,7 @@ export const SafeObservationManifestEntryV1Schema = z.object({
   extension: nonEmptyStringSchema.optional(),
   redacted: z.boolean(),
   truncated: z.boolean(),
-  stored_in_open_design: z.boolean().optional(),
+  stored_in_composer_design: z.boolean().optional(),
   retention_policy: nonEmptyStringSchema.optional(),
   access_scope: nonEmptyStringSchema.optional(),
   sensitivity: nonEmptyStringSchema.optional(),
@@ -608,7 +608,7 @@ export const SafeObservationManifestEntryV1Schema = z.object({
   build_status: nonEmptyStringSchema.optional(),
   preview_status: nonEmptyStringSchema.optional(),
   export_status: nonEmptyStringSchema.optional(),
-  open_in_open_design_url: z.string().nullable().optional(),
+  open_in_composer_design_url: z.string().nullable().optional(),
   access_policy: nonEmptyStringSchema.optional(),
 }).strict();
 export type SafeObservationManifestEntryV1 = z.infer<

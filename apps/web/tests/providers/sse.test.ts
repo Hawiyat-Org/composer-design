@@ -755,7 +755,7 @@ describe('streamViaDaemon', () => {
     ]);
 
     expect(transcript).toContain('## user');
-    expect(transcript).toContain('[OpenDesign truncated 1000 chars from this prior message');
+    expect(transcript).toContain('[ComposerDesign truncated 1000 chars from this prior message');
     expect(transcript).not.toContain('x'.repeat(13_000));
     expect(transcript).toContain('small answer');
   });
@@ -1383,7 +1383,7 @@ describe('streamViaDaemon', () => {
       }),
     );
     const message = (handlers.onError.mock.calls[0]?.[0] as Error).message;
-    expect(message).toContain('OpenDesign link URL or model route');
+    expect(message).toContain('ComposerDesign link URL or model route');
     expect(message).not.toContain('json-rpc id 4');
     expect(message).not.toContain('https://example.invalid');
     expect(handlers.onDone).not.toHaveBeenCalled();
@@ -1415,7 +1415,7 @@ describe('streamViaDaemon', () => {
                     message,
                     marker: '## user',
                     retryable: true,
-                    promoted_by: 'open_design_acp',
+                    promoted_by: 'composer_design_acp',
                   },
                 },
               })}`,
@@ -1741,7 +1741,7 @@ describe('streamViaDaemon', () => {
 
     expect(handlers.onError).toHaveBeenCalledWith(expect.any(Error));
     const message = (handlers.onError.mock.calls[0]?.[0] as Error).message;
-    expect(message).toContain('OpenDesign started, but the run did not complete');
+    expect(message).toContain('ComposerDesign started, but the run did not complete');
     expect(message).not.toContain('sqlite-migration');
     expect(message).not.toContain('OPENCODE_SERVER_PASSWORD');
     expect(message).not.toContain('opencode server listening');

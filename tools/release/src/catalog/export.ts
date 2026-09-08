@@ -243,7 +243,7 @@ function exportDesignTemplates(repoRoot: string): CatalogTemplateRecord[] {
     const summary =
       asString(data.description) ||
       extractFirstProseParagraph(body) ||
-      "OpenDesign renderable design template.";
+      "ComposerDesign renderable design template.";
     out.push({
       id: folder,
       type: "template",
@@ -280,7 +280,7 @@ function exportLiveArtifacts(repoRoot: string): CatalogTemplateRecord[] {
     const h1 = extractH1(body);
     let cleanH1 = h1 ? stripMarkdownInline(h1) : "";
     cleanH1 = cleanH1.replace(/\s*[·•]\s*live[\s-]artifact\s+template$/i, "").trim();
-    const summary = extractFirstProseParagraph(body) || "OpenDesign Live Artifact template.";
+    const summary = extractFirstProseParagraph(body) || "ComposerDesign Live Artifact template.";
     const liveId = `live-${folder}`;
     out.push({
       id: liveId,

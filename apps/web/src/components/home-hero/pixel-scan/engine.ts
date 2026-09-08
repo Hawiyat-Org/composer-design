@@ -1,5 +1,5 @@
 // Wordmark rendered by a WebGL fragment shader: a diagonal band sweeps across
-// and assembles the OpenDesign logo (mark + wordmark, sampled from an SVG)
+// and assembles the ComposerDesign logo (mark + wordmark, sampled from an SVG)
 // out of a dense spray of tiny coloured blocks, then rests as the solid logo
 // while the cursor lights a pool of blocks with a lasting wake.
 // Framework-agnostic core logic; mount it on a sized, position:relative host
@@ -7,7 +7,7 @@
 //
 // Adapted for this repo from the reference implementation: the sound hooks
 // (glitchScan/glitchTick) are stripped, `three` is injected by the caller so
-// the component can lazy-import it, defaults carry the OpenDesign wordmark and
+// the component can lazy-import it, defaults carry the ComposerDesign wordmark and
 // the three-green brand palette, and plain-array reads carry `!` where the
 // index is provably in range (strict noUncheckedIndexedAccess).
 

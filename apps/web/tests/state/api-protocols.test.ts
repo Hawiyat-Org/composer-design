@@ -37,7 +37,7 @@ describe('apiProtocols table consistency', () => {
       label: 'Atlas Cloud',
       apiKeyConsoleLink: {
         host: 'atlascloud.ai',
-        url: 'https://atlascloud.ai/?utm_source=open_design&utm_medium=provider_preset&utm_campaign=atlascloud_byok',
+        url: 'https://atlascloud.ai/?utm_source=composer_design&utm_medium=provider_preset&utm_campaign=atlascloud_byok',
       },
     });
     expect(atlasCloudProvider?.preferredModels).toContain('qwen/qwen3.5-flash');

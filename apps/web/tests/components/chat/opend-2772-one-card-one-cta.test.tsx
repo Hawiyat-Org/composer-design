@@ -5,7 +5,7 @@
  * **工单看到的**(截图,Claude 本地 CLI 登录过期):红框圈住的是**上下两张卡
  * 同时出现** —— 上面 `RunErrorCard`(「需要登录 / Claude 尚未登录…」,三颗动作),
  * 下面另起一张 `AmrGuidance`(「模型调用失败,当前任务已暂停」+〔切换到
- * OpenDesign Cloud 并重试〕)。产品原话:「**不能新旧一起出现吧??**」
+ * ComposerDesign Cloud 并重试〕)。产品原话:「**不能新旧一起出现吧??**」
  *
  * **产品裁决(2026-09-07,逐字)**:
  *   「2772 的「统一」是「铺到所有报错」,主 cta 都是切换至 cloud,具体样式按设计稿」
@@ -194,7 +194,7 @@ describe('OPEND-2772 · 一次失败只出一张卡', () => {
 describe('OPEND-2772 · 主按钮一律是切换到 Cloud', () => {
   /*
    * 交付稿第 79 格(`docs/design/chat-panel-next.html` 特殊错误 · CLI / BYOK)
-   * 那颗主按钮逐字写的是「切换到 Cloud」,不是「切换到 OpenDesign Cloud 并重试」。
+   * 那颗主按钮逐字写的是「切换到 Cloud」,不是「切换到 ComposerDesign Cloud 并重试」。
    *
    * 产品 2026-09-08 当面裁决:「切换到 cloud 就行了,你怎么写那么长的文案『切换到
    * Cloud 并重试』」「具体的报错文案不一定跟设计稿对齐,**按钮文案对齐先**」——

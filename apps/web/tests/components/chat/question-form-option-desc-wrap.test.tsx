@@ -73,11 +73,11 @@ const CSS = createResolver(
 /* ── 夹具:用户截图里那两问,说明文案照原样 ─────────────────────────── */
 
 const LONG_DESC =
-  '以 Dify 真实定位(开源 LLM 应用开发平台)与真实功能域编写,不沿用 OpenDesign 的说法';
+  '以 Dify 真实定位(开源 LLM 应用开发平台)与真实功能域编写,不沿用 ComposerDesign 的说法';
 
 const FORM: QuestionForm = {
   id: 'dify-rewrite',
-  title: 'OpenDesign 落地页 → Dify 改版口径',
+  title: 'ComposerDesign 落地页 → Dify 改版口径',
   lang: 'zh-CN',
   questions: [
     {

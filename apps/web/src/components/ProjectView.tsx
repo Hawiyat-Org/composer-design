@@ -192,7 +192,7 @@ import {
   extractBrandFromHtml,
   finalizeBrandProject,
 } from '../runtime/brands';
-import { isOpenDesignHostAvailable } from '@open-design/host';
+import { isComposerDesignHostAvailable } from '@open-design/host';
 import {
   getBrandBrowser,
   BRAND_BROWSER_TAB_ID,
@@ -427,7 +427,7 @@ type ProjectChatSendMeta = ChatSendMeta & {
    *  lives in the queue item, so a pre-run block (e.g. the AMR balance gate)
    *  must NOT re-queue it — only pause further drains. */
   queueDrain?: boolean;
-  /** The OpenDesign Cloud balance gate already ran for this exact send at
+  /** The ComposerDesign Cloud balance gate already ran for this exact send at
    *  the home submit (with any soft warning answered there); skip re-gating
    *  so the user is never double-prompted for one task. */
   amrGatePrechecked?: boolean;
@@ -1027,7 +1027,7 @@ function replayedRunStatusMayLand(
  * Reopening a conversation whose messages all ended in a daemon disconnect
  * releases one reattach per message. Each one opens an SSE subscription, and
  * the browser gives an origin about six HTTP/1.1 connections for the entire
- * profile — shared with any other Open Design tab sitting in the background.
+ * profile — shared with any other Composer Design tab sitting in the background.
  * Firing the whole batch at once does not make the batch finish sooner; it
  * parks every other request the page still owes behind it.
  *
@@ -1186,7 +1186,7 @@ function buildCreateDesignSystemFromProjectPrompt(input: {
       ]
     : ['- Active design system: (none)'];
   return [
-    'Create this project as a complete OpenDesign design system workspace.',
+    'Create this project as a complete ComposerDesign design system workspace.',
     '',
     'Autonomy requirement:',
     '- Do not ask setup or clarification questions during design-system generation.',
@@ -1275,7 +1275,7 @@ function historyWithWorkspaceContext(
     '',
     '',
     '<active-workspace-context>',
-    'OpenDesign selected or inferred these workspace contexts for this turn. Treat absolute paths as reference context unless the user explicitly asks to edit them.',
+    'ComposerDesign selected or inferred these workspace contexts for this turn. Treat absolute paths as reference context unless the user explicitly asks to edit them.',
     ...items.map((item, index) => {
       const details = [
         item.path ? `path: ${item.path}` : null,
@@ -2326,7 +2326,7 @@ export function ProjectView({
   );
   const cloudModelSelected = config.mode === 'daemon' && config.agentId === 'amr';
   const projectRunRequiresWorkspaceScope = cloudModelSelected;
-  // An OpenDesign Cloud run needs a wallet, and the ONLY client-side veto is
+  // An ComposerDesign Cloud run needs a wallet, and the ONLY client-side veto is
   // "there is no billing principal at all". Either witness suffices: the
   // caller's own cloud identity, or a project scope that already names an
   // explicit personal/team principal.
@@ -5405,7 +5405,7 @@ export function ProjectView({
       // desktop host: the web-only host never exposes a webview, so retrying
       // can't change an `unavailable` verdict.
       let snapshot = await readBrandBrowserSnapshot(tabId, 8000);
-      if (snapshot.status === 'ready' || !isOpenDesignHostAvailable()) return snapshot;
+      if (snapshot.status === 'ready' || !isComposerDesignHostAvailable()) return snapshot;
       // Retries cover the mount/registration race only — a ready webview resolves
       // these reads almost instantly. Use a short per-retry cap so a genuinely
       // hung/walled page fails fast instead of stacking full timeout windows.
@@ -8070,7 +8070,7 @@ export function ProjectView({
       /*
        * ── OPEND-2614 【不变量】本地数据画得出来的先画,要跟服务器说的话排后面 ──
        *
-       * 「点击发送 → 消息上屏」这一段里唯一的 await 是下面那道 OpenDesign Cloud
+       * 「点击发送 → 消息上屏」这一段里唯一的 await 是下面那道 ComposerDesign Cloud
        * 预检。它在有工作区身份的项目上是**两条 HTTP 往返**,其中
        * `/api/workspace/billing?…&freshness=authoritative` 会逼 daemon 向上游
        * Vela 取一次新读数(daemon 侧翻成 `requireFresh: true`)。上屏排在它后面,
@@ -8250,7 +8250,7 @@ export function ProjectView({
         if (messagesConversationIdRef.current !== runConversationId) return;
         setMessages(restore);
       };
-      // OpenDesign Cloud pre-run balance gate: a definitively insufficient
+      // ComposerDesign Cloud pre-run balance gate: a definitively insufficient
       // wallet blocks the run BEFORE any message is persisted or a daemon run
       // spawned, surfacing the subscription dialog instead of a mid-run
       // AMR_INSUFFICIENT_BALANCE failure. Sends the home submit already gated
@@ -10869,31 +10869,31 @@ export function ProjectView({
     ],
   );
 
-  // "Share to OpenDesign" — kicks off the bundled `od-share-to-community`
+  // "Share to ComposerDesign" — kicks off the bundled `od-share-to-community`
   // scenario in the active conversation. We just inject the trigger prompt
   // through the standard chat-send path; the agent then loads SKILL.md and
   // drives the rest. Keep this preparing state alive for the resulting chat
   // run so the action reads as async packaging instead of instant sharing.
-  const [shareToOpenDesignBusyMessageId, setShareToOpenDesignBusyMessageId] = useState<string | null>(null);
-  const shareToOpenDesignBusyMessageIdRef = useRef<string | null>(null);
+  const [shareToComposerDesignBusyMessageId, setShareToComposerDesignBusyMessageId] = useState<string | null>(null);
+  const shareToComposerDesignBusyMessageIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!shareToOpenDesignBusyMessageIdRef.current || currentConversationBusy) return;
-    shareToOpenDesignBusyMessageIdRef.current = null;
-    setShareToOpenDesignBusyMessageId(null);
+    if (!shareToComposerDesignBusyMessageIdRef.current || currentConversationBusy) return;
+    shareToComposerDesignBusyMessageIdRef.current = null;
+    setShareToComposerDesignBusyMessageId(null);
   }, [currentConversationBusy]);
-  const handleShareToOpenDesign = useCallback((assistantMessageId: string) => {
-    if (currentConversationActionDisabled || shareToOpenDesignBusyMessageIdRef.current) return;
-    shareToOpenDesignBusyMessageIdRef.current = assistantMessageId;
-    setShareToOpenDesignBusyMessageId(assistantMessageId);
+  const handleShareToComposerDesign = useCallback((assistantMessageId: string) => {
+    if (currentConversationActionDisabled || shareToComposerDesignBusyMessageIdRef.current) return;
+    shareToComposerDesignBusyMessageIdRef.current = assistantMessageId;
+    setShareToComposerDesignBusyMessageId(assistantMessageId);
     void Promise.resolve(handleSend(SHARE_TO_COMMUNITY_PROMPT, [], []))
       .then((started) => {
         if (started) return;
-        shareToOpenDesignBusyMessageIdRef.current = null;
-        setShareToOpenDesignBusyMessageId(null);
+        shareToComposerDesignBusyMessageIdRef.current = null;
+        setShareToComposerDesignBusyMessageId(null);
       })
       .catch(() => {
-        shareToOpenDesignBusyMessageIdRef.current = null;
-        setShareToOpenDesignBusyMessageId(null);
+        shareToComposerDesignBusyMessageIdRef.current = null;
+        setShareToComposerDesignBusyMessageId(null);
       });
   }, [currentConversationActionDisabled, handleSend]);
 
@@ -12384,10 +12384,10 @@ export function ProjectView({
           daemonOutcome.result.conversationId,
         );
         if (daemonOutcome.result.status === 'ready') return;
-        if (!isOpenDesignHostAvailable() && !hasBrowserFallback()) return;
+        if (!isComposerDesignHostAvailable() && !hasBrowserFallback()) return;
       } else {
         fallbackMessage = daemonOutcome.error;
-        if (!isOpenDesignHostAvailable() && !hasBrowserFallback()) {
+        if (!isComposerDesignHostAvailable() && !hasBrowserFallback()) {
           setBrandExtractionStatusOverride({ brandId, status: 'needs_input' });
           setProjectActionsToast({
             message: daemonOutcome.error,
@@ -12405,7 +12405,7 @@ export function ProjectView({
       // from the preview tab, the browser <webview> may be `display:none` and
       // Electron can throttle its renderer; a focus-only request wakes it
       // without navigating/re-triggering a wall.
-      if (isOpenDesignHostAvailable() && brandExtractionSourceUrl) {
+      if (isComposerDesignHostAvailable() && brandExtractionSourceUrl) {
         setBrowserOpenRequest({
           tabId: BRAND_BROWSER_TAB_ID,
           url: brandExtractionSourceUrl,
@@ -12426,7 +12426,7 @@ export function ProjectView({
       // Still no readable local source. Recoverable — clear/settle/download the
       // Browser page and click Continue again, or use the agent fallback.
       setBrandExtractionStatusOverride({ brandId, status: 'needs_input' });
-      if (isOpenDesignHostAvailable() && brandExtractionSourceUrl) {
+      if (isComposerDesignHostAvailable() && brandExtractionSourceUrl) {
         setBrowserOpenRequest({
           tabId: BRAND_BROWSER_TAB_ID,
           url: brandExtractionSourceUrl,
@@ -13147,8 +13147,8 @@ export function ProjectView({
               onRequestPluginFolderAgentAction={handlePluginFolderAgentAction}
               activePluginActionPaths={activePluginActionPaths}
               hiddenPluginActionPaths={hiddenAssistantPluginActionPaths}
-              onShareToOpenDesign={handleShareToOpenDesign}
-              shareToOpenDesignBusyMessageId={shareToOpenDesignBusyMessageId}
+              onShareToComposerDesign={handleShareToComposerDesign}
+              shareToComposerDesignBusyMessageId={shareToComposerDesignBusyMessageId}
               forceStreamingMessageIds={forceStreamingPluginMessageIds}
               initialDraft={chatInitialDraft}
               onboardingStarterPath={onboardingEntryRef.current?.productType ?? null}
@@ -14114,7 +14114,7 @@ function latestDesignSystemActivityEvents(messages: ChatMessage[]): AgentEvent[]
 }
 
 function pluginWorkflowTitle(action: PluginFolderAgentAction): string {
-  return action === 'publish' ? 'Publish repo' : 'OpenDesign PR';
+  return action === 'publish' ? 'Publish repo' : 'ComposerDesign PR';
 }
 
 function pluginWorkflowCliCommand(action: PluginFolderAgentAction, relativePath: string): string {
@@ -14133,7 +14133,7 @@ function pluginWorkflowPlannedSteps(action: PluginFolderAgentAction): string[] {
     ];
   }
   return [
-    'Ensure the OpenDesign fork exists',
+    'Ensure the ComposerDesign fork exists',
     'Clone the fork and prepare a branch',
     'Copy the plugin into plugins/community',
     'Push the branch and open the PR form',
@@ -14254,7 +14254,7 @@ export function resolveSucceededRunStatus(status: ChatMessage['runStatus']): Cha
 const DESIGN_RESULT_MISSING_DETAIL =
   'The design run finished without producing a deliverable project file.';
 const DESIGN_RESULT_DELIVERY_FAILED_DETAIL =
-  'The design result was generated, but OpenDesign could not save it to the project.';
+  'The design result was generated, but ComposerDesign could not save it to the project.';
 
 function applyDesignDeliveryOutcome(
   message: ChatMessage,

@@ -4,7 +4,7 @@ import {
   evaluateRuntimeEvidenceGraphV1,
   type NormalizedAgentObservationV1,
   type OdNextRuntimeCapabilitySnapshotV1,
-  type OpenDesignPlanContractV2,
+  type ComposerDesignPlanContractV2,
 } from '@open-design/contracts';
 
 import {
@@ -71,7 +71,7 @@ function capabilitySnapshotHashIsValid(
  * from the Task14 registry and sanitized fixture replay.
  */
 export function evaluateOdNextComplexEligibility(input: {
-  plan: OpenDesignPlanContractV2;
+  plan: ComposerDesignPlanContractV2;
   selectedAgentId: string;
   capabilitySnapshot?: unknown;
 }): OdNextComplexGateResult {
@@ -135,7 +135,7 @@ function buildPackageId(
  * order is the normalized adapter replay order, avoiding cross-clock math.
  */
 export function evaluateOdNextComplexChildEvidence(input: {
-  plan: OpenDesignPlanContractV2;
+  plan: ComposerDesignPlanContractV2;
   taskExecutionId: string;
   runId: string;
   taskRunIndex: number;
@@ -344,7 +344,7 @@ export function evaluateOdNextComplexChildEvidence(input: {
 }
 
 export function evaluateOdNextComplexProduction(input: {
-  plan: OpenDesignPlanContractV2;
+  plan: ComposerDesignPlanContractV2;
   selectedAgentId: string;
   taskExecutionId: string;
   runId: string;

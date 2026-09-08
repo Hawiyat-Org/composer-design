@@ -352,7 +352,7 @@ describe('local project mutations do not require remote Workspace authority', ()
 
   // The dual-track contract, pinned through the real binary rather than by
   // intent. `AGENTS.md` makes `od` the embeddability surface external agents
-  // drive OpenDesign through, and there was no test anywhere exercising a CLI
+  // drive ComposerDesign through, and there was no test anywhere exercising a CLI
   // project mutation — which is why a 401 on every CLI-created project shipped
   // to this branch unnoticed.
   test(

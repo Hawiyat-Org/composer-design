@@ -24,7 +24,7 @@ describe('AMR attribution helper', () => {
     vi.unstubAllGlobals();
   });
 
-  it('accepts every AMR entry source defined for OpenDesign entry points', () => {
+  it('accepts every AMR entry source defined for ComposerDesign entry points', () => {
     const track = vi.fn();
     const sources = [
       'onboarding_amr_card',
@@ -68,7 +68,7 @@ describe('AMR attribution helper', () => {
     });
 
     expect(attribution).toMatchObject({
-      sourceProduct: 'open_design',
+      sourceProduct: 'composer_design',
       sourceDetail: 'chat_error_recharge',
       occurredAt: '2026-06-03T12:00:00.000Z',
     });
@@ -82,7 +82,7 @@ describe('AMR attribution helper', () => {
         element: 'chat_error_recharge',
         action: 'click_amr_entry',
         entry_id: attribution.entryId,
-        source_product: 'open_design',
+        source_product: 'composer_design',
         source_detail: 'chat_error_recharge',
         entry_occurred_at: '2026-06-03T12:00:00.000Z',
       }),
@@ -98,13 +98,13 @@ describe('AMR attribution helper', () => {
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
     expect(JSON.parse(String(init.body))).toEqual({
       payload: {
-        pageName: 'open_design',
+        pageName: 'composer_design',
         sourcePageName: 'chat_panel',
         area: 'amr_entry',
         element: 'chat_error_recharge',
         action: 'click_amr_entry',
         entryId: attribution.entryId,
-        sourceProduct: 'open_design',
+        sourceProduct: 'composer_design',
         sourceDetail: 'chat_error_recharge',
         entryOccurredAt: '2026-06-03T12:00:00.000Z',
       },
@@ -220,13 +220,13 @@ describe('AMR attribution helper', () => {
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
     expect(JSON.parse(String(init.body))).toEqual({
       payload: {
-        pageName: 'open_design',
+        pageName: 'composer_design',
         sourcePageName: 'onboarding',
         area: 'onboarding',
         element: 'about_you_submit',
         action: 'submit_profile',
         entryId: attribution.entryId,
-        sourceProduct: 'open_design',
+        sourceProduct: 'composer_design',
         sourceDetail: 'onboarding_amr_card',
         entryOccurredAt: '2026-06-03T12:00:00.000Z',
         profileOccurredAt: '2026-06-03T12:03:00.000Z',
@@ -246,7 +246,7 @@ describe('AMR attribution helper', () => {
     const attribution = recordAmrEntry(track, 'chat_error_recharge', now);
 
     expect(attribution).toMatchObject({
-      sourceProduct: 'open_design',
+      sourceProduct: 'composer_design',
       sourceDetail: 'chat_error_recharge',
       occurredAt: '2026-06-03T12:00:00.000Z',
     });
@@ -372,23 +372,23 @@ describe('AMR attribution helper', () => {
     expect(readAmrAttribution(new Date('2026-08-25T12:00:00.000Z'))).toBeNull();
   });
 
-  it('adds OpenDesign attribution params to AMR wallet URLs', () => {
+  it('adds ComposerDesign attribution params to AMR wallet URLs', () => {
     expect(
       attributedAmrUrl('https://open-design.ai/amr/dashboard?tab=recharge', {
         entryId: 'od-amr-entry-123',
-        sourceProduct: 'open_design',
+        sourceProduct: 'composer_design',
         sourceDetail: 'generation_preview_recharge',
         occurredAt: '2026-06-03T12:00:00.000Z',
       }),
     ).toBe(
-      'https://open-design.ai/amr/dashboard?tab=recharge&od_origin=open_design&od_entry_id=od-amr-entry-123&od_entry_source=generation_preview_recharge&od_entry_at=2026-06-03T12%3A00%3A00.000Z',
+      'https://open-design.ai/amr/dashboard?tab=recharge&od_origin=composer_design&od_entry_id=od-amr-entry-123&od_entry_source=generation_preview_recharge&od_entry_at=2026-06-03T12%3A00%3A00.000Z',
     );
   });
 
   it('adds od_device_id only when a device id is provided', () => {
     const attribution = {
       entryId: 'od-amr-entry-123',
-      sourceProduct: 'open_design' as const,
+      sourceProduct: 'composer_design' as const,
       sourceDetail: 'generation_preview_recharge' as const,
       occurredAt: '2026-06-03T12:00:00.000Z',
     };

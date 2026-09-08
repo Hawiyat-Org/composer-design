@@ -621,7 +621,7 @@ const COMMUNITY_PAGE_PRESETS: ProjectPagePreset[] = [
   {
     id: 'community-open-design-landing',
     category: 'prototype',
-    title: pageText('OpenDesign Landing', 'OpenDesign 落地页', 'OpenDesign 落地頁'),
+    title: pageText('ComposerDesign Landing', 'ComposerDesign 落地页', 'ComposerDesign 落地頁'),
     description: pageText(
       'Editorial landing page with a strong hero, proof points, and product narrative.',
       '带强主视觉、信任证明和产品叙事的编辑风落地页。',
@@ -4269,7 +4269,7 @@ export function FileWorkspace({
               onRequestBrowserUsePrompt={onRequestBrowserUsePrompt}
               onPageSnapshotToast={handleBrowserPageSnapshotToast}
               onRefreshFiles={refreshFilesWithoutResult}
-              onOpenDesignFiles={() => setPersistedActive(DESIGN_FILES_TAB)}
+              onComposerDesignFiles={() => setPersistedActive(DESIGN_FILES_TAB)}
               onOpenFile={openFile}
               onPageInfoChange={(info) => updateBrowserTabInfo(browserTab.id, info)}
               onAddImageToChat={(attachment) => {
@@ -7027,7 +7027,7 @@ function initialPrototypePage(title: string, body = DEFAULT_PROTOTYPE_PAGE_BODY)
   <main>
     <section class="hero">
       <div>
-        <div class="eyebrow">OpenDesign</div>
+        <div class="eyebrow">ComposerDesign</div>
         <h1>${safeTitle}</h1>
         <p>${safeBody}</p>
       </div>
@@ -7169,7 +7169,7 @@ function initialSlidesPage(title: string, body = DEFAULT_SLIDES_PAGE_BODY): stri
   <div class="deck-shell">
     <main class="deck-stage" id="deck-stage">
       <section class="slide active cover" data-screen-label="01 Cover">
-        <div class="kicker">OpenDesign deck</div>
+        <div class="kicker">ComposerDesign deck</div>
         <h1>${safeTitle}</h1>
         <p class="body">${safeBody}</p>
         <div class="num">01</div>
@@ -7307,7 +7307,7 @@ function initialDocumentPage(title: string, body = DEFAULT_DOCUMENT_PAGE_BODY): 
 </head>
 <body>
   <article>
-    <div class="meta">OpenDesign document</div>
+    <div class="meta">ComposerDesign document</div>
     <h1>${safeTitle}</h1>
     <p>${safeBody}</p>
     <h2>Purpose</h2>

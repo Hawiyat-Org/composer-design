@@ -11,7 +11,7 @@ import {
   serializeCanonicalXml,
   serializeOdNextPromptBundleV1,
   type AppliedPluginSnapshot,
-  type OpenDesignPlanContractV2,
+  type ComposerDesignPlanContractV2,
 } from '@open-design/contracts';
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -39,10 +39,10 @@ const AGENT_ID = 'codex';
 
 // A bundle written by the pre-reshape v2 composer: the same schema id today's
 // composer stamps, wrapped in the `system_prompt` element that the reshape
-// replaced with `open_design_core_system_prompt`.
+// replaced with `composer_design_core_system_prompt`.
 const STALE_V2_PROMPT_BUNDLE = serializeCanonicalXml({
   kind: 'element',
-  tag: 'open_design_prompt_bundle',
+  tag: 'composer_design_prompt_bundle',
   attributes: [['schema', OD_NEXT_PROMPT_BUNDLE_SCHEMA_V2]],
   children: [
     {
@@ -168,7 +168,7 @@ function createStrategySnapshot(db: Database.Database): AppliedPluginSnapshot {
   });
 }
 
-function planContract(snapshot: AppliedPluginSnapshot): OpenDesignPlanContractV2 {
+function planContract(snapshot: AppliedPluginSnapshot): ComposerDesignPlanContractV2 {
   const strategy = snapshot.strategy!;
   return {
     schema: 'open-design.plan-contract/v2',
@@ -1083,7 +1083,7 @@ describe('durable strategy task store', () => {
       },
       strategy: originalPlan.strategy,
       schema: originalPlan.schema,
-    } as OpenDesignPlanContractV2;
+    } as ComposerDesignPlanContractV2;
     task = compareAndTransitionStrategyTaskExecution(db, {
       taskExecutionId: task.taskExecutionId,
       expectedRevision: task.revision,

@@ -154,7 +154,7 @@ test('[P1] cold Home defers Automations reads until the route becomes active', a
     );
 
     await page.goto('/automations', { waitUntil: 'domcontentloaded' });
-    await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+    await page.getByText('Loading ComposerDesign…').waitFor({ state: 'hidden', timeout: T.long });
     await expect(page.getByTestId('entry-view-tasks')).toHaveAttribute('data-active', 'true');
     await expect(page.getByTestId('tasks-view')).toBeVisible();
     await expect.poll(() => [...counts.values()].every((count) => count > 0)).toBe(true);
@@ -388,7 +388,7 @@ test('[P1] onboarding lands on the home composer without a recommended-start str
     });
   });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ComposerDesign…').waitFor({ state: 'hidden', timeout: T.long });
 
   // Cloud-first onboarding no longer contains the legacy runtime/About-you/
   // Product-design survey. A signed-in user accepts the recommended Hosted
@@ -397,7 +397,7 @@ test('[P1] onboarding lands on the home composer without a recommended-start str
   await expect(cloudPrimary).toBeEnabled();
   await cloudPrimary.click();
   await expect(page.getByRole('heading', { name: /Choose your model source|选择模型来源/i })).toBeVisible();
-  await page.getByRole('radio', { name: /OpenDesign Hosted/i }).click();
+  await page.getByRole('radio', { name: /ComposerDesign Hosted/i }).click();
   await page.getByRole('button', { name: /^Continue$/i }).click();
 
   // Finishing model-source setup lands the user on Home with the composer
@@ -472,7 +472,7 @@ test('[P1] home view exposes the redesigned hero, recent projects, and starters'
   // `recent-projects-view-all` button — so `HomeView.onViewAllProjects` is
   // wired but unreachable. Drive the route directly until an entry returns.
   await page.goto('/projects', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ComposerDesign…').waitFor({ state: 'hidden', timeout: T.long });
   await expect(page).toHaveURL(/\/projects$/);
   await expect(page.getByTestId('entry-view-projects')).toBeVisible();
 });
@@ -1034,7 +1034,7 @@ test('[P1] Use everywhere guide uses daemon MCP install info and copies an agent
   await page.route('**/api/mcp/install-info', async (route) => {
     await route.fulfill({
       json: {
-        command: '/Applications/Open Design.app/Contents/MacOS/od',
+        command: '/Applications/Composer Design.app/Contents/MacOS/od',
         args: ['mcp', '--daemon-url', 'http://127.0.0.1:7456'],
         env: {
           OD_DATA_DIR: '/Users/test/.open-design',
@@ -1047,7 +1047,7 @@ test('[P1] Use everywhere guide uses daemon MCP install info and copies an agent
   // With the topbar's "Use everywhere" button gone (#5517) the Integrations
   // route is the entry; its default tab is still the Use everywhere guide.
   await page.goto('/integrations', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ComposerDesign…').waitFor({ state: 'hidden', timeout: T.long });
   await expect(page.getByRole('heading', { name: 'Integrations' })).toBeVisible();
   // Landing on the route directly opens the view's own default tab, so select
   // the Use everywhere guide explicitly.
@@ -1059,14 +1059,14 @@ test('[P1] Use everywhere guide uses daemon MCP install info and copies an agent
 
   await page.getByTestId('use-everywhere-tab-mcp').click();
   const mcpSection = page.getByTestId('use-everywhere-section-mcp');
-  await expect(mcpSection).toContainText('/Applications/Open Design.app/Contents/MacOS/od');
+  await expect(mcpSection).toContainText('/Applications/Composer Design.app/Contents/MacOS/od');
   await expect(mcpSection).toContainText('OD_DATA_DIR');
 
   await page.getByTestId('use-everywhere-copy-guide').click();
   await expect(page.getByTestId('use-everywhere-copy-guide')).toContainText(/Copied|已复制|已複製/i);
   await expect
     .poll(() => page.evaluate(() => (window as unknown as { __copiedTexts?: string[] }).__copiedTexts?.at(-1) ?? ''))
-    .toContain('/Applications/Open Design.app/Contents/MacOS/od');
+    .toContain('/Applications/Composer Design.app/Contents/MacOS/od');
   await expect
     .poll(() => page.evaluate(() => (window as unknown as { __copiedTexts?: string[] }).__copiedTexts?.at(-1) ?? ''))
     .toMatch(/http:\/\/127\.0\.0\.1:\d+\/api\/mcp\/install-info/);
@@ -1656,8 +1656,8 @@ async function dispatchAmbientWorkspaceEvent(
 
 async function gotoEntryHome(page: Page) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
-  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve OpenDesign' });
+  await page.getByText('Loading ComposerDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve ComposerDesign' });
   if (await privacyDialog.isVisible()) {
     await privacyDialog.getByRole('button', { name: /I get it|not now|got it|don't share/i }).click();
     await expect(privacyDialog).toHaveCount(0);

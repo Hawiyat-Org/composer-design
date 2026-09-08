@@ -5,7 +5,7 @@
  * ## 量到的是什么
  *
  * 点击发送 → 消息上屏,这一段里 `handleSend` 只有**一个** await:
- * OpenDesign Cloud(AMR)的预检 `checkAmrBalanceGate`。它排在
+ * ComposerDesign Cloud(AMR)的预检 `checkAmrBalanceGate`。它排在
  * `setMessages(nextVisibleMessages)` **前面**,所以消息要等预检回来才上屏。
  *
  * 而这一次预检在有工作区身份的项目上是两条并行的 HTTP 往返:
@@ -284,7 +284,7 @@ const mockedFetchPreviewComments = vi.mocked(fetchPreviewComments);
 const mockedFetchProjectFiles = vi.mocked(fetchProjectFiles);
 const mockedFetchBrands = vi.mocked(fetchBrands);
 
-/** AMR on a daemon runtime — 报告里的那套配置(Agent 为 OpenDesign)。 */
+/** AMR on a daemon runtime — 报告里的那套配置(Agent 为 ComposerDesign)。 */
 const config: AppConfig = {
   mode: 'daemon',
   apiProtocol: 'openai',
@@ -409,7 +409,7 @@ describe('OPEND-2614 发送后先上屏,再等预检', () => {
    * 没有这一条,下面那条「预检还没回来时消息就在屏幕上」在**预检压根没被调用**
    * 的情况下也是绿的 —— 那时它证明的是「没有预检」,不是「先画后等」。
    */
-  it('夹具自检:AMR 这一发确实要过 OpenDesign Cloud 预检', async () => {
+  it('夹具自检:AMR 这一发确实要过 ComposerDesign Cloud 预检', async () => {
     renderProjectView();
     await clickSendWhenReady();
     await waitFor(() => expect(mockedCheckAmrBalanceGate).toHaveBeenCalledTimes(1));

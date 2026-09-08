@@ -12,7 +12,7 @@ import {
 } from '../../src/db.js';
 import {
   accountScopedRunWorkspaceScopeForProject,
-  openDesignAmrTraceEnvForRun,
+  composerDesignAmrTraceEnvForRun,
   pinRunWorkspaceScopeForProject,
   type ProjectWorkspaceScopeOutcome,
 } from '../../src/runtimes/project-amr-trace-env.js';
@@ -73,28 +73,28 @@ describe('AMR persisted project Workspace scope', () => {
 
     const scopeA = pinRunWorkspaceScopeForProject(db, 'project-a');
     const scopeB = pinRunWorkspaceScopeForProject(db, 'project-b');
-    const initialA = await openDesignAmrTraceEnvForRun({
+    const initialA = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-a',
       runAttempt: 0,
       projectId: 'project-a',
       workspaceScope: scopeA,
     });
-    const retryA = await openDesignAmrTraceEnvForRun({
+    const retryA = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-a',
       runAttempt: 1,
       projectId: 'project-a',
       workspaceScope: scopeA,
     });
-    const initialB = await openDesignAmrTraceEnvForRun({
+    const initialB = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-b',
       runAttempt: 0,
       projectId: 'project-b',
       workspaceScope: scopeB,
     });
-    const retryB = await openDesignAmrTraceEnvForRun({
+    const retryB = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-b',
       runAttempt: 1,
@@ -116,7 +116,7 @@ describe('AMR persisted project Workspace scope', () => {
     });
 
     const workspaceScope = pinRunWorkspaceScopeForProject(db, 'project-a');
-    const initial = await openDesignAmrTraceEnvForRun({
+    const initial = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-a',
       runAttempt: 0,
@@ -127,7 +127,7 @@ describe('AMR persisted project Workspace scope', () => {
       workspaceId: 'workspace-b',
       updatedAt: Date.now() + 1,
     });
-    const retry = await openDesignAmrTraceEnvForRun({
+    const retry = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-a',
       runAttempt: 1,
@@ -151,7 +151,7 @@ describe('AMR persisted project Workspace scope', () => {
       workspaceId: 'workspace-b',
       updatedAt: Date.now() + 1,
     });
-    const initial = await openDesignAmrTraceEnvForRun({
+    const initial = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-a',
       runAttempt: 0,
@@ -163,7 +163,7 @@ describe('AMR persisted project Workspace scope', () => {
   });
 
   it('does not expose membership/current/directory inputs to the billing-scope resolver', async () => {
-    expectTypeOf<NonNullable<Parameters<typeof openDesignAmrTraceEnvForRun>[1]>>()
+    expectTypeOf<NonNullable<Parameters<typeof composerDesignAmrTraceEnvForRun>[1]>>()
       .toEqualTypeOf<{
         onWorkspaceScopeOutcome?: (outcome: ProjectWorkspaceScopeOutcome) => void;
       }>();
@@ -175,7 +175,7 @@ describe('AMR persisted project Workspace scope', () => {
     const outcomes: ProjectWorkspaceScopeOutcome[] = [];
 
     const workspaceScope = pinRunWorkspaceScopeForProject(db, 'project-a');
-    const initial = await openDesignAmrTraceEnvForRun({
+    const initial = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-a',
       runAttempt: 0,
@@ -184,7 +184,7 @@ describe('AMR persisted project Workspace scope', () => {
     }, {
       onWorkspaceScopeOutcome: (outcome) => outcomes.push(outcome),
     });
-    const retry = await openDesignAmrTraceEnvForRun({
+    const retry = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-a',
       runAttempt: 1,
@@ -210,14 +210,14 @@ describe('AMR persisted project Workspace scope', () => {
       memberId: 'member-personal',
     });
     const workspaceScope = pinRunWorkspaceScopeForProject(db, 'project-personal');
-    const initial = await openDesignAmrTraceEnvForRun({
+    const initial = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-personal',
       runAttempt: 0,
       projectId: 'project-personal',
       workspaceScope,
     });
-    const retry = await openDesignAmrTraceEnvForRun({
+    const retry = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-personal',
       runAttempt: 1,
@@ -232,7 +232,7 @@ describe('AMR persisted project Workspace scope', () => {
   it('keeps an unbound local AMR project account-scoped on initial spawn and retry', async () => {
     const db = seedProject({ projectId: 'project-legacy' });
     const outcomes: ProjectWorkspaceScopeOutcome[] = [];
-    const initial = await openDesignAmrTraceEnvForRun({
+    const initial = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-legacy',
       runAttempt: 0,
@@ -241,7 +241,7 @@ describe('AMR persisted project Workspace scope', () => {
     }, {
       onWorkspaceScopeOutcome: (outcome) => outcomes.push(outcome),
     });
-    const retry = await openDesignAmrTraceEnvForRun({
+    const retry = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-legacy',
       runAttempt: 1,
@@ -269,7 +269,7 @@ describe('AMR persisted project Workspace scope', () => {
         memberId: 'member-a',
       });
       const outcomes: ProjectWorkspaceScopeOutcome[] = [];
-      const env = await openDesignAmrTraceEnvForRun({
+      const env = await composerDesignAmrTraceEnvForRun({
         agentId,
         runId: `run-${agentId}`,
         runAttempt: 0,

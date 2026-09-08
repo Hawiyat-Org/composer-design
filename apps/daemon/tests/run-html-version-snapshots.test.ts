@@ -41,7 +41,7 @@ describe('AI HTML version snapshots', () => {
     expect(artifactOriginForRun({
       runId: 'run-2',
       externalPluginAnalytics: {
-        entrySurface: 'open_design_ui',
+        entrySurface: 'composer_design_ui',
         externalPluginId: 'open-design',
         pluginWorkflowId: 'workflow-2',
       },

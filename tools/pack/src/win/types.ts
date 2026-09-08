@@ -40,7 +40,7 @@ export type ElectronBuilderDirCacheMetadata = {
 };
 
 export type ResourceTreeCacheMetadata = {
-  resourceName: "open-design";
+  resourceName: "composer-design";
 };
 
 export type WinBuiltAppManifest = {

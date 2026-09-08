@@ -19,14 +19,14 @@ export interface AmrAccountFailureSignal {
   stderrTail?: unknown;
 }
 
-// `source=open_design` tags the console landing page_view so vela analytics can
-// attribute the recharge visit to OpenDesign.
+// `source=composer_design` tags the console landing page_view so vela analytics can
+// attribute the recharge visit to ComposerDesign.
 //
 // The console dashboard, not a wallet page: balance and manual top-up were
 // rehomed onto it (vela #1055) and the wallet route left the product's
 // information architecture, so this link must not send a user there.
 export const DEFAULT_AMR_RECHARGE_URL =
-  'https://open-design.ai/amr/dashboard?source=open_design';
+  'https://open-design.ai/amr/dashboard?source=composer_design';
 
 const AMR_AUTH_REQUIRED_MESSAGE =
   'AMR sign-in is required. Sign in to AMR Cloud again, then retry this run.';

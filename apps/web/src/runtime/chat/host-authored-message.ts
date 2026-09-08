@@ -43,7 +43,7 @@ export function assistantMessageNeverHadARun(message: ChatMessage): boolean {
  * **这条会话此刻停在哪一轮上** —— 倒着找最后一条**真的跑过一轮**的助手消息。
  *
  * 面板上一大票「只发给当前这一轮」的东西都挂在这个 id 上:下一步引导、继续未完成
- * 的任务、投稿到 Open Design、产物卡的登记、以及乐观占位那条流式兜底。它们问的
+ * 的任务、投稿到 Composer Design、产物卡的登记、以及乐观占位那条流式兜底。它们问的
  * 都是同一个问题 ——「**哪一轮是这条会话的当前落点**」。
  *
  * ⚠️ 那个问题的答案**不等于**「流水里最后一条 assistant 消息」。宿主补发的卡

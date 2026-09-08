@@ -32,7 +32,7 @@ interface Props {
   reason: 'insufficient' | 'signed_out';
   /** Raw wallet balance string from the blocking snapshot; null hides the badge. */
   balanceUsd: string | null;
-  /** OpenDesign Cloud profile from the blocking snapshot; picks the console origin. */
+  /** ComposerDesign Cloud profile from the blocking snapshot; picks the console origin. */
   profile: string | null;
   /** Which surface blocked the send — keys the amr_entry attribution. */
   entrySource: 'home_balance_gate_upgrade' | 'chat_balance_gate_upgrade';
@@ -80,7 +80,7 @@ interface Props {
   onResolved: () => void;
 }
 
-// HARD pre-run blocker for OpenDesign Cloud tasks: the run cannot possibly
+// HARD pre-run blocker for ComposerDesign Cloud tasks: the run cannot possibly
 // succeed, so the send is stopped BEFORE any run spawns — unlike the
 // post-failure AMR_INSUFFICIENT_BALANCE error card which appears after a run
 // already burned its startup. It fires at the moment of PEAK intent — the
@@ -99,7 +99,7 @@ interface Props {
 //     since #7122; the older comment here said so long after that stopped being
 //     true. Balance badge shown.
 //
-//   signed_out — OpenDesign Cloud selected but no account session. The CTA
+//   signed_out — ComposerDesign Cloud selected but no account session. The CTA
 //     is the in-app sign-in (AmrLoginPill: spawns vela login, surfaces the
 //     activation link when the browser doesn't auto-open, polls until done);
 //     sending the user to the wallet website would be a dead end.
@@ -208,7 +208,7 @@ export function AmrBalanceDialog({
   const openUpgrade = () => {
     if (!upgradeUrl) return;
     setWatchingWallet(true);
-    // Same attribution handshake as the other OpenDesign Cloud handoffs
+    // Same attribution handshake as the other ComposerDesign Cloud handoffs
     // (ChatPane recharge, AvatarMenu upgrade): record the amr_entry, forward
     // the consent-gated device id, and open the console for the profile.
     const attribution = recordAmrEntry(analytics.track, entrySource, new Date(), {

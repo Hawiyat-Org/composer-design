@@ -136,7 +136,7 @@ const MARKUP = `
   <div class="pane vars" data-chat-root="" id="seam">
     <div class="chat-log" id="log">
       <div class="msg assistant" id="msg">
-        <div class="role" id="role">Open Design</div>
+        <div class="role" id="role">Composer Design</div>
         <p id="prose">已经把商品卡换成两列。</p>
         <button type="button" id="bare-button">重试</button>
         <div class="line" id="pause-line"><span>已停止</span></div>

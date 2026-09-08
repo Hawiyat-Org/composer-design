@@ -2,7 +2,7 @@ import type { Express } from 'express';
 import type { SkillInfo } from './skills.js';
 import type { DesignSystemSummary } from './design-systems/index.js';
 import type { RoutineRoutesService } from './routes/routine.js';
-import type { OpenDesignPublicMetadataService } from './services/open-design-public-metadata.js';
+import type { ComposerDesignPublicMetadataService } from './services/open-design-public-metadata.js';
 import type { ResourceHubPrincipal } from './collab/resource-principal.js';
 import type {
   AuthorizeProjectRequest,
@@ -226,7 +226,7 @@ export interface ServerContext {
   messages: any;
   agents: any;
   critique: any;
-  openDesignPublicMetadata: OpenDesignPublicMetadataService;
+  composerDesignPublicMetadata: ComposerDesignPublicMetadataService;
   /**
    * C-lane collaboration seam for D's project-visibility routes. After a
    * successful personal→team move (D's move API), D's handler calls

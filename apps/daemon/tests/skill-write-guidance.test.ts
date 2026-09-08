@@ -12,7 +12,7 @@ import { composeSystemPrompt } from '../src/prompts/system.js';
 // --add-dir").
 //
 // Nothing in the composed system prompt said so. With no stated boundary and no
-// stated exit, the agent invented one: it told the user to open Open Design's
+// stated exit, the agent invented one: it told the user to open Composer Design's
 // settings and add the directory to a "文件系统 / 工作区 / 可写目录 / writable
 // roots" option. No such setting exists — not for writable roots, not for a
 // sandbox mode, not for an approval policy. The user hunted for it, could not

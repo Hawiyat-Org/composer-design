@@ -29,7 +29,7 @@ const RUNTIME_MODULE_PROJECT_ROOT = resolveProjectRootFromNestedModule(
 //
 // Auth/config precedence for Local CLI launches:
 //
-// 1. Provider BYOK is separate. It is used by OpenDesign's direct provider
+// 1. Provider BYOK is separate. It is used by ComposerDesign's direct provider
 //    API calls and is not automatically mapped into Local CLI launches.
 // 2. The inherited launch env represents the user's local CLI setup
 //    (OAuth/login files, CLI homes, or user-owned API-key env). Preserve it
@@ -131,12 +131,12 @@ export function spawnEnvForAgent(
       const home = os.homedir();
       if (home) env.HOME = home;
     }
-    // Identify OpenDesign as the host so the vela CLI tags its command +
-    // model_request analytics with source=open_design (revenue attribution).
+    // Identify ComposerDesign as the host so the vela CLI tags its command +
+    // model_request analytics with source=composer_design (revenue attribution).
     // Not PII (unlike the installation id above), so set it regardless of the
     // telemetry-consent gate that amrAnalyticsIdentityEnv applies.
     if (!env.AMR_CLIENT_SOURCE?.trim()) {
-      env.AMR_CLIENT_SOURCE = 'open_design';
+      env.AMR_CLIENT_SOURCE = 'composer_design';
     }
     // AMR runs through Vela's private OpenCode server. The server inherits
     // this flag, which enables OpenCode's built-in, keyless Exa websearch
@@ -222,7 +222,7 @@ export function spawnEnvForAgent(
   return finalizeRuntimeEnv(env, sandboxRuntime);
 }
 
-export function openDesignAmrRunAttempt(input: {
+export function composerDesignAmrRunAttempt(input: {
   cumulativeRetryAttemptCount?: number | null;
   retryAttemptCount?: number | null;
   manualResumeAttemptCount?: number | null;
@@ -238,7 +238,7 @@ export function openDesignAmrRunAttempt(input: {
   );
 }
 
-export function openDesignAmrTraceEnv(input: {
+export function composerDesignAmrTraceEnv(input: {
   agentId: string;
   runId: string;
   conversationId?: string | null;

@@ -78,7 +78,7 @@ async function seedEntryHome(page: Page, options?: { locale?: string }) {
 
 async function gotoEntryHome(page: Page, timeout = 10_000) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Loading OpenDesign…')).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByText('Loading ComposerDesign…')).toHaveCount(0, { timeout: 15_000 });
   await expect(page.getByTestId('home-hero')).toBeVisible({ timeout });
   await ensureRailOpen(page);
 }
@@ -194,7 +194,7 @@ test('[P1] targeted Go Plan announcement opens automatically once and stays dism
   // normal Home helper here: it opens the rail, which is deliberately blocked
   // by the modal backdrop we are trying to witness.
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Loading OpenDesign…')).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByText('Loading ComposerDesign…')).toHaveCount(0, { timeout: 15_000 });
   await expect(page.getByTestId('home-hero')).toBeVisible();
 
   const announcement = page.getByTestId('go-plan-sunset-dialog');
@@ -206,7 +206,7 @@ test('[P1] targeted Go Plan announcement opens automatically once and stays dism
   await expect(announcement).toHaveCount(0);
 
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Loading OpenDesign…')).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByText('Loading ComposerDesign…')).toHaveCount(0, { timeout: 15_000 });
   await expect(page.getByTestId('home-hero')).toBeVisible();
   await expect(announcement).toHaveCount(0);
 });

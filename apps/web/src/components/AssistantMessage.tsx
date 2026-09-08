@@ -392,11 +392,11 @@ interface Props {
   ) => Promise<{ message?: string; url?: string } | void> | { message?: string; url?: string } | void;
   activePluginActionPaths?: Set<string>;
   hiddenPluginActionPaths?: Set<string>;
-  // Click handler for the post-completion "Share to OpenDesign" submission
+  // Click handler for the post-completion "Share to ComposerDesign" submission
   // action. ProjectView wires this to handleSend with the bundled
   // `od-share-to-community` trigger prompt.
-  onShareToOpenDesign?: () => void;
-  shareToOpenDesignBusy?: boolean;
+  onShareToComposerDesign?: () => void;
+  shareToComposerDesignBusy?: boolean;
   // Consecutive messages from the same assistant share one identity header.
   // ChatPane sets this false after the first item in a contiguous run.
   showRole?: boolean;
@@ -511,7 +511,7 @@ const ASSISTANT_MESSAGE_COMPARED_PROPS: Array<keyof Props> = [
   'nextUserContent',
   'questionFormSubmitDisabled',
   'forking',
-  'shareToOpenDesignBusy',
+  'shareToComposerDesignBusy',
   'suppressDirectionForms',
   'hasDesignSystemContext',
   'nextStepAiOptimizeBusy',
@@ -614,8 +614,8 @@ function AssistantMessageImpl({
   onRequestPluginFolderAgentAction,
   activePluginActionPaths = new Set(),
   hiddenPluginActionPaths = new Set(),
-  onShareToOpenDesign,
-  shareToOpenDesignBusy = false,
+  onShareToComposerDesign,
+  shareToComposerDesignBusy = false,
   showRole = true,
   isLast,
   isLastTurn,
@@ -1255,9 +1255,9 @@ function AssistantMessageImpl({
     isLast && onContinueRemainingTasks && continuableTodos.length > 0
       ? () => onContinueRemainingTasks(continuableTodos)
       : undefined;
-  const canShowOpenDesignSubmission = !!onShareToOpenDesign && showFeedback && runSucceeded;
-  const showOpenDesignSubmission =
-    canShowOpenDesignSubmission && (!!isLast || shareToOpenDesignBusy);
+  const canShowComposerDesignSubmission = !!onShareToComposerDesign && showFeedback && runSucceeded;
+  const showComposerDesignSubmission =
+    canShowComposerDesignSubmission && (!!isLast || shareToComposerDesignBusy);
   const effectiveNextStepVariant: NextStepActionsVariant =
     nextStepVariant === 'brand-extraction' && (!runSucceeded || !nextStepArtifactName)
       ? 'brand-programmatic-incomplete'
@@ -1446,7 +1446,7 @@ function AssistantMessageImpl({
     !hasPendingQuestionForm &&
     ((ownsTrailingNextStep && hasNextStepPrimary &&
       ((runSucceeded && nextStepDeliveryEvidence) || isBrandExtractionRecovery)) ||
-      showOpenDesignSubmission);
+      showComposerDesignSubmission);
   // Pre-output vs working: before any real content (text / thinking / tools /
   // files) the footer shimmers "Preparing…"; the moment content lands it
   // flips to "Working". The elapsed clock stays anchored to the persisted run
@@ -1775,8 +1775,8 @@ function AssistantMessageImpl({
               ownsTrailingNextStep && nextStepFileName ? onArtifactDownload : undefined
             }
             skills={ownsTrailingNextStep ? nextStepSkills : undefined}
-            onShareToOpenDesign={showOpenDesignSubmission ? onShareToOpenDesign : undefined}
-            shareToOpenDesignBusy={shareToOpenDesignBusy}
+            onShareToComposerDesign={showComposerDesignSubmission ? onShareToComposerDesign : undefined}
+            shareToComposerDesignBusy={shareToComposerDesignBusy}
             variant={effectiveNextStepVariant}
           />
         ) : null}
@@ -3234,7 +3234,7 @@ function pathMatchesFolderFileBasename(
 }
 
 function hasPluginFinalActionHint(content: string): boolean {
-  return /\b(Add to My plugins|OpenDesign PR|Publish repo|plugin publish|ready to publish|ready to add)\b/i.test(
+  return /\b(Add to My plugins|ComposerDesign PR|Publish repo|plugin publish|ready to publish|ready to add)\b/i.test(
     content,
   );
 }

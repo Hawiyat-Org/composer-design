@@ -82,7 +82,7 @@ describe("verifyPackagedDataRootWritable", () => {
       }
 
       expect(captured).toBeInstanceOf(PackagedPathAccessError);
-      expect((captured as Error).message).toContain("Open Design could not create or write to:");
+      expect((captured as Error).message).toContain("Composer Design could not create or write to:");
       expect((captured as Error).message).toContain(join(blocker, "data"));
       expect((captured as Error).message).toContain("Current user:");
       expect((captured as Error).message).toContain("Try in Terminal:");
@@ -107,13 +107,13 @@ describe("claimPackagedSingleInstanceLock", () => {
     const focusExisting = vi.fn();
 
     expect(claimPackagedSingleInstanceLock(app, focusExisting)).toBe(true);
-    listeners.get("second-instance")?.({}, ["Open Design.exe", "--from-protocol"]);
+    listeners.get("second-instance")?.({}, ["Composer Design.exe", "--from-protocol"]);
 
     expect(app.requestSingleInstanceLock).toHaveBeenCalledTimes(1);
     expect(app.on).toHaveBeenCalledWith("second-instance", expect.any(Function));
     expect(app.quit).not.toHaveBeenCalled();
     expect(focusExisting).toHaveBeenCalledExactlyOnceWith([
-      "Open Design.exe",
+      "Composer Design.exe",
       "--from-protocol",
     ]);
   });
@@ -148,7 +148,7 @@ describe("claimPackagedSingleInstanceLock", () => {
       expect(claimPackagedSingleInstanceLock(app, (argv) => {
         handoff.handle(findPackagedDeeplinkArg(argv));
       })).toBe(true);
-      listeners.get("second-instance")?.({}, ["Open Design.exe", deeplinkUrl]);
+      listeners.get("second-instance")?.({}, ["Composer Design.exe", deeplinkUrl]);
 
       expect(show).not.toHaveBeenCalled();
       expect(dispatchDeeplink).not.toHaveBeenCalled();

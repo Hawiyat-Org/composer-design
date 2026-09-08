@@ -361,7 +361,7 @@ export function attachCodexAppServerSession(
     {
       clientInfo: {
         name: 'open-design',
-        title: 'Open Design',
+        title: 'Composer Design',
         version: opts.clientVersion ?? '0.0.0',
       },
       capabilities: { experimentalApi: false, requestAttestation: false },

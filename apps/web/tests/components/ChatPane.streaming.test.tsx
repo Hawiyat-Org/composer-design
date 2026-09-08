@@ -113,8 +113,8 @@ vi.mock('../../src/components/AssistantMessage', () => ({
     streaming,
     message,
     isLast,
-    onShareToOpenDesign,
-    shareToOpenDesignBusy,
+    onShareToComposerDesign,
+    shareToComposerDesignBusy,
     showConversationTodoCard,
     conversationTodoInput,
     showRole,
@@ -122,8 +122,8 @@ vi.mock('../../src/components/AssistantMessage', () => ({
     streaming: boolean;
     message: ChatMessage;
     isLast?: boolean;
-    onShareToOpenDesign?: () => void;
-    shareToOpenDesignBusy?: boolean;
+    onShareToComposerDesign?: () => void;
+    shareToComposerDesignBusy?: boolean;
     showConversationTodoCard?: boolean;
     conversationTodoInput?: {
       todos?: Array<{ content: string; status?: string }>;
@@ -147,14 +147,14 @@ vi.mock('../../src/components/AssistantMessage', () => ({
           })}
         </div>
       ) : null}
-      {onShareToOpenDesign ? (
+      {onShareToComposerDesign ? (
         <button
           type="button"
           data-testid={`share-to-od-${message.id}`}
-          disabled={shareToOpenDesignBusy}
-          onClick={onShareToOpenDesign}
+          disabled={shareToComposerDesignBusy}
+          onClick={onShareToComposerDesign}
         >
-          {shareToOpenDesignBusy ? 'Preparing package…' : 'Share to OpenDesign'}
+          {shareToComposerDesignBusy ? 'Preparing package…' : 'Share to ComposerDesign'}
         </button>
       ) : null}
     </>
@@ -605,7 +605,7 @@ describe('ChatPane streaming state', () => {
       agentId: 'amr',
     });
 
-    expect(text).toMatch(/^json-rpc id 4: Connection reset by server\n\nOpenDesign run error diagnostics/);
+    expect(text).toMatch(/^json-rpc id 4: Connection reset by server\n\nComposerDesign run error diagnostics/);
     expect(text).not.toContain('raw_error:');
     expect(text).toContain('error_code: UPSTREAM_UNAVAILABLE');
     expect(text).not.toContain('\nerror:\n');
@@ -623,7 +623,7 @@ describe('ChatPane streaming state', () => {
       agentId: 'amr',
     });
 
-    expect(text).toMatch(/^Connection dropped\. Try again\.\n\nOpenDesign run error diagnostics/);
+    expect(text).toMatch(/^Connection dropped\. Try again\.\n\nComposerDesign run error diagnostics/);
     expect(text).not.toContain('raw_error:');
     expect(text).toContain('error_code: AGENT_CONNECTION_DROPPED');
     expect(text).not.toContain('\nerror:\n');
@@ -671,7 +671,7 @@ describe('ChatPane streaming state', () => {
 
     expect(text).not.toContain('agent_stderr_tail');
     expect(text).toMatch(
-      /^json-rpc id 4: Connection reset by server\n\nOpenDesign run error diagnostics/,
+      /^json-rpc id 4: Connection reset by server\n\nComposerDesign run error diagnostics/,
     );
   });
 
@@ -1255,8 +1255,8 @@ Expected output:
     expect(screen.getByTestId('assistant-streaming-assistant-1').textContent).toBe('streaming');
   });
 
-  it('keeps Share to OpenDesign busy on the assistant turn that started packaging', () => {
-    const onShareToOpenDesign = vi.fn();
+  it('keeps Share to ComposerDesign busy on the assistant turn that started packaging', () => {
+    const onShareToComposerDesign = vi.fn();
     const completedAssistant: ChatMessage = {
       id: 'assistant-1',
       role: 'assistant',
@@ -1284,26 +1284,26 @@ Expected output:
       onSelectConversation: vi.fn(),
       onDeleteConversation: vi.fn(),
       projectMetadata,
-      onShareToOpenDesign,
+      onShareToComposerDesign,
     };
 
     const { rerender } = render(
       <ChatPane
         {...commonProps}
         messages={initialMessages}
-        shareToOpenDesignBusyMessageId={null}
+        shareToComposerDesignBusyMessageId={null}
       />,
     );
 
     fireEvent.click(screen.getByTestId('share-to-od-assistant-1'));
-    expect(onShareToOpenDesign).toHaveBeenCalledWith('assistant-1');
+    expect(onShareToComposerDesign).toHaveBeenCalledWith('assistant-1');
 
     rerender(
       <ChatPane
         {...commonProps}
         messages={[
           ...initialMessages,
-          { id: 'user-2', role: 'user', content: 'Share to OpenDesign', createdAt: 4 },
+          { id: 'user-2', role: 'user', content: 'Share to ComposerDesign', createdAt: 4 },
           {
             id: 'assistant-2',
             role: 'assistant',
@@ -1313,7 +1313,7 @@ Expected output:
             runStatus: 'running',
           },
         ]}
-        shareToOpenDesignBusyMessageId="assistant-1"
+        shareToComposerDesignBusyMessageId="assistant-1"
       />,
     );
 

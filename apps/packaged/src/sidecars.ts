@@ -288,7 +288,7 @@ function baseStatusTimeoutMs(platform: NodeJS.Platform = process.platform): numb
  * will not tear the daemon down before the migration can complete.
  *
  * @see apps/daemon/src/legacy-data-migrator.ts
- * @see https://github.com/nexu-io/open-design/issues/710
+ * @see https://github.com/hawiyat/composer-design/issues/710
  */
 export type RestartPolicy = { allow(nowMs: number): boolean };
 

@@ -109,7 +109,7 @@ export function renderFallbackCard(meta: SkillCardMeta, indexInCatalog: number):
 <body>
   <div class="card">
     <div class="top-bar">
-      <span>OpenDesign · Catalog</span>
+      <span>ComposerDesign · Catalog</span>
       <span>Nº ${indexStr}</span>
     </div>
     <div>

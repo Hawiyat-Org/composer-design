@@ -1,6 +1,6 @@
 /** @module agent-protocol/codex-app-server/normalize
  *
- * Translates codex `app-server` JSON-RPC notifications into the OpenDesign
+ * Translates codex `app-server` JSON-RPC notifications into the ComposerDesign
  * agent-event stream.
  *
  * The design rule here is "one mapping, not two". Everything the daemon already

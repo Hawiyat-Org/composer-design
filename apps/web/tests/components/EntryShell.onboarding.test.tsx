@@ -293,7 +293,7 @@ async function clickCloudSignIn() {
 }
 
 async function findCloudSignInButton() {
-  return screen.findByRole('button', { name: /Sign in to OpenDesign/i });
+  return screen.findByRole('button', { name: /Sign in to ComposerDesign/i });
 }
 
 async function openLocalRuntimeSetup() {
@@ -341,7 +341,7 @@ describe('EntryShell settings menu', () => {
       }
       if (url.endsWith('/api/github/open-design')) {
         return jsonResponse({
-          repo: 'nexu-io/open-design',
+          repo: 'nexu-io/composer-design',
           stargazers_count: 56100,
           fetchedAt: Date.now(),
           stale: false,
@@ -733,7 +733,7 @@ describe('EntryShell Home submit handoff', () => {
   });
 });
 
-describe('EntryShell onboarding OpenDesign AMR runtime', () => {
+describe('EntryShell onboarding ComposerDesign AMR runtime', () => {
   it('gates Home on an authoritative signed-out Cloud session without clearing saved setup', async () => {
     globalThis.fetch = vi.fn(async () =>
       jsonResponse({ loggedIn: false, profile: 'prod', configPath: '/x', user: null }),
@@ -747,7 +747,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     const props = renderHome({ config, amrLoggedIn: false });
 
     expect(
-      await screen.findByRole('heading', { name: 'Sign in to OpenDesign' }),
+      await screen.findByRole('heading', { name: 'Sign in to ComposerDesign' }),
     ).toBeTruthy();
     expect(window.location.pathname).toBe('/onboarding');
     expect(props.onConfigPersist).not.toHaveBeenCalled();
@@ -772,7 +772,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     expect(await screen.findByTestId('home-hero-input')).toBeTruthy();
     expect(window.location.pathname).toBe('/');
     expect(
-      screen.queryByRole('heading', { name: 'Sign in to OpenDesign' }),
+      screen.queryByRole('heading', { name: 'Sign in to ComposerDesign' }),
     ).toBeNull();
   });
 
@@ -794,7 +794,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     expect(
       await screen.findByRole('heading', { name: 'Choose your model source' }),
     ).toBeTruthy();
-    expect(screen.getByRole('radio', { name: /OpenDesign Hosted/i })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: /ComposerDesign Hosted/i })).toBeTruthy();
     expect(screen.getByRole('radio', { name: /Local Agent/i })).toBeTruthy();
     expect(screen.getByRole('radio', { name: /Bring Your Own Key/i })).toBeTruthy();
     expect(screen.queryByRole('heading', { name: 'About you' })).toBeNull();
@@ -818,7 +818,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: /Continue \(signed in\)/i }),
     );
-    const hosted = await screen.findByRole('radio', { name: /OpenDesign Hosted/i });
+    const hosted = await screen.findByRole('radio', { name: /ComposerDesign Hosted/i });
     const local = screen.getByRole('radio', { name: /Local Agent/i });
     hosted.focus();
     fireEvent.keyDown(hosted, { key: 'ArrowDown' });
@@ -1487,7 +1487,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     ).toBe('true');
   });
 
-  it('does not auto-select OpenDesign AMR when the AMR runtime is unavailable', async () => {
+  it('does not auto-select ComposerDesign AMR when the AMR runtime is unavailable', async () => {
     globalThis.fetch = vi.fn(async () =>
       jsonResponse({ loggedIn: false, profile: 'prod', user: null, configPath: '/x' }),
     ) as typeof fetch;
@@ -1496,9 +1496,9 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
       onRefreshAgents: vi.fn(() => [cliAgent()]),
     });
 
-    expect(await screen.findByRole('heading', { name: 'Sign in to OpenDesign' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Sign in to ComposerDesign' })).toBeTruthy();
     expect(await findCloudSignInButton()).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /OpenDesign AMR/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /ComposerDesign AMR/i })).toBeNull();
 
     await waitFor(() => {
       expect(props.onAgentChange).not.toHaveBeenCalledWith('amr');
@@ -1512,16 +1512,16 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     expect(screen.queryByText('Sign in to continue')).toBeNull();
   });
 
-  it('shows OpenDesign Cloud as the default connect surface when AMR is available', async () => {
+  it('shows ComposerDesign Cloud as the default connect surface when AMR is available', async () => {
     globalThis.fetch = vi.fn(async () =>
       jsonResponse({ loggedIn: false, profile: 'prod', user: null, configPath: '/x' }),
     ) as typeof fetch;
     renderOnboarding();
 
-    expect(screen.getByRole('heading', { name: 'Sign in to OpenDesign' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Sign in to ComposerDesign' })).toBeTruthy();
     expect(await findCloudSignInButton()).toBeTruthy();
     // No runtime card, no AMR version text, no "Sign in to continue" CTA.
-    expect(screen.queryByRole('button', { name: /OpenDesign AMR/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /ComposerDesign AMR/i })).toBeNull();
     expect(screen.queryByText('AMR v0.1.0')).toBeNull();
     expect(screen.queryByRole('button', { name: /Sign in to continue/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /Authorize AMR/i })).toBeNull();
@@ -1532,7 +1532,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     expect(
       (screen.getByRole('button', { name: /Bring Your Own Key/i }) as HTMLButtonElement).disabled,
     ).toBe(false);
-    expect(screen.queryByRole('button', { name: /OpenDesign AMR/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /ComposerDesign AMR/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /Authorize AMR/i })).toBeNull();
     expect(screen.queryByText('Not signed in')).toBeNull();
     expect(screen.queryByRole('button', { name: /^Sign in$/i })).toBeNull();
@@ -1729,7 +1729,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     expect(JSON.parse(String(loginInit.body))).toMatchObject({
       attribution: {
         entryId: expect.stringMatching(/^od-amr-/u),
-        sourceProduct: 'open_design',
+        sourceProduct: 'composer_design',
         sourceDetail: 'onboarding_amr_card',
       },
     });
@@ -1794,7 +1794,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     expect(screen.queryByText('Signing in…')).toBeNull();
     // The landing CTA returns to its signed-out copy and is enabled again.
     const cloudButton = await screen.findByRole('button', {
-      name: /Sign in to OpenDesign/i,
+      name: /Sign in to ComposerDesign/i,
     });
     expect(cloudButton.hasAttribute('disabled')).toBe(false);
     expect(
@@ -1975,7 +1975,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     expect(screen.queryByText('Signing in…')).toBeNull();
     expect(
       screen
-        .getByRole('button', { name: /Sign in to OpenDesign/i })
+        .getByRole('button', { name: /Sign in to ComposerDesign/i })
         .hasAttribute('disabled'),
     ).toBe(false);
     expect(props.onCompleteOnboarding).not.toHaveBeenCalled();
@@ -2025,7 +2025,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     // (the two other places a sign-in completes), which fire all three
     // workspace-refresh notifications. That gap left workspaceContext stale
     // until finishOnboarding fired it later, so Home's rail briefly rendered
-    // in its signed-out shape (still showing "Sign in to use OpenDesign
+    // in its signed-out shape (still showing "Sign in to use ComposerDesign
     // Cloud") right after a successful onboarding sign-in.
     const { WORKSPACE_CONTEXT_REFRESH_EVENT, WORKSPACE_BILLING_REFRESH_EVENT, TEAM_PROJECTS_CHANGED_EVENT } =
       await import('../../src/collab/useWorkspaceContext');
@@ -2122,7 +2122,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     });
   });
 
-  it('continues normally when OpenDesign AMR is signed in', async () => {
+  it('continues normally when ComposerDesign AMR is signed in', async () => {
     globalThis.fetch = vi.fn(async () =>
       jsonResponse({
         loggedIn: true,
@@ -2475,13 +2475,13 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
       onRefreshAgents: vi.fn(() => [cliAgent()]),
     });
 
-    expect(screen.getByRole('heading', { name: 'Sign in to OpenDesign' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Sign in to ComposerDesign' })).toBeTruthy();
     const primary = screen.getByRole('button', { name: /Loading/i });
     expect(primary).toBeTruthy();
     expect(primary.getAttribute('aria-busy')).toBe('true');
     expect((primary as HTMLButtonElement).disabled).toBe(true);
     expect(document.querySelector('.onboarding-view__card--skeleton')).toBeNull();
-    expect(screen.queryByRole('button', { name: /OpenDesign AMR/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /ComposerDesign AMR/i })).toBeNull();
     expect(
       (screen.getByRole('button', { name: /Local Agent/i }) as HTMLButtonElement).disabled,
     ).toBe(false);
@@ -2497,7 +2497,7 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     renderOnboarding({ agentsLoading: false });
 
     expect(await findCloudSignInButton()).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /OpenDesign AMR/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /ComposerDesign AMR/i })).toBeNull();
     expect(document.querySelector('.onboarding-view__card--skeleton')).toBeNull();
   });
 
@@ -2512,9 +2512,9 @@ describe('EntryShell onboarding OpenDesign AMR runtime', () => {
     });
 
     expect(
-      await screen.findByRole('button', { name: /Sign in to OpenDesign/i }),
+      await screen.findByRole('button', { name: /Sign in to ComposerDesign/i }),
     ).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /OpenDesign AMR/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /ComposerDesign AMR/i })).toBeNull();
     expect(document.querySelector('.onboarding-view__card--skeleton')).toBeNull();
   });
 

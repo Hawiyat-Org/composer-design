@@ -12,7 +12,7 @@ function drive(frames: Array<{ method: string; params?: unknown }>) {
 
 const THREAD = { threadId: 't1', turnId: 'turn1' };
 
-describe('codex app-server -> OpenDesign event normalization', () => {
+describe('codex app-server -> ComposerDesign event normalization', () => {
   it('reports the thread id on the session-capture status channel', () => {
     const { events } = drive([
       { method: 'thread/started', params: { thread: { id: 'th-abc', cwd: '/w' } } },

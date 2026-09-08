@@ -23,7 +23,7 @@ describe('local MCP plugin observability contract', () => {
     id: 'open-design',
     version: '0.5.0',
     distributionMechanism: 'git_marketplace',
-    publisherClass: 'open_design_first_party',
+    publisherClass: 'composer_design_first_party',
   } as const;
 
   afterEach(() => {
@@ -31,7 +31,7 @@ describe('local MCP plugin observability contract', () => {
     globalThis.fetch = originalFetch;
   });
 
-  it('accepts the bounded OpenDesign context and rejects extra or secret fields', () => {
+  it('accepts the bounded ComposerDesign context and rejects extra or secret fields', () => {
     expect(validateExternalPluginContext(pluginContext)).toEqual(pluginContext);
 
     expect(() => validateExternalPluginContext({
@@ -118,7 +118,7 @@ describe('local MCP plugin observability contract', () => {
       externalPluginId: 'open-design',
       externalPluginVersion: '0.5.0',
       distributionMechanism: 'git_marketplace',
-      publisherClass: 'open_design_first_party',
+      publisherClass: 'composer_design_first_party',
       attributionQuality: 'session_correlated',
       pluginWorkflowId: '018f6f2e-4444-7444-8444-444444444444',
       logicalRequestDigest: logical.digest,
@@ -139,7 +139,7 @@ describe('local MCP plugin observability contract', () => {
         externalPluginId: 'open-design',
         externalPluginVersion: '0.5.0',
         distributionMechanism: 'git_marketplace',
-        publisherClass: 'open_design_first_party',
+        publisherClass: 'composer_design_first_party',
         attributionQuality: 'self_reported',
       },
     })).toEqual({
@@ -374,14 +374,14 @@ describe('local MCP plugin observability contract', () => {
   it('keeps MCP transport failures and delivery completeness as separate facts', () => {
     expect(mcpFailureFacts('start_run', {
       isError: true,
-      content: [{ type: 'text', text: 'cannot reach the OpenDesign daemon' }],
+      content: [{ type: 'text', text: 'cannot reach the ComposerDesign daemon' }],
     })).toEqual({
       error_code: 'DAEMON_UNREACHABLE',
       failure_stage: 'run_accept',
-      failure_source: 'open_design_daemon',
+      failure_source: 'composer_design_daemon',
       failure_category: 'availability',
       retryable: true,
-      user_action: 'start_open_design',
+      user_action: 'start_composer_design',
     });
 
     expect(mcpDeliveryFacts('get_run', {

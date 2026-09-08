@@ -309,7 +309,7 @@ describe('GET /api/mcp/install-info', () => {
 
   it('pins the packaged headless bootstrap in the installed MCP config', async () => {
     const bootstrapArgs =
-      '["-g","-j","/Applications/Open Design.app","--args","--headless"]';
+      '["-g","-j","/Applications/Composer Design.app","--args","--headless"]';
     const { port, server } = await startHarness(
       cliPath,
       {

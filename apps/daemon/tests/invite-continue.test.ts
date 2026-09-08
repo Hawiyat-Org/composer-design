@@ -77,7 +77,7 @@ describe('consumeInviteContinuation', () => {
       });
 
       expect(out.ok && out.context?.workspaceSettingsUrl).toBe(
-        'https://feature.example/settings?workspaceId=ws-team-1&source=open_design',
+        'https://feature.example/settings?workspaceId=ws-team-1&source=composer_design',
       );
     } finally {
       if (previousOrigins === undefined) delete process.env.OD_VELA_WEB_URLS;

@@ -178,7 +178,7 @@ describe('AssistantMessage next-step affordance', () => {
   /**
    * ⚠️ 落点变更,**待产品拍板**。
    *
-   * 「贡献到 OpenDesign 社区」(`onShareToOpenDesign`)原来挂在
+   * 「贡献到 ComposerDesign 社区」(`onShareToComposerDesign`)原来挂在
    * 更多 → 分享 → 贡献 这条三级路径上,而那条路径只在 `default` 档出现。
    * `default` 档现在整档换成 agent 现写的三条建议,所以这个入口在常规交付
    * 回合上**没有落点了**(仅在 brand / plan / design-system 这些工作流档上
@@ -189,7 +189,7 @@ describe('AssistantMessage next-step affordance', () => {
    * 该给贡献入口找哪个新家,由产品定(见交接报告「失去落点的入口」一节)。
    */
   it('no longer routes Contribute through the default variant (needs a new home)', () => {
-    const onShareToOpenDesign = vi.fn();
+    const onShareToComposerDesign = vi.fn();
     render(
       <AssistantMessage
         message={withSuggestions(baseMessage({ producedFiles: [producedFile('landing.html')] }))}
@@ -197,13 +197,13 @@ describe('AssistantMessage next-step affordance', () => {
         projectId="proj-1"
         isLast
         onFeedback={vi.fn()}
-        onShareToOpenDesign={onShareToOpenDesign}
+        onShareToComposerDesign={onShareToComposerDesign}
         {...handlers()}
       />,
     );
     expect(screen.getByTestId('next-step-suggestions')).toBeTruthy();
     expect(screen.queryByTestId('next-step-toolbox-more')).toBeNull();
-    expect(onShareToOpenDesign).not.toHaveBeenCalled();
+    expect(onShareToComposerDesign).not.toHaveBeenCalled();
   });
 
   it('does not render after a simple answer with no deliverable', () => {

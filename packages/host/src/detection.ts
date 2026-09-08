@@ -2,16 +2,16 @@ import {
   OPEN_DESIGN_HOST_GLOBAL,
   OPEN_DESIGN_HOST_VERSION,
   OPEN_DESIGN_HOST_CLIENT_TYPES,
-  type OpenDesignHostBridge,
-  type OpenDesignHostClientType,
-  type OpenDesignHostGlobalScope,
+  type ComposerDesignHostBridge,
+  type ComposerDesignHostClientType,
+  type ComposerDesignHostGlobalScope,
 } from "./protocol.js";
 
 /**
  * @module detection
  *
  * Locates the host bridge on a global scope and structurally validates it.
- * Owns the {@link isOpenDesignHostBridge} type guard plus the scope-lookup
+ * Owns the {@link isComposerDesignHostBridge} type guard plus the scope-lookup
  * helpers used by every renderer-facing accessor.
  */
 
@@ -26,10 +26,10 @@ function hasFunction(record: Record<string, unknown>, key: string): boolean {
 }
 
 /**
- * Structural type guard for a fully-formed {@link OpenDesignHostBridge}: checks
+ * Structural type guard for a fully-formed {@link ComposerDesignHostBridge}: checks
  * version, client type, and the presence of every required capability method.
  */
-export function isOpenDesignHostBridge(value: unknown): value is OpenDesignHostBridge {
+export function isComposerDesignHostBridge(value: unknown): value is ComposerDesignHostBridge {
   if (!isRecord(value)) return false;
   if (value.version !== OPEN_DESIGN_HOST_VERSION) return false;
   const client = value.client;
@@ -81,7 +81,7 @@ export function isOpenDesignHostBridge(value: unknown): value is OpenDesignHostB
 }
 
 /** @internal Read the host-bridge candidate from a scope (or its `window`). */
-function candidateFromScope(scope: OpenDesignHostGlobalScope): unknown {
+function candidateFromScope(scope: ComposerDesignHostGlobalScope): unknown {
   if (OPEN_DESIGN_HOST_GLOBAL in scope) return scope[OPEN_DESIGN_HOST_GLOBAL];
   const windowValue = scope.window;
   if (isRecord(windowValue) && OPEN_DESIGN_HOST_GLOBAL in windowValue) {
@@ -94,17 +94,17 @@ function candidateFromScope(scope: OpenDesignHostGlobalScope): unknown {
  * Resolve the validated host bridge from `scope`, or `null` when absent or
  * malformed.
  */
-export function getOpenDesignHost(scope: OpenDesignHostGlobalScope = globalThis): OpenDesignHostBridge | null {
+export function getComposerDesignHost(scope: ComposerDesignHostGlobalScope = globalThis): ComposerDesignHostBridge | null {
   const candidate = candidateFromScope(scope);
-  return isOpenDesignHostBridge(candidate) ? candidate : null;
+  return isComposerDesignHostBridge(candidate) ? candidate : null;
 }
 
-/** True when a valid OpenDesign host bridge is present on `scope`. */
-export function isOpenDesignHostAvailable(scope: OpenDesignHostGlobalScope = globalThis): boolean {
-  return getOpenDesignHost(scope) != null;
+/** True when a valid ComposerDesign host bridge is present on `scope`. */
+export function isComposerDesignHostAvailable(scope: ComposerDesignHostGlobalScope = globalThis): boolean {
+  return getComposerDesignHost(scope) != null;
 }
 
 /** Detect the host client type on `scope`, falling back to web. */
-export function detectOpenDesignHostClientType(scope: OpenDesignHostGlobalScope = globalThis): OpenDesignHostClientType | "web" {
-  return getOpenDesignHost(scope)?.client.type ?? "web";
+export function detectComposerDesignHostClientType(scope: ComposerDesignHostGlobalScope = globalThis): ComposerDesignHostClientType | "web" {
+  return getComposerDesignHost(scope)?.client.type ?? "web";
 }

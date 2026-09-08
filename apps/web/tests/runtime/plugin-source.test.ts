@@ -129,18 +129,18 @@ describe('derivePluginSourceLinks · url + local + bundled sources', () => {
     expect(out.sourceKindLabel).toBe('Local');
   });
 
-  it('routes bundled official sources to the OpenDesign repo', () => {
+  it('routes bundled official sources to the ComposerDesign repo', () => {
     const out = derivePluginSourceLinks(
       makeRecord({
         sourceKind: 'bundled',
         source:     'plugins/_official/scenarios/od-code-migration',
       }),
     );
-    expect(out.sourceUrl).toBe('https://github.com/nexu-io/open-design');
+    expect(out.sourceUrl).toBe('https://github.com/nexu-io/composer-design');
     expect(out.sourceKindLabel).toBe('Official');
-    expect(out.sourceLabel).toBe('nexu-io/open-design');
-    expect(out.authorProfileUrl).toBe('https://github.com/nexu-io/open-design');
-    expect(out.homepageUrl).toBe('https://github.com/nexu-io/open-design');
+    expect(out.sourceLabel).toBe('nexu-io/composer-design');
+    expect(out.authorProfileUrl).toBe('https://github.com/nexu-io/composer-design');
+    expect(out.homepageUrl).toBe('https://github.com/nexu-io/composer-design');
   });
 });
 
@@ -151,11 +151,11 @@ describe('derivePluginSourceLinks · author + contribute', () => {
         manifest: {
           name:    'p',
           version: '1.0.0',
-          author:  { name: 'OpenDesign', url: 'https://github.com/nexu-io' },
+          author:  { name: 'ComposerDesign', url: 'https://github.com/nexu-io' },
         } as InstalledPluginRecord['manifest'],
       }),
     );
-    expect(out.authorName).toBe('OpenDesign');
+    expect(out.authorName).toBe('ComposerDesign');
     expect(out.authorProfileUrl).toBe('https://github.com/nexu-io');
     expect(out.authorAvatarUrl).toBe('https://github.com/nexu-io.png?size=80');
   });
@@ -195,13 +195,13 @@ describe('derivePluginSourceLinks · author + contribute', () => {
         manifest: {
           name:    'p',
           version: '1.0.0',
-          homepage: 'https://github.com/nexu-io/open-design',
+          homepage: 'https://github.com/nexu-io/composer-design',
         } as InstalledPluginRecord['manifest'],
       }),
     );
-    expect(out.contributeUrl).toBe('https://github.com/nexu-io/open-design/issues/new');
+    expect(out.contributeUrl).toBe('https://github.com/nexu-io/composer-design/issues/new');
     expect(out.contributeOnGithub).toBe(true);
-    expect(out.homepageUrl).toBe('https://github.com/nexu-io/open-design');
+    expect(out.homepageUrl).toBe('https://github.com/nexu-io/composer-design');
   });
 
   it('drops malformed homepage values', () => {
@@ -229,7 +229,7 @@ describe('derivePluginSourceLinks · author + contribute', () => {
 
 describe('authorInitials', () => {
   it('builds two-letter monograms', () => {
-    expect(authorInitials('OpenDesign')).toBe('OD');
+    expect(authorInitials('ComposerDesign')).toBe('OD');
     expect(authorInitials('jane')).toBe('J');
     expect(authorInitials('Long Multi Word Name')).toBe('LM');
   });

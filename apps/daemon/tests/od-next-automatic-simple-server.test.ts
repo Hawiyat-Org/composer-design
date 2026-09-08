@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   AppliedStrategyBindingV2,
   OdNextRuntimeCapabilitySnapshotV1,
-  OpenDesignPlanContractV2,
+  ComposerDesignPlanContractV2,
   ProjectScenarioTaskProfile,
 } from '@open-design/contracts';
 import {
@@ -1183,8 +1183,8 @@ describe('OD Next automatic production through the real server', () => {
     expect(promptBundleText).toContain(`<od-next key="${doneKey}" value="Add an orders list page"/>`);
     expect(promptBundleText).toContain(`<od-focus key="${doneKey}"`);
     expect(promptBundleText.slice(
-      promptBundleText.indexOf('<open_design_core_system_prompt>'),
-      promptBundleText.indexOf('</open_design_core_system_prompt>'),
+      promptBundleText.indexOf('<composer_design_core_system_prompt>'),
+      promptBundleText.indexOf('</composer_design_core_system_prompt>'),
     )).not.toContain(doneKey);
     expect(activeTask?.promptBundle.utf8Bytes).toBe(
       Buffer.byteLength(activeTask?.promptBundle.text ?? '', 'utf8'),
@@ -1845,8 +1845,8 @@ describe('OD Next automatic production through the real server', () => {
       terminal.runs.map((mapping) => mapping.finalText.text),
     );
     expect(invocations[0]?.argv).not.toContain('resume');
-    expect(invocations[0]?.stdin).toMatch(/^<open_design_prompt_bundle/);
-    expect(invocations[0]?.stdin).toContain('<open_design_core_system_prompt>');
+    expect(invocations[0]?.stdin).toMatch(/^<composer_design_prompt_bundle/);
+    expect(invocations[0]?.stdin).toContain('<composer_design_core_system_prompt>');
     expect(invocations[0]?.stdin).toContain('<user_first_prompt>');
     expect(invocations[0]?.stdin).toContain('<task_metadata>');
     expect(invocations[0]?.stdin).toContain('<context>');
@@ -1887,7 +1887,7 @@ describe('OD Next automatic production through the real server', () => {
     // the shared cache prefix, so no per-task or per-run value may appear in it.
     const firstStdin = invocations[0]!.stdin;
     const systemPromptSlice = firstStdin.slice(
-      firstStdin.indexOf('  <open_design_core_system_prompt>'),
+      firstStdin.indexOf('  <composer_design_core_system_prompt>'),
       firstStdin.indexOf('  </active_stages>'),
     );
     expect(systemPromptSlice.length).toBeGreaterThan(0);
@@ -1918,8 +1918,8 @@ describe('OD Next automatic production through the real server', () => {
       .toEqual([true, true]);
     expect(invocations[1]?.stdin).toContain('native continuation — contract_repair');
     expect(invocations[2]?.stdin).toContain('native continuation — production');
-    expect(invocations[1]?.stdin).toMatch(/^<open_design_request_turn/);
-    expect(invocations[2]?.stdin).toMatch(/^<open_design_request_turn/);
+    expect(invocations[1]?.stdin).toMatch(/^<composer_design_request_turn/);
+    expect(invocations[2]?.stdin).toMatch(/^<composer_design_request_turn/);
     expect(invocations[1]?.stdin).toContain('stage="contract_repair" task_run_index="1"');
     expect(invocations[2]?.stdin).toContain('stage="production" task_run_index="2"');
     expect(invocations[1]?.stdin).not.toContain('# User request');
@@ -2857,7 +2857,7 @@ function planContract(
   strategy: AppliedStrategyBindingV2,
   mode: 'repair' | 'direct' | 'complex' = 'repair',
   capability = complexCapabilitySnapshot(),
-): OpenDesignPlanContractV2 {
+): ComposerDesignPlanContractV2 {
   return {
     schema: 'open-design.plan-contract/v2',
     strategy: {
@@ -2954,7 +2954,7 @@ function machineBlock(tag: string, value: unknown, fenced = false): string {
 async function writeStrategyCodex(
   dir: string,
   mode: 'repair' | 'direct' | 'complex',
-  plan: OpenDesignPlanContractV2,
+  plan: ComposerDesignPlanContractV2,
 ): Promise<{ bin: string; logPath: string }> {
   const bin = path.join(dir, `codex-${mode}`);
   const logPath = path.join(dir, `codex-${mode}.jsonl`);
@@ -3078,7 +3078,7 @@ setTimeout(finish, 1500);
 
 async function writeStrategyClaude(
   dir: string,
-  plan: OpenDesignPlanContractV2,
+  plan: ComposerDesignPlanContractV2,
 ): Promise<{ bin: string; logPath: string }> {
   const bin = path.join(dir, 'claude-complex');
   const logPath = path.join(dir, 'claude-complex.jsonl');

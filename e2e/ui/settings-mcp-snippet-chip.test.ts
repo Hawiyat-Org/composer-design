@@ -122,8 +122,8 @@ test('[P1] MCP OAuth connect callback updates status and supports disconnect', a
 
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.medium });
-  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve OpenDesign' });
+  await page.getByText('Loading ComposerDesign…').waitFor({ state: 'hidden', timeout: T.medium });
+  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve ComposerDesign' });
   if (await privacyDialog.isVisible()) {
     await privacyDialog.getByRole('button', { name: /I get it|not now|got it|don't share/i }).click();
   }

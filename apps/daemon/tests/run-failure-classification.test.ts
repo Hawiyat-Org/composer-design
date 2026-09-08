@@ -1734,7 +1734,7 @@ describe('execution_failed close-reason refinement', () => {
       failure_mechanism: 'frame_too_large',
       failure_domain: 'client_product',
       evidence_level: 'protocol_error',
-      repair_owner: 'open_design',
+      repair_owner: 'composer_design',
       admission_status: 'unknown',
       classifier_version: 'run-failure-v3',
     });
@@ -1761,7 +1761,7 @@ describe('execution_failed close-reason refinement', () => {
       failure_mechanism: 'child_exit',
       failure_domain: 'client_product',
       evidence_level: 'stderr_fallback',
-      repair_owner: 'open_design',
+      repair_owner: 'composer_design',
     });
   });
 
@@ -2510,7 +2510,7 @@ describe('classifyRunFailure — sampled 0.15.1 provider request failures', () =
         failure_mechanism: 'unknown',
         failure_domain: 'client_product',
         evidence_level: 'legacy_text',
-        repair_owner: 'open_design',
+        repair_owner: 'composer_design',
         retryable: false,
         user_action: 'none',
       },
@@ -2527,7 +2527,7 @@ describe('classifyRunFailure — sampled 0.15.1 provider request failures', () =
         failure_mechanism: 'unknown',
         failure_domain: 'client_product',
         evidence_level: 'legacy_text',
-        repair_owner: 'open_design',
+        repair_owner: 'composer_design',
         retryable: false,
         user_action: 'none',
       },
@@ -2544,7 +2544,7 @@ describe('classifyRunFailure — sampled 0.15.1 provider request failures', () =
         failure_mechanism: 'unknown',
         failure_domain: 'client_product',
         evidence_level: 'legacy_text',
-        repair_owner: 'open_design',
+        repair_owner: 'composer_design',
         retryable: false,
         user_action: 'none',
       },
@@ -2587,7 +2587,7 @@ describe('classifyRunFailure — sampled 0.15.1 provider request failures', () =
         failure_mechanism: 'unknown',
         failure_domain: 'client_product',
         evidence_level: 'legacy_text',
-        repair_owner: 'open_design',
+        repair_owner: 'composer_design',
         retryable: false,
         user_action: 'none',
       },

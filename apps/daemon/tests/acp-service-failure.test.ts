@@ -136,7 +136,7 @@ const ROWS: Row[] = [
   // a credential a TOOL reported cannot be answered with "sign in". The
   // curl-inside-bash 401 above is the user's own endpoint, reached from a shell
   // command the agent ran; the sign-in card the old verdict produced offers a
-  // login to Open Design, which does not touch it. Alignment was the right call
+  // login to Composer Design, which does not touch it. Alignment was the right call
   // for that change and is the wrong resting place: an accurate code pointing at
   // an inaccurate card is still an inaccurate card.
   //

@@ -115,7 +115,7 @@ describe('OD Next runtime capability contracts', () => {
         kind: 'sanitized_real',
         recordingDigest: `sha256:${'a'.repeat(64)}`,
         anonymizationVersion: 'redaction/v1',
-        evidenceReview: 'open_design_best_effort',
+        evidenceReview: 'composer_design_best_effort',
       },
     })).toThrow(/exact recorded Agent CLI version/i);
   });

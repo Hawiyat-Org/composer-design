@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { installMockOpenDesignHost } from '@open-design/host/testing';
+import { installMockComposerDesignHost } from '@open-design/host/testing';
 import { advanceWorkspaceAccountGeneration } from '../../src/collab/workspace-identity';
 import {
   buildWorkspacePermissions,
@@ -1925,7 +1925,7 @@ describe('connectConnector', () => {
     vi.stubGlobal('window', {
       open,
     } as unknown as Window & typeof globalThis);
-    const restoreHost = installMockOpenDesignHost({
+    const restoreHost = installMockComposerDesignHost({
       host: { shell: { openExternal } },
     });
     const fetchMock = vi.fn(async (url: string) => {
@@ -1961,7 +1961,7 @@ describe('connectConnector', () => {
     vi.stubGlobal('window', {
       open,
     } as unknown as Window & typeof globalThis);
-    const restoreHost = installMockOpenDesignHost({
+    const restoreHost = installMockComposerDesignHost({
       host: { shell: { openExternal } },
     });
     const fetchMock = vi.fn(async (url: string) => {
@@ -1983,7 +1983,7 @@ describe('connectConnector', () => {
       await expect(connectConnector('github')).resolves.toEqual({
         connector: { id: 'github', name: 'GitHub', status: 'available', tools: [] },
         auth: { kind: 'redirect_required', redirectUrl: 'https://example.com/oauth' },
-        error: 'Popup blocked. Allow popups for OpenDesign and try again.',
+        error: 'Popup blocked. Allow popups for ComposerDesign and try again.',
       });
     } finally {
       restoreHost();

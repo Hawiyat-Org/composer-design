@@ -55,17 +55,17 @@ it; a sentence that only says "it failed" is not an acceptable substitute.
 - \`retry-later\` -- "Image generation is unsteady right now. It isn't anything
   you did; trying again shortly usually works." Simplified Chinese, exactly:
   图片生成这会儿不稳定 —— 不是你的问题,过一会儿再试通常就好。
-- \`update-app\` -- "Open Design needs an update before it can generate images."
+- \`update-app\` -- "Composer Design needs an update before it can generate images."
   Simplified Chinese, exactly:
-  需要更新 Open Design 才能生成图片。
+  需要更新 Composer Design 才能生成图片。
 - \`unsupported\` -- "This task doesn't generate images. Start an image project
   if you need one." Simplified Chinese, exactly:
   这次任务里不能生成图片 —— 需要图片的话,新建一个图片项目再试。
 - \`contact-support\` -- "The image didn't come out, and it isn't anything you
-  did. This one is on Open Design and we've logged it; trying again usually
+  did. This one is on Composer Design and we've logged it; trying again usually
   recovers, and if it keeps happening, contact us." Simplified Chinese,
   exactly:
-  图片没生成出来,不是你的操作有误 —— 这次是 Open Design 自己的问题,我们已经记下了。重试一般能恢复;反复出现的话联系我们。
+  图片没生成出来,不是你的操作有误 —— 这次是 Composer Design 自己的问题,我们已经记下了。重试一般能恢复;反复出现的话联系我们。
 - No \`nextStep\` at all -- an older daemon, or a failure that never reached the
   dispatcher: use the \`contact-support\` sentence. If image generation was
   expected and you never invoked the dispatcher, that is your own miss and it
@@ -129,7 +129,7 @@ lets the model's own default decide. A size or tier the user names IS that
 ask, in any language — "2K", "1k", "high quality", "高质量" — so map it onto
 the flag; restating it inside the prompt text does not reach the provider.
 
-OpenDesign Cloud image and video models use the \`vela/*\` catalogue prefix.
+ComposerDesign Cloud image and video models use the \`vela/*\` catalogue prefix.
 Always invoke those models through \`"$OD_NODE_BIN" "$OD_BIN" media generate\`.
 Never invoke the \`vela\` CLI directly and never call its remote media API.
 The daemon owns model routing, trusted Workspace attribution, task polling,

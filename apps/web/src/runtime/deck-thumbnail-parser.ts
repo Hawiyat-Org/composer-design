@@ -164,7 +164,7 @@ export function parseDeckThumbnails(html: string, baseHref?: string): ParsedDeck
   }
   const rawStyle = stripCssComments(importedBlocks.map((imported) => imported.css).join('\n'));
   if (!rawStyle.trim()) return unrenderable('no-styles');
-  // A shadow-root thumbnail's @media rules evaluate against the Open Design
+  // A shadow-root thumbnail's @media rules evaluate against the Composer Design
   // host window, not the preview iframe. A deck can therefore take its desktop
   // branch in the rail while the visible preview takes its mobile branch. Keep
   // these decks on the isolated iframe fallback, whose viewport is explicitly

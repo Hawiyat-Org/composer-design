@@ -57,7 +57,7 @@ export function registerMcpRoutes(app: Express, ctx: RegisterMcpRoutesDeps) {
       sidecarEnv.OD_MCP_BOOTSTRAP_ARGS = mcpBootstrapArgs;
     }
     // tools-dev / packaged launchers export OD_WEB_PORT so the daemon
-    // knows where the browser-facing OpenDesign studio is running.
+    // knows where the browser-facing ComposerDesign studio is running.
     // CLI-only / headless launches set neither and webBaseUrl falls
     // through as null — MCP clients then just omit the studio deep
     // link from their responses.
@@ -156,7 +156,7 @@ export function registerMcpRoutes(app: Express, ctx: RegisterMcpRoutesDeps) {
     }
   });
 
-  // External MCP server configuration. OpenDesign connects to these as a
+  // External MCP server configuration. ComposerDesign connects to these as a
   // CLIENT and surfaces their tools to the underlying agent at spawn time.
   // GET returns user-saved entries plus the built-in template list so the UI
   // can render the "Add MCP server" picker without a second round-trip.
@@ -388,7 +388,7 @@ function renderOAuthResultPage(opts: any) {
   const title = ok ? 'Connected' : 'Authorization failed';
   const heading = ok ? '✅ Connected' : '⚠️ Authorization failed';
   const body = ok
-    ? `Your MCP server <code>${escapeHtml(opts.serverId ?? '')}</code> is now connected. You can close this tab and return to OpenDesign.`
+    ? `Your MCP server <code>${escapeHtml(opts.serverId ?? '')}</code> is now connected. You can close this tab and return to ComposerDesign.`
     : escapeHtml(opts.message ?? 'Authorization could not be completed.');
   const accent = ok ? '#1a7f37' : '#cf222e';
   const payload = ok
@@ -398,7 +398,7 @@ function renderOAuthResultPage(opts: any) {
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>${escapeHtml(title)} — OpenDesign</title>
+<title>${escapeHtml(title)} — ComposerDesign</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   :root { color-scheme: light dark; }

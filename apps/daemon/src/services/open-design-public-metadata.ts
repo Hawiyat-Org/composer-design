@@ -1,27 +1,27 @@
-export interface OpenDesignGithubRepoStats {
+export interface ComposerDesignGithubRepoStats {
   stargazersCount: number;
   fetchedAt: number;
   stale: boolean;
 }
 
-export interface OpenDesignGithubLatestReleaseInfo {
+export interface ComposerDesignGithubLatestReleaseInfo {
   tagName: string;
   htmlUrl: string;
   fetchedAt: number;
   stale: boolean;
 }
 
-export interface OpenDesignDiscordPresence {
+export interface ComposerDesignDiscordPresence {
   onlineCount: number;
   memberCount: number;
   fetchedAt: number;
   stale: boolean;
 }
 
-export interface OpenDesignPublicMetadataService {
-  readGithubRepoStats(): Promise<OpenDesignGithubRepoStats>;
-  readLatestReleaseInfo(): Promise<OpenDesignGithubLatestReleaseInfo>;
-  readDiscordPresence(): Promise<OpenDesignDiscordPresence>;
+export interface ComposerDesignPublicMetadataService {
+  readGithubRepoStats(): Promise<ComposerDesignGithubRepoStats>;
+  readLatestReleaseInfo(): Promise<ComposerDesignGithubLatestReleaseInfo>;
+  readDiscordPresence(): Promise<ComposerDesignDiscordPresence>;
 }
 
 interface CachedGithubRepoStats {
@@ -61,13 +61,13 @@ interface DiscordInvitePayload {
   profile?: unknown;
 }
 
-export interface OpenDesignPublicMetadataServiceOptions {
+export interface ComposerDesignPublicMetadataServiceOptions {
   fetchImpl?: typeof fetch;
   now?: () => number;
 }
 
-const OPEN_DESIGN_GITHUB_REPO_API = 'https://api.github.com/repos/nexu-io/open-design';
-const OPEN_DESIGN_GITHUB_RELEASE_LATEST_API = 'https://api.github.com/repos/nexu-io/open-design/releases/latest';
+const OPEN_DESIGN_GITHUB_REPO_API = 'https://api.github.com/repos/hawiyat/composer-design';
+const OPEN_DESIGN_GITHUB_RELEASE_LATEST_API = 'https://api.github.com/repos/hawiyat/composer-design/releases/latest';
 const OPEN_DESIGN_GITHUB_CACHE_TTL_MS = 60 * 60 * 1000;
 const OPEN_DESIGN_GITHUB_TIMEOUT_MS = 4_000;
 const OPEN_DESIGN_DISCORD_INVITE_CODE = 'mHAjSMV6gz';
@@ -93,18 +93,18 @@ function withFreshness<T extends { fetchedAt: number }>(
   return { ...value, stale };
 }
 
-export function createOpenDesignPublicMetadataService({
+export function createComposerDesignPublicMetadataService({
   fetchImpl = fetch,
   now = () => Date.now(),
-}: OpenDesignPublicMetadataServiceOptions = {}): OpenDesignPublicMetadataService {
+}: ComposerDesignPublicMetadataServiceOptions = {}): ComposerDesignPublicMetadataService {
   let githubRepoCache: CachedGithubRepoStats | null = null;
-  let githubRepoInflight: Promise<OpenDesignGithubRepoStats> | null = null;
+  let githubRepoInflight: Promise<ComposerDesignGithubRepoStats> | null = null;
   let githubLatestReleaseCache: CachedGithubLatestReleaseInfo | null = null;
-  let githubLatestReleaseInflight: Promise<OpenDesignGithubLatestReleaseInfo> | null = null;
+  let githubLatestReleaseInflight: Promise<ComposerDesignGithubLatestReleaseInfo> | null = null;
   let discordPresenceCache: CachedDiscordPresence | null = null;
-  let discordPresenceInflight: Promise<OpenDesignDiscordPresence> | null = null;
+  let discordPresenceInflight: Promise<ComposerDesignDiscordPresence> | null = null;
 
-  async function readGithubRepoStats(): Promise<OpenDesignGithubRepoStats> {
+  async function readGithubRepoStats(): Promise<ComposerDesignGithubRepoStats> {
     const currentTime = now();
     if (
       githubRepoCache &&
@@ -148,7 +148,7 @@ export function createOpenDesignPublicMetadataService({
     return githubRepoInflight;
   }
 
-  async function readLatestReleaseInfo(): Promise<OpenDesignGithubLatestReleaseInfo> {
+  async function readLatestReleaseInfo(): Promise<ComposerDesignGithubLatestReleaseInfo> {
     const currentTime = now();
     if (
       githubLatestReleaseCache &&
@@ -193,7 +193,7 @@ export function createOpenDesignPublicMetadataService({
     return githubLatestReleaseInflight;
   }
 
-  async function readDiscordPresence(): Promise<OpenDesignDiscordPresence> {
+  async function readDiscordPresence(): Promise<ComposerDesignDiscordPresence> {
     const currentTime = now();
     if (
       discordPresenceCache &&

@@ -165,13 +165,13 @@ const AMR_ANALYTICS_ENVS: ReadonlySet<AmrAnalyticsEnv> = new Set([
 ]);
 
 export interface AmrEntryAnalyticsPayload {
-  pageName: 'open_design';
+  pageName: 'composer_design';
   sourcePageName: AmrEntrySourcePageName;
   area: 'amr_entry';
   element: TrackingAmrEntrySource;
   action: 'click_amr_entry';
   entryId: string;
-  sourceProduct: 'open_design';
+  sourceProduct: 'composer_design';
   sourceDetail: TrackingAmrEntrySource;
   entryOccurredAt: string;
   // Campaign dimensions mirrored from the web consent-gated channel so the
@@ -188,13 +188,13 @@ export interface AmrEntryAnalyticsPayload {
 }
 
 export interface AmrOnboardingProfileAnalyticsPayload {
-  pageName: 'open_design';
+  pageName: 'composer_design';
   sourcePageName: 'onboarding';
   area: 'onboarding';
   element: 'about_you_submit';
   action: 'submit_profile';
   entryId: string;
-  sourceProduct: 'open_design';
+  sourceProduct: 'composer_design';
   sourceDetail: TrackingAmrEntrySource;
   entryOccurredAt: string;
   profileOccurredAt: string;
@@ -1556,7 +1556,7 @@ export function parseVelaLoginAttribution(input: unknown): AmrEntryAttribution |
   if (
     typeof value.entryId !== 'string'
     || value.entryId.length === 0
-    || value.sourceProduct !== 'open_design'
+    || value.sourceProduct !== 'composer_design'
     || typeof value.sourceDetail !== 'string'
     || !AMR_ENTRY_SOURCES.has(value.sourceDetail as TrackingAmrEntrySource)
     || typeof value.occurredAt !== 'string'
@@ -1564,7 +1564,7 @@ export function parseVelaLoginAttribution(input: unknown): AmrEntryAttribution |
   ) {
     return null;
   }
-  const odDeviceId = sanitizeOpenDesignDeviceId(value.odDeviceId);
+  const odDeviceId = sanitizeComposerDesignDeviceId(value.odDeviceId);
   return {
     entryId: value.entryId,
     sourceProduct: value.sourceProduct,
@@ -1597,7 +1597,7 @@ export function parseAmrEntryAnalyticsPayload(
   const odSource = sanitizeOptionalProfileValue(raw.odSource);
   const odUseCase = sanitizeOptionalProfileList(raw.odUseCase);
   if (
-    pageName !== 'open_design'
+    pageName !== 'composer_design'
     || typeof sourcePageName !== 'string'
     || !AMR_ENTRY_SOURCE_PAGES.has(sourcePageName as AmrEntrySourcePageName)
     || area !== 'amr_entry'
@@ -1606,7 +1606,7 @@ export function parseAmrEntryAnalyticsPayload(
     || action !== 'click_amr_entry'
     || typeof entryId !== 'string'
     || entryId.length === 0
-    || sourceProduct !== 'open_design'
+    || sourceProduct !== 'composer_design'
     || typeof sourceDetail !== 'string'
     || !AMR_ENTRY_SOURCES.has(sourceDetail as TrackingAmrEntrySource)
     || sourceDetail !== element
@@ -1665,20 +1665,20 @@ export function parseAmrOnboardingProfileAnalyticsPayload(
   const sourceDetail = raw.sourceDetail;
   const entryOccurredAt = raw.entryOccurredAt;
   const profileOccurredAt = raw.profileOccurredAt;
-  const odDeviceId = sanitizeOpenDesignDeviceId(raw.odDeviceId);
+  const odDeviceId = sanitizeComposerDesignDeviceId(raw.odDeviceId);
   const odRole = sanitizeOptionalProfileValue(raw.odRole);
   const odOrgSize = sanitizeOptionalProfileValue(raw.odOrgSize);
   const odSource = sanitizeOptionalProfileValue(raw.odSource);
   const odUseCase = sanitizeOptionalProfileList(raw.odUseCase);
   if (
-    pageName !== 'open_design'
+    pageName !== 'composer_design'
     || sourcePageName !== 'onboarding'
     || area !== 'onboarding'
     || element !== 'about_you_submit'
     || action !== 'submit_profile'
     || typeof entryId !== 'string'
     || entryId.length === 0
-    || sourceProduct !== 'open_design'
+    || sourceProduct !== 'composer_design'
     || typeof sourceDetail !== 'string'
     || !AMR_ENTRY_SOURCES.has(sourceDetail as TrackingAmrEntrySource)
     || !AMR_ONBOARDING_PROFILE_SOURCES.has(sourceDetail as TrackingAmrEntrySource)
@@ -1747,7 +1747,7 @@ function sanitizeOptionalProfileList(
   return cleaned.length > 0 ? cleaned : undefined;
 }
 
-function sanitizeOpenDesignDeviceId(value: unknown): string | null {
+function sanitizeComposerDesignDeviceId(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (!trimmed || trimmed.length > OD_DEVICE_ID_MAX_LENGTH) return null;
@@ -1836,7 +1836,7 @@ function buildAmrEntryAnalyticsCommon(
   return {
     eventId: `od-amr-entry-${payload.entryId}`,
     eventTime: payload.entryOccurredAt,
-    registryKey: 'open_design_amr_entry',
+    registryKey: 'composer_design_amr_entry',
     eventName: 'amr_entry',
     eventType: 'click',
     platform: 'web',
@@ -1868,7 +1868,7 @@ function buildAmrOnboardingProfileAnalyticsCommon(
   return {
     eventId: `od-onboarding-profile-${payload.entryId}`,
     eventTime: payload.profileOccurredAt,
-    registryKey: 'open_design_onboarding_profile',
+    registryKey: 'composer_design_onboarding_profile',
     eventName: 'onboarding_profile',
     eventType: 'result',
     platform: 'web',

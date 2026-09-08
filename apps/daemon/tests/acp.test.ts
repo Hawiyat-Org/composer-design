@@ -3693,7 +3693,7 @@ test('attachAcpSession promotes allowlisted OpenCode role-marker ACP errors', ()
       retryable: true,
       details: {
         ...details,
-        promoted_by: 'open_design_acp',
+        promoted_by: 'composer_design_acp',
       },
     },
   });

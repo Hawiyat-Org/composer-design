@@ -308,11 +308,11 @@ async function resolvePayloadConfig(
     ? raw.webOutputMode
     : config.webOutputMode;
   const resourceRoot = raw.resourceRoot == null || raw.resourceRoot.length === 0
-    ? join(resourcesPath, "open-design")
+    ? join(resourcesPath, "composer-design")
     : raw.resourceRoot;
   const relativeNodeCommand =
     raw.nodeCommandRelative == null || raw.nodeCommandRelative.length === 0
-      ? join("open-design", "bin", process.platform === "win32" ? "node.exe" : "node")
+      ? join("composer-design", "bin", process.platform === "win32" ? "node.exe" : "node")
       : raw.nodeCommandRelative;
   const nodeCommand = await resolveOptionalPayloadEntry(resourcesPath, relativeNodeCommand);
   const electronNodeCommand = manifest.platform === "win32"
@@ -322,7 +322,7 @@ async function resolvePayloadConfig(
     )
     : null;
   const rawWebStandaloneRoot = raw.webStandaloneRoot == null || raw.webStandaloneRoot.length === 0
-    ? webOutputMode === "standalone" ? join(resourcesPath, "open-design-web-standalone") : null
+    ? webOutputMode === "standalone" ? join(resourcesPath, "composer-design-web-standalone") : null
     : raw.webStandaloneRoot;
   const webStandaloneRoot = await resolveWindowsWebStandaloneRoot(
     versionPaths,

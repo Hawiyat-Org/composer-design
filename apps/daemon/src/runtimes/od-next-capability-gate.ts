@@ -63,7 +63,7 @@ const ALL_REQUIRED_CASES = [
 ] as const;
 
 /**
- * Exact Codex 0.147.0 tuple replayed by Open Design against the installed CLI
+ * Exact Codex 0.147.0 tuple replayed by Composer Design against the installed CLI
  * and the matching rust-v0.147.0 source. The failure case uses a local
  * Responses endpoint that closes only the already-started Child stream, so it
  * exercises Codex's native task_complete.error and parent recovery path
@@ -82,14 +82,14 @@ export const CODEX_0_147_0_BEST_EFFORT_MANIFEST =
       recordingDigest:
         'sha256:729d0e58e80e7b8b81eb90ad286471a26c3df80411f0b0f7092c19d157b50cc6',
       anonymizationVersion: 'od-runtime-evidence/v1',
-      evidenceReview: 'open_design_best_effort',
+      evidenceReview: 'composer_design_best_effort',
     },
     containsSensitiveContent: false,
     cases: ALL_REQUIRED_CASES,
   });
 
 /**
- * Open Design-owned best-effort replay for the exact native OpenCode tuple.
+ * Composer Design-owned best-effort replay for the exact native OpenCode tuple.
  * The source recording is reduced to structural facts in the checked-in seed;
  * no upstream or runtime-owner endorsement is implied.
  */
@@ -106,14 +106,14 @@ export const OPENCODE_1_18_18_BEST_EFFORT_MANIFEST =
       recordingDigest:
         'sha256:b1224716a340401879cfb2f366d1252e9f837ce24050d9b0dfa4430f89492fc5',
       anonymizationVersion: 'od-runtime-evidence/v1',
-      evidenceReview: 'open_design_best_effort',
+      evidenceReview: 'composer_design_best_effort',
     },
     containsSensitiveContent: false,
     cases: ALL_REQUIRED_CASES,
   });
 
 /**
- * Open Design-owned replay of the exact Claude 2.1.233 Agent stream-json
+ * Composer Design-owned replay of the exact Claude 2.1.233 Agent stream-json
  * protocol. The checked-in seed contains structural identities only; no
  * Prompt body, output, path, credential, or upstream endorsement is retained.
  */
@@ -130,7 +130,7 @@ export const CLAUDE_2_1_233_BEST_EFFORT_MANIFEST =
       recordingDigest:
         'sha256:5681a9a211562e119efc470b6846a4be8b3ee822f4e15f8967c19871e69c9b8b',
       anonymizationVersion: 'od-runtime-evidence/v1',
-      evidenceReview: 'open_design_best_effort',
+      evidenceReview: 'composer_design_best_effort',
     },
     containsSensitiveContent: false,
     cases: ALL_REQUIRED_CASES,
@@ -173,7 +173,7 @@ export const VELA_OPENCODE_LOCAL_BEST_EFFORT_MANIFEST =
       recordingDigest:
         'sha256:6fe49f1e0946b2220052b2239494786879c03c972b5be12dee30a7973872f6aa',
       anonymizationVersion: 'od-runtime-evidence/v1',
-      evidenceReview: 'open_design_best_effort',
+      evidenceReview: 'composer_design_best_effort',
     },
     containsSensitiveContent: false,
     cases: ALL_REQUIRED_CASES,

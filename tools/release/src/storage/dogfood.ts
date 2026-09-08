@@ -51,7 +51,7 @@ export type DogfoodLocation = {
 
 /**
  * Coerce one path component into a safe segment. Build artifacts ship names
- * like `Open Design-release-beta-win-setup.exe`; the space would otherwise be
+ * like `Composer Design-release-beta-win-setup.exe`; the space would otherwise be
  * percent-encoded into every link handed to a teammate.
  */
 export function sanitizeDogfoodSegment(value: string): string {

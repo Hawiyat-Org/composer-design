@@ -20,9 +20,9 @@ describe('OD Next canonical Prompt Bundle v1', () => {
     const serialized = serializeOdNextPromptBundleV1(input);
     expect(serialized).toBe(serializeOdNextPromptBundleV1(input));
     expect(serialized.startsWith(
-      '<open_design_prompt_bundle schema="' + OD_NEXT_PROMPT_BUNDLE_SCHEMA_V1 + '">',
+      '<composer_design_prompt_bundle schema="' + OD_NEXT_PROMPT_BUNDLE_SCHEMA_V1 + '">',
     )).toBe(true);
-    expect(serialized.endsWith('</open_design_prompt_bundle>')).toBe(true);
+    expect(serialized.endsWith('</composer_design_prompt_bundle>')).toBe(true);
     expect(serialized.indexOf('<system_prompt>')).toBeLessThan(serialized.indexOf('<user_prompt>'));
     expect(serialized.indexOf('<user_prompt>')).toBeLessThan(serialized.indexOf('<task_config>'));
     expect(serialized.indexOf('<task_config>')).toBeLessThan(serialized.indexOf('<context>'));

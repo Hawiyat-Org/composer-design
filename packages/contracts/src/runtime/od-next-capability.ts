@@ -94,7 +94,7 @@ export const RuntimeFixtureProvenanceV1Schema = z.union([
     kind: z.literal('sanitized_real'),
     recordingDigest: sha256Schema,
     anonymizationVersion: nonEmptyStringSchema,
-    evidenceReview: z.literal('open_design_best_effort').optional(),
+    evidenceReview: z.literal('composer_design_best_effort').optional(),
     /** @deprecated Older manifests may carry this review note. */
     runtimeOwnerAttestation: nonEmptyStringSchema.optional(),
   }).strict().superRefine((provenance, context) => {
@@ -102,7 +102,7 @@ export const RuntimeFixtureProvenanceV1Schema = z.union([
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['evidenceReview'],
-        message: 'Sanitized real fixtures require an Open Design evidence review.',
+        message: 'Sanitized real fixtures require an Composer Design evidence review.',
       });
     }
   }),

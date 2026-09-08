@@ -255,7 +255,7 @@ describe('composeSystemPrompt', () => {
         skillMode: surface,
         metadata: { kind: surface } as any,
       });
-      expect(prompt).not.toContain('# OpenDesign Charter');
+      expect(prompt).not.toContain('# ComposerDesign Charter');
       expect(prompt).not.toContain('## Requirements Clarification Phase');
       expect(prompt).not.toContain('## Delivery');
       // Nor the Ask-mode charter (fourth-round finding): CHAT_MODE_OVERRIDE
@@ -265,7 +265,7 @@ describe('composeSystemPrompt', () => {
     }
     // Non-media slim runs keep the charter head.
     const design = composeSystemPrompt({ promptCoreVariant: 'slim' });
-    expect(design).toContain('# OpenDesign Charter');
+    expect(design).toContain('# ComposerDesign Charter');
     expect(design).toContain('## Requirements Clarification Phase');
   });
 
@@ -431,7 +431,7 @@ describe('composeSystemPrompt', () => {
       expect(prompt).toContain('filesystem execution profile');
       expect(prompt).toContain("runtime's native tool-call interface");
       expect(prompt).toContain('Never type a tool invocation into assistant text');
-      expect(prompt).toContain('This tool-call rule does not apply to OpenDesign UI markup');
+      expect(prompt).toContain('This tool-call rule does not apply to ComposerDesign UI markup');
       expect(prompt).toContain('emit the complete `<question-form>...</question-form>` block directly');
       expect(prompt).toContain('Do not output generated source code in a `<artifact type="text/html">...</artifact>` block.');
     });
@@ -445,7 +445,7 @@ describe('composeSystemPrompt', () => {
       expect(amrPrompt).toContain(
         'Video model: `vela/doubao-seedance-2-0-260128`',
       );
-      expect(amrPrompt).toContain('### OpenDesign Cloud media defaults');
+      expect(amrPrompt).toContain('### ComposerDesign Cloud media defaults');
       expect(amrPrompt).not.toContain('### Run-scoped BYOK media defaults');
       expect(amrPrompt).toContain('Never invoke the `vela` CLI directly');
       expect(amrPrompt).toContain('trusted Workspace attribution');
@@ -464,7 +464,7 @@ describe('composeSystemPrompt', () => {
       expect(imagePrompt).toContain('reply exactly `图片已生成`');
       expect(imagePrompt).toContain('`error.nextStep`');
       expect(imagePrompt).toContain(
-        '图片没生成出来,不是你的操作有误 —— 这次是 Open Design 自己的问题,我们已经记下了。重试一般能恢复;反复出现的话联系我们。',
+        '图片没生成出来,不是你的操作有误 —— 这次是 Composer Design 自己的问题,我们已经记下了。重试一般能恢复;反复出现的话联系我们。',
       );
       expect(imagePrompt).toContain('tool output and daemon logs');
       expect(imagePrompt).not.toContain('the filename, the model used');
@@ -479,7 +479,7 @@ describe('composeSystemPrompt', () => {
       expect(prototypePrompt).toContain('reply exactly `图片已生成`');
       expect(prototypePrompt).toContain('`error.nextStep`');
       expect(prototypePrompt).toContain(
-        '图片没生成出来,不是你的操作有误 —— 这次是 Open Design 自己的问题,我们已经记下了。重试一般能恢复;反复出现的话联系我们。',
+        '图片没生成出来,不是你的操作有误 —— 这次是 Composer Design 自己的问题,我们已经记下了。重试一般能恢复;反复出现的话联系我们。',
       );
       expect(prototypePrompt).toContain('IMAGE_MODEL="vela/gpt-image-2"');
       expect(prototypePrompt).not.toContain(
@@ -510,7 +510,7 @@ describe('composeSystemPrompt', () => {
     it('prioritizes question forms over native tool calls when clarifying', () => {
       const prompt = composeSystemPrompt({ agentId: 'amr' });
       expect(prompt).toContain('## Structured clarification on any turn');
-      expect(prompt).toContain('`<question-form>` is assistant text for the OpenDesign UI, not a native tool call');
+      expect(prompt).toContain('`<question-form>` is assistant text for the ComposerDesign UI, not a native tool call');
       expect(prompt).toContain(
         'emit the complete `<question-form>...</question-form>` block directly in the assistant message before any TodoWrite, file write/edit, Bash, or other native tool call',
       );
@@ -618,7 +618,7 @@ describe('composeSystemPrompt', () => {
         metadata: { kind: 'image' },
         mediaExecution: { mode: 'disabled' },
       });
-      expect(prompt).toContain('OpenDesign-owned media execution is **disabled for this run**');
+      expect(prompt).toContain('ComposerDesign-owned media execution is **disabled for this run**');
       expect(prompt).toContain('use the fixed `unsupported` sentence');
       expect(prompt).toContain('这次任务里不能生成图片 —— 需要图片的话,新建一个图片项目再试。');
       expect(prompt).not.toContain('describe the intended creative brief');

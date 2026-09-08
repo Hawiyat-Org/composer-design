@@ -239,7 +239,7 @@ export interface ComposerPlusMenuProps {
    * implement it by clicking the design-system trigger that already sits in
    * the same composer footer, so the row duplicated a visible control.
    */
-  onOpenDesignSystems?: () => void;
+  onComposerDesignSystems?: () => void;
 
   /**
    * Optional "Design toolbox" row, rendered LAST. Only the project composer

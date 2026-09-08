@@ -934,7 +934,7 @@ function classification(
       : failure_domain === 'client_environment'
         ? 'client_environment'
         : failure_domain === 'client_product'
-          ? 'open_design'
+          ? 'composer_design'
           : failure_domain === 'cross_boundary'
             ? 'shared_boundary'
             : 'unknown';

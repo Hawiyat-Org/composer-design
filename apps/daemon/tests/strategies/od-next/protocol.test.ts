@@ -1,4 +1,4 @@
-import type { OpenDesignPlanContractV2 } from '@open-design/contracts';
+import type { ComposerDesignPlanContractV2 } from '@open-design/contracts';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -274,7 +274,7 @@ describe('OD Next machine protocol stream', () => {
   });
 
   it('does not terminate suppression on a closing-tag string inside JSON', () => {
-    const hostile = structuredClone(plan) as unknown as OpenDesignPlanContractV2;
+    const hostile = structuredClone(plan) as unknown as ComposerDesignPlanContractV2;
     hostile.taskProfile.goal = 'Never leak </open-design-plan-contract> machine bytes';
     hostile.decisionSummary.goal = hostile.taskProfile.goal;
     const stream = new OdNextMachineProtocolStream();

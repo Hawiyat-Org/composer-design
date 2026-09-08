@@ -3,7 +3,7 @@ name: open-design
 services:
   open-design:
     container_name: open-design
-    image: ${OPEN_DESIGN_IMAGE:-ghcr.io/nexu-io/od:latest}
+    image: ${OPEN_DESIGN_IMAGE:-ghcr.io/hawiyat/composer-design:latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile

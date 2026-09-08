@@ -112,7 +112,7 @@ export function githubRepoNameFromPluginName(name: string): string {
 
 export const PLUGIN_SHARE_ACTION_LABELS: Record<PluginShareAction, string> = {
   'publish-github': 'Publish to GitHub',
-  'contribute-open-design': 'Contribute to OpenDesign',
+  'contribute-open-design': 'Contribute to ComposerDesign',
 };
 
 export const USER_PLUGIN_SOURCE_KINDS = new Set([
@@ -159,10 +159,10 @@ export function renderPluginSharePrompt({ action, sourcePlugin, stagedPath }: Pl
   const title = sourcePlugin.title || sourcePlugin.id;
   if (action === 'publish-github') {
     return [
-      `Publish the local OpenDesign plugin "${title}" as a new public GitHub repository.`,
+      `Publish the local ComposerDesign plugin "${title}" as a new public GitHub repository.`,
       '',
       `The plugin source files have been copied into this project at \`${stagedPath}\`.`,
-      'Use the local daemon share endpoint so the publish flow runs through OpenDesign\'s validated GitHub path:',
+      'Use the local daemon share endpoint so the publish flow runs through ComposerDesign\'s validated GitHub path:',
       '',
       '```bash',
       `curl -sS -X POST "$OD_DAEMON_URL/api/projects/$OD_PROJECT_ID/plugins/publish-github" \\`,
@@ -176,10 +176,10 @@ export function renderPluginSharePrompt({ action, sourcePlugin, stagedPath }: Pl
     ].join('\n');
   }
   return [
-    `Open a pull request to add the local OpenDesign plugin "${title}" to the OpenDesign repository.`,
+    `Open a pull request to add the local ComposerDesign plugin "${title}" to the ComposerDesign repository.`,
     '',
     `The plugin source files have been copied into this project at \`${stagedPath}\`.`,
-    'Use the local daemon share endpoint so the contribution flow runs through OpenDesign\'s validated GitHub path:',
+    'Use the local daemon share endpoint so the contribution flow runs through ComposerDesign\'s validated GitHub path:',
     '',
     '```bash',
     `curl -sS -X POST "$OD_DAEMON_URL/api/projects/$OD_PROJECT_ID/plugins/contribute-open-design" \\`,
@@ -421,7 +421,7 @@ export function upsertSkillPluginCandidateAssistantMessage(
   upsertMessage(db, run.conversationId, {
     id: messageId,
     role: 'assistant',
-    content: `OpenDesign found reusable skill material that can become a plugin: ${candidate.title}`,
+    content: `ComposerDesign found reusable skill material that can become a plugin: ${candidate.title}`,
     events: [{
       kind: 'plugin_candidate',
       candidateId: candidate.id,

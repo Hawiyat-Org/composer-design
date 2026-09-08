@@ -65,7 +65,7 @@ const ALLOWED_DISTRIBUTION = new Set<AnalyticsDistributionMechanism>([
   'unknown',
 ]);
 const ALLOWED_PUBLISHER = new Set<AnalyticsPublisherClass>([
-  'open_design_first_party',
+  'composer_design_first_party',
   'third_party',
   'unknown',
 ]);

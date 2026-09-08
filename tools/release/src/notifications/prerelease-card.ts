@@ -227,7 +227,7 @@ export function headerTemplate(state: PrereleaseCardState): string {
 }
 
 export function headerTitle(state: PrereleaseCardState): string {
-  const name = `Open Design ${state.channelLabel} ${state.version}`;
+  const name = `Composer Design ${state.channelLabel} ${state.version}`;
   if (!anyPackagePublished(state)) {
     if (state.timedOut) return `🚨 ${name} · 等待产物超时`;
     return state.platforms.some((platform) => isTerminal(platform.build))

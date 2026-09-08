@@ -152,7 +152,7 @@ describe('extractUserAuthoredSignalText — role scoping (§3 cases 1/2/4/5)', (
   it('drops the ## context warning block entirely', () => {
     const msg = [
       '## context warning',
-      'OpenDesign detected 2 large prior tool results; one contained image output.',
+      'ComposerDesign detected 2 large prior tool results; one contained image output.',
       'Keep this turn compact.',
       '',
       '## user',

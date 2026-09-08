@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { strategyPackageHashFromDigests } from '@open-design/plugin-runtime';
 import {
   OD_NEXT_REQUEST_TURN_SCHEMA_V1,
-  type OpenDesignPlanContractV2,
+  type ComposerDesignPlanContractV2,
 } from '@open-design/contracts';
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -71,7 +71,7 @@ function strategyBinding() {
   };
 }
 
-function planContractFixture(snapshotId: string): OpenDesignPlanContractV2 {
+function planContractFixture(snapshotId: string): ComposerDesignPlanContractV2 {
   const strategy = strategyBinding();
   return {
     schema: 'open-design.plan-contract/v2',

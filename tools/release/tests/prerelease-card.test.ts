@@ -118,7 +118,7 @@ describe("prerelease progress card", () => {
       }),
     );
     expect(later.header.template).toBe("green");
-    expect(later.header.title?.content).toBe("🚀 Open Design Prerelease 0.21.1-prerelease.3");
+    expect(later.header.title?.content).toBe("🚀 Composer Design Prerelease 0.21.1-prerelease.3");
     expect(buttonUrls(later)).toEqual([
       `${R2}/open-design-0.21.1-prerelease.3-mac_arm64`,
       `${R2}/open-design-0.21.1-prerelease.3-mac_x64`,
@@ -297,7 +297,7 @@ describe("prerelease progress card", () => {
       // have run and did not must never read as an all-clear.
       expect(card.header.template).toBe("orange");
       expect(card.header.title?.content).toContain("未触发");
-      expect(card.header.title?.content).not.toBe("🚀 Open Design Prerelease 0.21.1-prerelease.3");
+      expect(card.header.title?.content).not.toBe("🚀 Composer Design Prerelease 0.21.1-prerelease.3");
     });
 
     it("still reads 排队中 while the lane is genuinely queued", () => {

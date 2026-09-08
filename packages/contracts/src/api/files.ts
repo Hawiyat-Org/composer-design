@@ -60,7 +60,7 @@ export type ProjectFileVersionSource = 'ai' | 'manual' | 'restore';
 export type ProjectFileVersionPromptSource = 'message' | 'project' | 'manual' | 'restore';
 
 export type ArtifactOriginEntrySurface =
-  | 'open_design_ui'
+  | 'composer_design_ui'
   | 'od_cli'
   | 'external_mcp'
   | 'unknown';

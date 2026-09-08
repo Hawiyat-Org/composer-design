@@ -3,7 +3,7 @@
  * 红测(E3):〔更换模型〕要**直接打开模型选择器**,不是把人送进设置面板。
  *
  * 权威是交付稿自己的话(`docs/design/run-errors/error-ux-design.md:130`,S08):
- * 「更换模型直接打开模型选择器,**选完自动重跑**;切到 Open Design 智能体后自动重跑。」
+ * 「更换模型直接打开模型选择器,**选完自动重跑**;切到 Composer Design 智能体后自动重跑。」
  *
  * 之前记在 `chat-panel-feedback.md` 里的理由是**错的** —— 那条写着「项目页里没有
  * 模型选择器,所以只能落设置」,可 `ProjectView` 一直挂着 `AvatarMenu`,composer

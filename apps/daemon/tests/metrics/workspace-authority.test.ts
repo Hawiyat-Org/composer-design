@@ -42,18 +42,18 @@ describe('workspace authority metrics', () => {
 
     const text = await register.metrics();
     expect(text).toContain(
-      'open_design_workspace_authority_decisions_total{mode="legacy",source="cache",reason="lease_hit",outcome="allow"} 1',
+      'composer_design_workspace_authority_decisions_total{mode="legacy",source="cache",reason="lease_hit",outcome="allow"} 1',
     );
     expect(text).toContain(
-      'open_design_workspace_authority_suppressed_requests_total{mode="legacy",source="directory",reason="lease_hit"} 1',
+      'composer_design_workspace_authority_suppressed_requests_total{mode="legacy",source="directory",reason="lease_hit"} 1',
     );
     expect(text).toContain(
-      'open_design_workspace_authority_invalidations_total{mode="adaptive",source="current",reason="auth_reject"} 1',
+      'composer_design_workspace_authority_invalidations_total{mode="adaptive",source="current",reason="auth_reject"} 1',
     );
     expect(text).toContain(
-      'open_design_workspace_authority_realtime_transitions_total{mode="adaptive",health="unhealthy",member_events="present",listener_status="present",source_gap="yes"} 1',
+      'composer_design_workspace_authority_realtime_transitions_total{mode="adaptive",health="unhealthy",member_events="present",listener_status="present",source_gap="yes"} 1',
     );
-    expect(text).toContain('open_design_workspace_authority_age_ms_bucket{');
-    expect(text).toContain('open_design_workspace_authority_revocation_clear_ms_bucket{');
+    expect(text).toContain('composer_design_workspace_authority_age_ms_bucket{');
+    expect(text).toContain('composer_design_workspace_authority_revocation_clear_ms_bucket{');
   });
 });

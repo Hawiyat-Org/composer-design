@@ -229,7 +229,7 @@ export async function startUpdaterFixtureServer(options: UpdaterFixtureOptions =
   }
   const artifactBody = Buffer.isBuffer(options.artifactBody)
     ? options.artifactBody
-    : Buffer.from(options.artifactBody ?? `Open Design updater fixture ${version}\n`, "utf8");
+    : Buffer.from(options.artifactBody ?? `Composer Design updater fixture ${version}\n`, "utf8");
   const artifactSize = artifactFileStat?.size ?? artifactBody.byteLength;
   const sha256 = options.artifactPath == null
     ? createHash("sha256").update(artifactBody).digest("hex")
@@ -244,7 +244,7 @@ export async function startUpdaterFixtureServer(options: UpdaterFixtureOptions =
   const includePayload = options.includePayload === true || options.payloadPath != null;
   const payloadBody = Buffer.isBuffer(options.payloadBody)
     ? options.payloadBody
-    : Buffer.from(options.payloadBody ?? `Open Design launcher payload fixture ${version}\n`, "utf8");
+    : Buffer.from(options.payloadBody ?? `Composer Design launcher payload fixture ${version}\n`, "utf8");
   const payloadFileStat = options.payloadPath == null ? null : await stat(options.payloadPath);
   if (payloadFileStat != null && (!payloadFileStat.isFile() || payloadFileStat.size <= 0)) {
     throw new Error(`updater fixture payload path must be a non-empty file: ${options.payloadPath}`);

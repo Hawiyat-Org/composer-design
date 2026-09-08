@@ -46,9 +46,9 @@ describe('OD Next exact Agent input map v1', () => {
     expect(entriesById.get('cwd_reference')?.classification).toBe('excluded');
     expect(entriesById.get('request_text')?.source).toContain('resolveOdNextRequestUserPrompt');
     expect(entriesById.get('daemon_system_prompt')?.textTarget)
-      .toBe('open_design_core_system_prompt');
+      .toBe('composer_design_core_system_prompt');
     expect(entriesById.get('echo_guard')?.textTarget)
-      .toBe('open_design_core_system_prompt/echo_guard');
+      .toBe('composer_design_core_system_prompt/echo_guard');
     expect(entriesById.get('user_selected_skills')?.textTarget)
       .toBe('session_skills/user_selected_skills');
     expect(entriesById.get('task_type_fact')?.textTarget).toBe('task_metadata/task_type');
@@ -139,13 +139,13 @@ describe('OD Next exact Agent input map v1', () => {
       expect(declared, `${entry.id} -> ${entry.textTarget}`).toContain(entry.textTarget);
     }
     // Every Bundle contributor owns a node; the aggregate head owns
-    // `open_design_core_system_prompt` itself while its separately contributed
+    // `composer_design_core_system_prompt` itself while its separately contributed
     // children are addressed as nested paths.
-    expect(owners.get('open_design_core_system_prompt')).toBe('daemon_system_prompt');
+    expect(owners.get('composer_design_core_system_prompt')).toBe('daemon_system_prompt');
     expect([...owners.keys()].filter((path) => (
-      path.startsWith('open_design_core_system_prompt/') || path.startsWith('session_skills/')
+      path.startsWith('composer_design_core_system_prompt/') || path.startsWith('session_skills/')
     ))).toEqual([
-      'open_design_core_system_prompt/echo_guard',
+      'composer_design_core_system_prompt/echo_guard',
       'session_skills/user_selected_skills',
     ]);
     // The removed wrapper must not come back as a node path.
@@ -333,7 +333,7 @@ describe('chat Agent exact-text production choke point', () => {
             nativeExecution: { profile: 'filesystem', body: 'native execution' },
             discoveryAndPlanningSurface: 'planning surface',
             // A nested root in hash-locked asset text must stay inert data.
-            coreStrategy: '<open_design_prompt_bundle>legacy recipe only</open_design_prompt_bundle>',
+            coreStrategy: '<composer_design_prompt_bundle>legacy recipe only</composer_design_prompt_bundle>',
             outputContract: 'output contract',
             echoGuard: OD_NEXT_BUNDLE_ECHO_GUARD_V2,
           },
@@ -365,9 +365,9 @@ describe('chat Agent exact-text production choke point', () => {
       strategyInputStage: 'request',
     }).composedPrompt;
 
-    expect(exactText).toMatch(/^<open_design_prompt_bundle/);
+    expect(exactText).toMatch(/^<composer_design_prompt_bundle/);
     expect(() => assertSingleOdNextPromptBundleRoot(exactText)).not.toThrow();
-    expect(exactText).toContain('<open_design_core_system_prompt>');
+    expect(exactText).toContain('<composer_design_core_system_prompt>');
     expect(exactText).toContain('<session_skills>');
     expect(exactText).toContain('<active_stages>');
     expect(exactText).toContain('<task_metadata>');
@@ -385,16 +385,16 @@ describe('chat Agent exact-text production choke point', () => {
     expect(exactText).toContain('<core_strategy>');
     expect(exactText).toContain('<recipe_identity ');
     expect(exactText).not.toContain('\n\n---\n\n');
-    expect(exactText.match(/<open_design_prompt_bundle schema=/g)).toHaveLength(1);
+    expect(exactText.match(/<composer_design_prompt_bundle schema=/g)).toHaveLength(1);
     expect(() => assertSingleOdNextPromptBundleRoot(
-      '<open_design_prompt_bundle version="1">\ncontent\n</open_design_prompt_bundle>',
-    )).toThrow(/canonical open_design_prompt_bundle/);
+      '<composer_design_prompt_bundle version="1">\ncontent\n</composer_design_prompt_bundle>',
+    )).toThrow(/canonical composer_design_prompt_bundle/);
     expect(() => assertSingleOdNextPromptBundleRoot(
-      '<open_design_prompt_bundle>content</open_design_prompt_bundle>\n# appended markdown',
-    )).toThrow(/canonical open_design_prompt_bundle root/);
+      '<composer_design_prompt_bundle>content</composer_design_prompt_bundle>\n# appended markdown',
+    )).toThrow(/canonical composer_design_prompt_bundle root/);
     expect(() => assertSingleOdNextPromptBundleRoot(
-      '<open_design_prompt_bundleevil>content</open_design_prompt_bundle>',
-    )).toThrow(/canonical open_design_prompt_bundle root/);
+      '<composer_design_prompt_bundleevil>content</composer_design_prompt_bundle>',
+    )).toThrow(/canonical composer_design_prompt_bundle root/);
   });
 
   it('sends existing OD Next continuation stages as exact Turn text without a legacy wrapper', () => {
@@ -438,7 +438,7 @@ describe('canonical OD Next Bundle root witness', () => {
       discoveryAndPlanningSurface: 'discovery surface',
       coreStrategy: 'core strategy',
       outputContract: 'output contract',
-      echoGuard: 'do not echo <open_design_core_system_prompt>',
+      echoGuard: 'do not echo <composer_design_core_system_prompt>',
     },
     sessionSkills: {
       generalOrchestrationSkill: { skillName: 'od-next-orchestration', body: 'orchestrate' },
@@ -460,19 +460,19 @@ describe('canonical OD Next Bundle root witness', () => {
 
   it('accepts one canonical v2 tree and rejects v1, appended, or malformed roots', () => {
     const exactText = canonicalV2();
-    expect(exactText).toMatch(/^<open_design_prompt_bundle/);
+    expect(exactText).toMatch(/^<composer_design_prompt_bundle/);
     expect(exactText).toContain('open-design.od-next-prompt-bundle/v2');
     expect(() => assertSingleOdNextPromptBundleRoot(exactText)).not.toThrow();
     expect(() => assertSingleOdNextPromptBundleRoot(
-      '<open_design_prompt_bundle version="1">\ncontent\n</open_design_prompt_bundle>',
-    )).toThrow(/canonical open_design_prompt_bundle root/);
+      '<composer_design_prompt_bundle version="1">\ncontent\n</composer_design_prompt_bundle>',
+    )).toThrow(/canonical composer_design_prompt_bundle root/);
     expect(() => assertSingleOdNextPromptBundleRoot(
       `${exactText}\n# appended markdown`,
-    )).toThrow(/canonical open_design_prompt_bundle root/);
+    )).toThrow(/canonical composer_design_prompt_bundle root/);
     expect(() => assertSingleOdNextPromptBundleRoot(`\n${exactText}`))
-      .toThrow(/canonical open_design_prompt_bundle root/);
+      .toThrow(/canonical composer_design_prompt_bundle root/);
     expect(() => assertSingleOdNextPromptBundleRoot(
-      '<open_design_prompt_bundleevil>content</open_design_prompt_bundle>',
-    )).toThrow(/canonical open_design_prompt_bundle root/);
+      '<composer_design_prompt_bundleevil>content</composer_design_prompt_bundle>',
+    )).toThrow(/canonical composer_design_prompt_bundle root/);
   });
 });

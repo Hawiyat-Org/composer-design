@@ -945,7 +945,7 @@ export function attachAcpSession({
       // Fall back to the direct-child timer below.
     }
     // Some ACP agents keep the child process alive after stdin closes,
-    // waiting for another prompt. Each OpenDesign run owns one process per
+    // waiting for another prompt. Each ComposerDesign run owns one process per
     // turn, so close it once this prompt is cleanly complete.
     if (!terminalOwnedByCaller) {
       const cleanExitTimer = setTimeout(() => {

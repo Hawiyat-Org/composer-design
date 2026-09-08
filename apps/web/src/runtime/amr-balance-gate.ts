@@ -1,4 +1,4 @@
-// Pre-run balance gate for the OpenDesign Cloud agent. There is exactly ONE
+// Pre-run balance gate for the ComposerDesign Cloud agent. There is exactly ONE
 // balance that changes anything: $0.
 //
 //   HARD  — the run cannot possibly succeed: the account is signed out, or the
@@ -240,7 +240,7 @@ async function hardBlockMustStandDown(
 }
 
 /**
- * Decide whether an OpenDesign Cloud run may start. Fast path first: the
+ * Decide whether an ComposerDesign Cloud run may start. Fast path first: the
  * daemon-cached snapshot answers without an upstream roundtrip, so healthy
  * balances start with no added latency. Only a hard-block answer is confirmed
  * against the live wallet (refresh=1) — the cache may predate a recharge or

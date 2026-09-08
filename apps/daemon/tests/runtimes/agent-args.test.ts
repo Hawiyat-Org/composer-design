@@ -242,7 +242,7 @@ test('opencode pins its workspace to the project cwd', () => {
   // OpenCode resolves its project by walking up to the nearest enclosing git
   // root, not by using its process cwd. A managed project directory is not a
   // repository, so a development install (daemon data dir under the checkout)
-  // made OpenCode adopt the whole Open Design repository as the workspace: it
+  // made OpenCode adopt the whole Composer Design repository as the workspace: it
   // wrote the deliverable at the repository root, the project stayed empty, and
   // the Run reported `no_artifact`.
   const args = opencode.buildArgs('design a dashboard', [], [], {}, { cwd: '/projects/p1' });

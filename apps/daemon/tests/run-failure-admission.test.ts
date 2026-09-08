@@ -128,7 +128,7 @@ describe('admission and attribution v3', () => {
   it('attributes a verified selected-model operation mismatch to the product', () => {
     expect(classify(routeError, [start, prompt, capabilityError], 'AMR_MODEL_UNAVAILABLE')).toMatchObject({
       failure_detail: 'model_not_found', failure_mechanism: 'invalid_model_selection',
-      failure_domain: 'client_product', repair_owner: 'open_design', evidence_level: 'structured_error',
+      failure_domain: 'client_product', repair_owner: 'composer_design', evidence_level: 'structured_error',
     });
   });
   it('uses the confirmed ACP model after the initial session model', () => {
@@ -138,7 +138,7 @@ describe('admission and attribution v3', () => {
       prompt, capabilityError,
     ], 'AMR_MODEL_UNAVAILABLE')).toMatchObject({
       failure_mechanism: 'invalid_model_selection', failure_domain: 'client_product',
-      repair_owner: 'open_design', evidence_level: 'structured_error',
+      repair_owner: 'composer_design', evidence_level: 'structured_error',
     });
   });
   it('requires current selection, matching operation and complete capability evidence', () => {

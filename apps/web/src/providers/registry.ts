@@ -18,7 +18,7 @@ import type {
   ImportGitHubDesignSystemResponse,
   ImportShadcnDesignSystemRequest,
   ImportShadcnDesignSystemResponse,
-  OpenDesignGithubLatestReleaseResponse,
+  ComposerDesignGithubLatestReleaseResponse,
   ImportLocalDesignSystemRequest,
   ImportLocalDesignSystemResponse,
   ReplaceProjectWorkingDirResponse,
@@ -86,7 +86,7 @@ import type {
 import type { ArtifactManifest } from '../artifacts/types';
 import { GENERIC_DEPLOY_ENVELOPE_CODES } from '../analytics/deploy-error-code';
 import {
-  isOpenDesignHostAvailable,
+  isComposerDesignHostAvailable,
   openHostExternalUrl,
 } from '@open-design/host';
 import {
@@ -1377,13 +1377,13 @@ export interface ConnectorActionResult {
 }
 
 function popupBlockedMessage(): string {
-  return 'Popup blocked. Allow popups for OpenDesign and try again.';
+  return 'Popup blocked. Allow popups for ComposerDesign and try again.';
 }
 
 export async function openExternalUrl(url: string): Promise<boolean> {
   const bridgedUrl = await bridgeFirstPartyUrl(url);
   const targetUrl = bridgedUrl ?? url;
-  if (isOpenDesignHostAvailable()) {
+  if (isComposerDesignHostAvailable()) {
     const opened = await openHostExternalUrl(targetUrl);
     if (opened.ok) return true;
   }
@@ -1436,7 +1436,7 @@ async function decodeConnectorError(resp: Response): Promise<string> {
 
 export async function connectConnector(connectorId: string): Promise<ConnectorActionResult> {
   let authWindow: Window | null = null;
-  const useExternalBrowser = isOpenDesignHostAvailable();
+  const useExternalBrowser = isComposerDesignHostAvailable();
   try {
     if (!useExternalBrowser) {
       authWindow = window.open('about:blank', '_blank');
@@ -1716,7 +1716,7 @@ export async function fetchLatestGithubReleaseInfo(): Promise<LatestGithubReleas
   try {
     const resp = await fetch('/api/github/open-design/releases/latest');
     if (!resp.ok) return null;
-    const json = (await resp.json()) as Partial<OpenDesignGithubLatestReleaseResponse>;
+    const json = (await resp.json()) as Partial<ComposerDesignGithubLatestReleaseResponse>;
     if (typeof json.tag_name !== 'string' || typeof json.html_url !== 'string') return null;
     return {
       tagName: json.tag_name,

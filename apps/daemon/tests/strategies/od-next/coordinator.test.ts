@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { strategyPackageHashFromDigests } from '@open-design/plugin-runtime';
 import { StrategyTaskProjectionV2Schema } from '@open-design/contracts';
-import type { AppliedPluginSnapshot, OpenDesignPlanContractV2 } from '@open-design/contracts';
+import type { AppliedPluginSnapshot, ComposerDesignPlanContractV2 } from '@open-design/contracts';
 import type Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -136,7 +136,7 @@ function createStrategySnapshot(db: Database.Database): AppliedPluginSnapshot {
   });
 }
 
-function planContract(snapshot: AppliedPluginSnapshot): OpenDesignPlanContractV2 {
+function planContract(snapshot: AppliedPluginSnapshot): ComposerDesignPlanContractV2 {
   const strategy = snapshot.strategy!;
   return {
     schema: 'open-design.plan-contract/v2',
@@ -600,7 +600,7 @@ describe('OD Next planning coordinator', () => {
     const cases = [
       {
         name: 'duplicate',
-        text: (plan: OpenDesignPlanContractV2) => [
+        text: (plan: ComposerDesignPlanContractV2) => [
           block('open-design-plan-contract', plan),
           block('open-design-plan-contract', plan),
           block('open-design-runtime-state', runtimeState({ outcome: 'plan_ready', executionMode: 'simple' })),
@@ -812,7 +812,7 @@ describe('OD Next planning coordinator', () => {
     const cases: Array<{
       name: string;
       reason: string;
-      mutate: (plan: OpenDesignPlanContractV2) => void;
+      mutate: (plan: ComposerDesignPlanContractV2) => void;
     }> = [
       {
         name: 'snapshot',
@@ -1410,7 +1410,7 @@ ${question}`),
    * looks like, which outcome it settles on, and how `strategyTaskDelivered`
    * counts it. The field record it reproduces is kept below verbatim.
    *
-   * Reproduces the field failure recorded on Open Design Beta
+   * Reproduces the field failure recorded on Composer Design Beta
    * 0.21.1-beta.7, task `odnext_c4ee010be6b748dc9b92984946bc10a8`,
    * run `e5d6181b-1705-4a44-964b-cdcb3fbcb6ac`.
    *
@@ -1701,7 +1701,7 @@ ${block('open-design-plan-contract', planContract(snapshot))}`),
 
   it('recovers a Direct Edit completion the agent delivered but never declared', () => {
     // The observed field failure: the agent writes the canonical deliverable
-    // correctly, Open Design's own validator resolves it, and then the agent
+    // correctly, Composer Design's own validator resolves it, and then the agent
     // answers in prose without emitting a single machine block. Refusing that
     // turn stranded a finished artifact behind a generic failure card, and no
     // repair could rescue it — `tryBeginSerializationRepair` needs a recovered
@@ -1731,7 +1731,7 @@ ${block('open-design-plan-contract', planContract(snapshot))}`),
   it('recovers a production completion the agent delivered but never declared', () => {
     // Production is only entered from a locked Full Plan and its schema admits
     // no non-terminal outcome, so a production turn that ran the frozen plan,
-    // delivered a canonical entry Open Design resolved itself, and then answered
+    // delivered a canonical entry Composer Design resolved itself, and then answered
     // in prose has exactly one thing it could have declared. Refusing it
     // discarded a finished deliverable already sitting in the project.
     prepareStrategyRequest(db, {
@@ -1798,7 +1798,7 @@ ${block('open-design-plan-contract', planContract(snapshot))}`),
   });
 
   it('refuses to infer a Direct Edit completion without verified physical delivery', () => {
-    // The inference may only ever accept evidence Open Design resolved itself.
+    // The inference may only ever accept evidence Composer Design resolved itself.
     // An undeclared turn that delivered nothing must still block, so a silent
     // no-op can never be laundered into a completed task.
     prepareStrategyIntake(db, {
@@ -1935,7 +1935,7 @@ ${block('open-design-plan-contract', planContract(snapshot))}`),
 
 describe('OD Next production completion inference', () => {
   it('never infers a complex completion from a turn that declared nothing', () => {
-    // The inference rests on Open Design having resolved the evidence the agent
+    // The inference rests on Composer Design having resolved the evidence the agent
     // failed to declare, and for a simple plan that evidence IS the canonical
     // deliverable. A complex plan additionally owes verified native Child
     // lifecycle — the property that makes it complex — which no deliverable

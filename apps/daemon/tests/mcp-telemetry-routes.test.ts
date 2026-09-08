@@ -8,7 +8,7 @@ import {
 } from '../src/routes/telemetry.js';
 
 describe('local MCP telemetry privacy boundary', () => {
-  it('reuses the OpenDesign installation id and creates it only for opted-in headless use', async () => {
+  it('reuses the ComposerDesign installation id and creates it only for opted-in headless use', async () => {
     const writeAppConfig = vi.fn(async (_dataDir: string, patch: Record<string, unknown>) => ({
       telemetry: { metrics: true },
       installationId: patch.installationId,
@@ -126,10 +126,10 @@ describe('local MCP telemetry privacy boundary', () => {
       duration_ms: 123,
       error_code: 'DAEMON_UNREACHABLE',
       failure_stage: 'run_accept',
-      failure_source: 'open_design_daemon',
+      failure_source: 'composer_design_daemon',
       failure_category: 'availability',
       retryable: true,
-      user_action: 'start_open_design',
+      user_action: 'start_composer_design',
     })).toMatchObject({
       result: 'failed',
       duration_ms: 123,

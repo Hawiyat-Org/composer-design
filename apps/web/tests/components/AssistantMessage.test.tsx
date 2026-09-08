@@ -115,7 +115,7 @@ describe('internal control markers', () => {
   // a later turn, and `<od-title>LV奢侈品电商原型</od-title>` rendered as body text.
   it('never renders a leaked title marker as prose', () => {
     const content = [
-      '我会使用 Open Design 技能把已确认的电商流程整理为可执行的原型计划。',
+      '我会使用 Composer Design 技能把已确认的电商流程整理为可执行的原型计划。',
       '<od-title>LV奢侈品电商原型</od-title>',
       '目标已锁定为响应式 LV 奢侈品电商概念原型。',
     ].join('\n\n');
@@ -407,7 +407,7 @@ describe('AssistantMessage feedback gate', () => {
   });
 
   /*
-   * 「贡献到 OpenDesign 社区」原来的用例住在这里,走的是下一步引导的
+   * 「贡献到 ComposerDesign 社区」原来的用例住在这里,走的是下一步引导的
    * 更多 → 分享 → 贡献 三级路径。产品裁决(2026-08-26)把 `default` 那一档
    * 整档换成 agent 现写的三条行为引导,那条路径连同它的三级菜单一起没了,
    * 这个入口因此**没有落点了**。

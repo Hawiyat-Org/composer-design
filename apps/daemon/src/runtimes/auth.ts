@@ -19,13 +19,13 @@ export type AgentAuthProbeResult = {
 };
 
 const CURSOR_AUTH_GUIDANCE =
-  'Cursor Agent is not authenticated. Run `cursor-agent login`, then `cursor-agent status`, and retry. For automation, ensure CURSOR_API_KEY is set in the OpenDesign process environment.';
+  'Cursor Agent is not authenticated. Run `cursor-agent login`, then `cursor-agent status`, and retry. For automation, ensure CURSOR_API_KEY is set in the ComposerDesign process environment.';
 
 const DEEPSEEK_AUTH_GUIDANCE =
-  'DeepSeek TUI is installed but is not authenticated. Add or verify your API key in `~/.deepseek/config.toml` as `api_key = "..."`, or expose DEEPSEEK_API_KEY to the OpenDesign daemon process, then retry. If OpenDesign is launched outside an interactive shell, shell rc files such as ~/.zshrc may not be loaded.';
+  'DeepSeek TUI is installed but is not authenticated. Add or verify your API key in `~/.deepseek/config.toml` as `api_key = "..."`, or expose DEEPSEEK_API_KEY to the ComposerDesign daemon process, then retry. If ComposerDesign is launched outside an interactive shell, shell rc files such as ~/.zshrc may not be loaded.';
 
 const DEEPSEEK_HARNESS_AUTH_GUIDANCE =
-  'DeepSeek Harness has no model API key configured. Open a terminal and run `dsh web`, then open Settings → Models and add your DeepSeek API key. Return to OpenDesign and retry. For automation, expose DEEPSEEK_API_KEY to the OpenDesign process.';
+  'DeepSeek Harness has no model API key configured. Open a terminal and run `dsh web`, then open Settings → Models and add your DeepSeek API key. Return to ComposerDesign and retry. For automation, expose DEEPSEEK_API_KEY to the ComposerDesign process.';
 
 // agy's print mode (`-p`) detects a missing OAuth token, prints the
 // Google sign-in URL to stdout, waits 30s for completion, then exits
@@ -38,7 +38,7 @@ const DEEPSEEK_HARNESS_AUTH_GUIDANCE =
 // system keyring — both `-p` and TUI invocations read from there
 // afterward, so the chat run can succeed on retry.
 const ANTIGRAVITY_AUTH_GUIDANCE =
-  'Antigravity needs to sign in. The agy CLI\'s keyring entry has expired or been cleared, and `-p` print mode cannot complete OAuth on its own (it has no field to paste the auth code into).\n\nFix: open a terminal and run `agy` once — it will open Google sign-in in your browser, accept the redirect, and store the token in your system keyring. After you finish, return here and retry this chat. You only need to do this once; the keyring entry persists across both terminal and OpenDesign runs.';
+  'Antigravity needs to sign in. The agy CLI\'s keyring entry has expired or been cleared, and `-p` print mode cannot complete OAuth on its own (it has no field to paste the auth code into).\n\nFix: open a terminal and run `agy` once — it will open Google sign-in in your browser, accept the redirect, and store the token in your system keyring. After you finish, return here and retry this chat. You only need to do this once; the keyring entry persists across both terminal and ComposerDesign runs.';
 
 // agy's account-level quota is per-model (consumer accounts get a
 // separate quota for Gemini 3 Pro vs Flash vs Claude vs GPT-OSS), and
@@ -52,13 +52,13 @@ const ANTIGRAVITY_AUTH_GUIDANCE =
 // the picker from OD until upstream issue #35 ships a `--model`
 // flag — see antigravity.ts notes.
 const ANTIGRAVITY_QUOTA_GUIDANCE =
-  'Antigravity returned "RESOURCE_EXHAUSTED: Individual quota reached" for the current model. Each Antigravity model (Gemini 3 Pro / Flash, Claude 4.6, GPT-OSS) has its own quota.\n\nFix: open `agy` in a terminal and use its Switch Model picker (the menu at the bottom of the TUI) to pick a model with available quota, then retry here. OpenDesign uses whatever model you pick in agy\'s TUI when the Settings model picker is left on "Default". Quotas reset automatically on Antigravity\'s schedule.';
+  'Antigravity returned "RESOURCE_EXHAUSTED: Individual quota reached" for the current model. Each Antigravity model (Gemini 3 Pro / Flash, Claude 4.6, GPT-OSS) has its own quota.\n\nFix: open `agy` in a terminal and use its Switch Model picker (the menu at the bottom of the TUI) to pick a model with available quota, then retry here. ComposerDesign uses whatever model you pick in agy\'s TUI when the Settings model picker is left on "Default". Quotas reset automatically on Antigravity\'s schedule.';
 
 const REASONIX_AUTH_GUIDANCE =
-  'DeepSeek Reasonix is installed but is not authenticated. Add your API key in `~/.reasonix/config.json` under `apiKey`, or expose DEEPSEEK_API_KEY to the OpenDesign daemon process, then retry. If OpenDesign is launched outside an interactive shell, shell rc files such as ~/.zshrc may not be loaded.';
+  'DeepSeek Reasonix is installed but is not authenticated. Add your API key in `~/.reasonix/config.json` under `apiKey`, or expose DEEPSEEK_API_KEY to the ComposerDesign daemon process, then retry. If ComposerDesign is launched outside an interactive shell, shell rc files such as ~/.zshrc may not be loaded.';
 
 const CLAUDE_AUTH_GUIDANCE =
-  'Claude Code is installed but is not authenticated. Run `claude auth login` or open `claude` and complete login in a terminal, then rescan. If OpenDesign was launched outside an interactive shell, your shell rc files (e.g. ~/.zshrc) may not be loaded into its environment.';
+  'Claude Code is installed but is not authenticated. Run `claude auth login` or open `claude` and complete login in a terminal, then rescan. If ComposerDesign was launched outside an interactive shell, your shell rc files (e.g. ~/.zshrc) may not be loaded into its environment.';
 
 export function cursorAuthGuidance(): string {
   return CURSOR_AUTH_GUIDANCE;
@@ -363,7 +363,7 @@ const SEVERITY_LABELS = new Set([
 ]);
 
 /**
- * Every command name Open Design's own agent CLIs answer to — each shipped
+ * Every command name Composer Design's own agent CLIs answer to — each shipped
  * adapter's `id` and its `bin`.
  *
  * This is the half of the attribution the text cannot supply, and the reason
@@ -408,7 +408,7 @@ export const OWN_AGENT_COMMAND_NAMES: ReadonlySet<string> = new Set([
  * (:188), and the ACP bridge folds whatever the agent wrote into its JSON-RPC
  * error frame — so `gh`, `npm`, `curl` and MCP output are read here too, in the
  * same auth vocabulary the agent's own failures use. Answering "sign in" to one
- * of those sends the user to log in to Open Design for a `gh` token in their
+ * of those sends the user to log in to Composer Design for a `gh` token in their
  * own shell: a fix guaranteed not to work.
  *
  * The rule is: **when the report names the credential's holder, believe it; the
@@ -515,7 +515,7 @@ function withProbeTails(
 // so a newly-onboarded CLI gets an actionable banner the moment it opts into
 // auth probing, without bespoke copy.
 function genericAuthGuidance(agentName: string): string {
-  return `${agentName} appears to be installed but is not authenticated. Sign in with the CLI in a terminal, then rescan. If OpenDesign was launched outside an interactive shell, your shell rc files (e.g. ~/.zshrc) may not be loaded into its environment.`;
+  return `${agentName} appears to be installed but is not authenticated. Sign in with the CLI in a terminal, then rescan. If ComposerDesign was launched outside an interactive shell, your shell rc files (e.g. ~/.zshrc) may not be loaded into its environment.`;
 }
 
 // Agents that ship a bespoke auth-failure classifier + tailored sign-in hint

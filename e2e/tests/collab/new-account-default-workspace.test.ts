@@ -75,7 +75,7 @@ process.exit(1);
 
 describe('new account default workspace bootstrap', () => {
   test(
-    'uses nickname workspace as the default personal free workspace with zero OpenDesign Cloud balance',
+    'uses nickname workspace as the default personal free workspace with zero ComposerDesign Cloud balance',
     { timeout: 240_000 },
     async () => {
       const suite = await createSmokeSuite('collab-new-account-default-workspace');

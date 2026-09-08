@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   applyPlugin,
   cacheTabsLocally,
-  contributeGeneratedPluginToOpenDesign,
+  contributeGeneratedPluginToComposerDesign,
   createConversation,
   createDesignSystemProjectFromProject,
   createProject,
@@ -1814,7 +1814,7 @@ describe('generated plugin share actions', () => {
       'generated-plugin',
       context,
     );
-    const contribute = await contributeGeneratedPluginToOpenDesign(
+    const contribute = await contributeGeneratedPluginToComposerDesign(
       'project-1',
       'generated-plugin',
       context,

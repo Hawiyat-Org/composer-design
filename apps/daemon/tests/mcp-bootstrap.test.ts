@@ -13,7 +13,7 @@ describe("planMcpDaemonBootstrap", () => {
       env: {
         OD_MCP_BOOTSTRAP_COMMAND: "/usr/bin/open",
         OD_MCP_BOOTSTRAP_ARGS:
-          '["-g","-j","/Applications/Open Design.app","--args","--headless"]',
+          '["-g","-j","/Applications/Composer Design.app","--args","--headless"]',
       },
     })).toEqual({
       action: "none",
@@ -31,7 +31,7 @@ describe("planMcpDaemonBootstrap", () => {
         OD_DATA_DIR: "/tmp/open-design-data",
         OD_MCP_BOOTSTRAP_COMMAND: "/usr/bin/open",
         OD_MCP_BOOTSTRAP_ARGS:
-          '["-g","-j","/Applications/Open Design.app","--args","--headless"]',
+          '["-g","-j","/Applications/Composer Design.app","--args","--headless"]',
       },
     });
 
@@ -41,7 +41,7 @@ describe("planMcpDaemonBootstrap", () => {
       args: [
         "-g",
         "-j",
-        "/Applications/Open Design.app",
+        "/Applications/Composer Design.app",
         "--args",
         "--headless",
       ],
@@ -69,7 +69,7 @@ describe("planMcpDaemonBootstrap", () => {
       explicitDaemonUrl: false,
       env: {
         OD_MCP_BOOTSTRAP_COMMAND: "/usr/bin/open",
-        OD_MCP_BOOTSTRAP_ARGS: '["/Applications/Open Design.app"]',
+        OD_MCP_BOOTSTRAP_ARGS: '["/Applications/Composer Design.app"]',
       },
     })).toEqual({
       action: "none",
@@ -94,7 +94,7 @@ describe("ensureMcpDaemonUrl", () => {
       env: {
         OD_MCP_BOOTSTRAP_COMMAND: "/usr/bin/open",
         OD_MCP_BOOTSTRAP_ARGS:
-          '["-g","-j","/Applications/Open Design.app","--args","--headless"]',
+          '["-g","-j","/Applications/Composer Design.app","--args","--headless"]',
       },
       connectInherited: (() => ({ invoke: vi.fn(), status: vi.fn() })) as never,
       discoverTargetDaemonUrl,
@@ -124,7 +124,7 @@ describe("ensureMcpDaemonUrl", () => {
       env: {
         OD_MCP_BOOTSTRAP_COMMAND: "/usr/bin/open",
         OD_MCP_BOOTSTRAP_ARGS:
-          '["-g","-j","/Applications/Open Design.app","--args","--headless"]',
+          '["-g","-j","/Applications/Composer Design.app","--args","--headless"]',
       },
       probeDaemon,
       resolveDaemonUrl,

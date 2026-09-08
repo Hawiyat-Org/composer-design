@@ -23,7 +23,7 @@ export type RunToolsDevJsonOptions = {
  * Node at `/opt/hostedtoolcache/node/<version>/x64/bin/node`, so a CI daemon
  * self-identifies as a stable release. `whatsNewSourceUrl`
  * (apps/daemon/src/services/whats-new.ts) then fetches the live release
- * document and a real "OpenDesign X.Y.Z is here" card lands on top of the UI
+ * document and a real "ComposerDesign X.Y.Z is here" card lands on top of the UI
  * under test, where its overlay blocks clicks until the spec times out.
  *
  * Pinning the channel here restores the property that service already

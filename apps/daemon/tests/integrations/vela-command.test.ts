@@ -92,7 +92,7 @@ describe('runVelaCommand', () => {
     expect(command).toBe(process.execPath);
     expect(args).toEqual(['resource', 'head', 'project-1']);
     expect(options.env.VELA_PROFILE).toBe('feature-test');
-    expect(options.env.AMR_CLIENT_SOURCE).toBe('open_design');
+    expect(options.env.AMR_CLIENT_SOURCE).toBe('composer_design');
   });
 
   it('delivers successful stderr diagnostics without changing stdout', async () => {

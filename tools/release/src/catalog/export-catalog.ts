@@ -28,7 +28,7 @@ export function resolveRepoRoot(): string {
   ]) {
     if (existsSync(join(candidate, "pnpm-workspace.yaml"))) return candidate;
   }
-  throw new Error("CATALOG_REPO_ROOT is required outside an Open Design checkout");
+  throw new Error("CATALOG_REPO_ROOT is required outside an Composer Design checkout");
 }
 
 function resolveSourceCommit(): string {

@@ -648,7 +648,7 @@ describe('ComposerPlusMenu module wiring', () => {
     renderMenu({
       skills: [{ id: 's1', name: 'Wireframe Kit', description: 'Skill fixture.' } as never],
       onPickSkill: vi.fn(),
-      onOpenDesignSystems: vi.fn(),
+      onComposerDesignSystems: vi.fn(),
     });
     openMenu();
     expect(screen.queryByTestId('composer-plus-skills')).toBeNull();

@@ -1,5 +1,5 @@
 import type {
-  OpenDesignPlanContractV2,
+  ComposerDesignPlanContractV2,
   StrategyRuntimeStateV2,
 } from '@open-design/contracts';
 import {
@@ -83,7 +83,7 @@ export interface OdNextCoordinatorResult {
   task: StrategyTaskExecutionRecord;
   visibleText: string;
   reasonCodes: string[];
-  decisionSummary?: OpenDesignPlanContractV2['decisionSummary'];
+  decisionSummary?: ComposerDesignPlanContractV2['decisionSummary'];
   instruction?:
     | {
         stage: 'clarification';
@@ -655,7 +655,7 @@ export function odNextTurnMayInferDirectEditCompletion(
  * Production is only ever entered from a locked Full Plan, and its schema
  * admits no non-terminal outcome — `StrategyRuntimeStateV2` refuses a
  * production state that is not a task-chain terminal. So a production turn that
- * ran the frozen plan, delivered a canonical entry Open Design resolved itself,
+ * ran the frozen plan, delivered a canonical entry Composer Design resolved itself,
  * and then answered in prose has exactly one thing it could have declared.
  *
  * Refusing it discarded a finished multi-page deliverable that was already
@@ -670,7 +670,7 @@ export function odNextTurnMayInferProductionCompletion(
   if (!turnDeclaredNothing(parsed)) return false;
   return task.inputStage === 'production'
     && task.route === 'full_plan'
-    // Simple only. The inference rests on Open Design having resolved the
+    // Simple only. The inference rests on Composer Design having resolved the
     // evidence the agent failed to declare, and for a simple plan that evidence
     // IS the canonical deliverable. A complex plan additionally owes verified
     // native Child lifecycle — the thing that makes it complex — which no
@@ -694,7 +694,7 @@ export function odNextTurnMayInferProductionCompletion(
  * needs a recovered Plan Contract to anchor on, and this turn produced none.
  *
  * The declaration is missing, but the *fact* it would have declared is proven
- * by evidence Open Design resolved itself, which is stronger than the agent's
+ * by evidence Composer Design resolved itself, which is stronger than the agent's
  * own word. This mirrors `inferClarificationRuntimeState`, which already infers
  * a state from a renderable question form.
  *
@@ -810,7 +810,7 @@ function validateAcceptedTurn(
   db: SqliteDb,
   task: StrategyTaskExecutionRecord,
   state: StrategyRuntimeStateV2,
-  plan: OpenDesignPlanContractV2 | undefined,
+  plan: ComposerDesignPlanContractV2 | undefined,
   visibleText: string,
   input: {
     toolUseCount: number;
@@ -1025,7 +1025,7 @@ function tryBeginSerializationRepair(
 function validateRepairAnchorState(
   task: StrategyTaskExecutionRecord,
   state: StrategyRuntimeStateV2,
-  plan: OpenDesignPlanContractV2,
+  plan: ComposerDesignPlanContractV2,
 ): string[] {
   const reasonCodes: string[] = [];
   // The repair anchor may arrive on a still-unrouted first turn; the repair
@@ -1044,7 +1044,7 @@ function validateRepairAnchorState(
 function validateTaskProfileBinding(
   db: SqliteDb,
   task: StrategyTaskExecutionRecord,
-  plan: OpenDesignPlanContractV2,
+  plan: ComposerDesignPlanContractV2,
 ): string[] {
   const snapshot = getSnapshot(db, task.snapshotId);
   const binding = AppliedStrategyBindingV2Schema.safeParse(snapshot?.strategy);
@@ -1061,7 +1061,7 @@ function validateTaskProfileBinding(
 function validatePlanBinding(
   db: SqliteDb,
   task: StrategyTaskExecutionRecord,
-  plan: OpenDesignPlanContractV2,
+  plan: ComposerDesignPlanContractV2,
 ): string[] {
   const reasonCodes: string[] = [];
   if (plan.strategy.snapshotId !== task.snapshotId) {

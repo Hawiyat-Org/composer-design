@@ -3,9 +3,9 @@ import type { ReleaseChannel } from "@open-design/release";
 /**
  * @module protocol
  *
- * The OpenDesign renderer host-bridge wire contract: the injected-global name
+ * The ComposerDesign renderer host-bridge wire contract: the injected-global name
  * and version, client/updater constant registries, and every request/result
- * type that crosses the host bridge — including the {@link OpenDesignHostBridge}
+ * type that crosses the host bridge — including the {@link ComposerDesignHostBridge}
  * shape itself. Pure declarations only; depends on nothing else in the package.
  */
 
@@ -16,28 +16,28 @@ export const OPEN_DESIGN_HOST_CLIENT_TYPES = Object.freeze({
   DESKTOP: "desktop",
 } as const);
 
-export type OpenDesignHostClientType =
+export type ComposerDesignHostClientType =
   (typeof OPEN_DESIGN_HOST_CLIENT_TYPES)[keyof typeof OPEN_DESIGN_HOST_CLIENT_TYPES];
 
-export type OpenDesignHostClient = {
+export type ComposerDesignHostClient = {
   // BCP-47 locale string (e.g. "zh-CN", "pt-BR") the host process read from
   // the OS at startup. The renderer uses this so the packaged desktop app
   // can follow the OS language even when Chromium's built-in
   // `navigator.language` would have defaulted to en-US.
   osLocale?: string;
   platform?: string;
-  type: OpenDesignHostClientType;
+  type: ComposerDesignHostClientType;
 };
 
-export type OpenDesignHostFailure = {
+export type ComposerDesignHostFailure = {
   details?: unknown;
   ok: false;
   reason: string;
 };
 
-export type OpenDesignHostActionResult =
+export type ComposerDesignHostActionResult =
   | { ok: true }
-  | OpenDesignHostFailure;
+  | ComposerDesignHostFailure;
 
 /**
  * The workspace attribution the renderer gives the host so a folder import
@@ -57,7 +57,7 @@ export type OpenDesignHostActionResult =
  * it would reject the very `WorkspaceCollabContext` callers pass. Callers hand
  * over a variable, not a fresh literal, so the extra fields ride along fine.
  */
-export type OpenDesignHostWorkspaceContext = {
+export type ComposerDesignHostWorkspaceContext = {
   lifecycleState: string;
   memberStatus: string;
   permissions: {
@@ -70,43 +70,43 @@ export type OpenDesignHostWorkspaceContext = {
   workspaceType: string;
 };
 
-export type OpenDesignHostProjectImportInit = {
+export type ComposerDesignHostProjectImportInit = {
   designSystemId?: string | null;
   name?: string;
   skillId?: string | null;
-  workspaceContext?: OpenDesignHostWorkspaceContext | null;
+  workspaceContext?: ComposerDesignHostWorkspaceContext | null;
 };
 
-export type OpenDesignHostProjectImportSuccess = {
+export type ComposerDesignHostProjectImportSuccess = {
   conversationId: string;
   entryFile: string | null;
   ok: true;
   projectId: string;
 };
 
-export type OpenDesignHostProjectImportResult =
-  | OpenDesignHostProjectImportSuccess
+export type ComposerDesignHostProjectImportResult =
+  | ComposerDesignHostProjectImportSuccess
   | {
       canceled: true;
       ok: false;
     }
-  | OpenDesignHostFailure;
+  | ComposerDesignHostFailure;
 
-export type OpenDesignHostProjectReplaceWorkingDirSuccess = {
+export type ComposerDesignHostProjectReplaceWorkingDirSuccess = {
   baseDir: string;
   entryFile: string | null;
   ok: true;
 };
 
-export type OpenDesignHostProjectReplaceWorkingDirResult =
-  | OpenDesignHostProjectReplaceWorkingDirSuccess
+export type ComposerDesignHostProjectReplaceWorkingDirResult =
+  | ComposerDesignHostProjectReplaceWorkingDirSuccess
   | {
       canceled: true;
       ok: false;
     }
-  | OpenDesignHostFailure;
+  | ComposerDesignHostFailure;
 
-export type OpenDesignHostPickWorkingDirSuccess = {
+export type ComposerDesignHostPickWorkingDirSuccess = {
   baseDir: string;
   ok: true;
   // Single-use HMAC token (minted by the host main process for `baseDir`)
@@ -116,24 +116,24 @@ export type OpenDesignHostPickWorkingDirSuccess = {
   token: string;
 };
 
-export type OpenDesignHostPickWorkingDirResult =
-  | OpenDesignHostPickWorkingDirSuccess
+export type ComposerDesignHostPickWorkingDirResult =
+  | ComposerDesignHostPickWorkingDirSuccess
   | {
       canceled: true;
       ok: false;
     }
-  | OpenDesignHostFailure;
+  | ComposerDesignHostFailure;
 
-export type OpenDesignHostPdfPrintOptions = {
+export type ComposerDesignHostPdfPrintOptions = {
   deck?: boolean;
 };
 
-export type OpenDesignHostCaptureClip = { x: number; y: number; width: number; height: number };
-export type OpenDesignHostCaptureOptions = { clip?: OpenDesignHostCaptureClip };
-export type OpenDesignHostCaptureSuccess = { dataUrl: string; h: number; ok: true; w: number };
-export type OpenDesignHostCaptureResult = OpenDesignHostCaptureSuccess | OpenDesignHostFailure;
+export type ComposerDesignHostCaptureClip = { x: number; y: number; width: number; height: number };
+export type ComposerDesignHostCaptureOptions = { clip?: ComposerDesignHostCaptureClip };
+export type ComposerDesignHostCaptureSuccess = { dataUrl: string; h: number; ok: true; w: number };
+export type ComposerDesignHostCaptureResult = ComposerDesignHostCaptureSuccess | ComposerDesignHostFailure;
 
-export type OpenDesignHostPreviewNavigationFailure = {
+export type ComposerDesignHostPreviewNavigationFailure = {
   errorCode: number;
   eventId: number;
   frameName?: string;
@@ -141,11 +141,11 @@ export type OpenDesignHostPreviewNavigationFailure = {
   validatedUrl: string;
 };
 
-export type OpenDesignHostPreviewNavigationFailureListener = (
-  failure: OpenDesignHostPreviewNavigationFailure,
+export type ComposerDesignHostPreviewNavigationFailureListener = (
+  failure: ComposerDesignHostPreviewNavigationFailure,
 ) => void;
 
-export type OpenDesignHostBrowserClearDataOptions = {
+export type ComposerDesignHostBrowserClearDataOptions = {
   cookies?: boolean;
   storage?: boolean;
 };
@@ -163,7 +163,7 @@ export const OPEN_DESIGN_HOST_APPEARANCE_THEMES = Object.freeze({
   SYSTEM: "system",
 } as const);
 
-export type OpenDesignHostAppearanceTheme =
+export type ComposerDesignHostAppearanceTheme =
   (typeof OPEN_DESIGN_HOST_APPEARANCE_THEMES)[keyof typeof OPEN_DESIGN_HOST_APPEARANCE_THEMES];
 
 export const OPEN_DESIGN_HOST_UPDATER_ACTIONS = Object.freeze({
@@ -175,12 +175,12 @@ export const OPEN_DESIGN_HOST_UPDATER_ACTIONS = Object.freeze({
   STATUS: "status",
 } as const);
 
-export type OpenDesignHostUpdaterAction =
+export type ComposerDesignHostUpdaterAction =
   (typeof OPEN_DESIGN_HOST_UPDATER_ACTIONS)[keyof typeof OPEN_DESIGN_HOST_UPDATER_ACTIONS];
 
 /** @internal Updater actions that return a status snapshot (every action except `quit`). */
-export type OpenDesignHostUpdaterStatusAction = Exclude<
-  OpenDesignHostUpdaterAction,
+export type ComposerDesignHostUpdaterStatusAction = Exclude<
+  ComposerDesignHostUpdaterAction,
   typeof OPEN_DESIGN_HOST_UPDATER_ACTIONS.QUIT
 >;
 
@@ -196,35 +196,35 @@ export const OPEN_DESIGN_HOST_UPDATER_STATES = Object.freeze({
   UNSUPPORTED: "unsupported",
 } as const);
 
-export type OpenDesignHostUpdaterState =
+export type ComposerDesignHostUpdaterState =
   (typeof OPEN_DESIGN_HOST_UPDATER_STATES)[keyof typeof OPEN_DESIGN_HOST_UPDATER_STATES];
 
-export type OpenDesignHostUpdaterMode = "js-incremental" | "package-launcher";
-export type OpenDesignHostUpdaterChannel = ReleaseChannel;
+export type ComposerDesignHostUpdaterMode = "js-incremental" | "package-launcher";
+export type ComposerDesignHostUpdaterChannel = ReleaseChannel;
 
-export type OpenDesignHostUpdaterActionOptions = {
+export type ComposerDesignHostUpdaterActionOptions = {
   payload?: Record<string, unknown>;
 };
 
-export type OpenDesignHostUpdaterCapabilitySet = {
+export type ComposerDesignHostUpdaterCapabilitySet = {
   canApplyInPlace: boolean;
   canDownload: boolean;
   canOpenInstaller: boolean;
   requiresManualInstall: boolean;
 };
 
-export type OpenDesignHostUpdaterPathSnapshot = {
+export type ComposerDesignHostUpdaterPathSnapshot = {
   downloadRoot?: string;
   manifestPath?: string;
 };
 
-export type OpenDesignHostUpdaterChecksumSnapshot = {
+export type ComposerDesignHostUpdaterChecksumSnapshot = {
   algorithm: "sha256" | "sha512";
   url?: string;
   value?: string;
 };
 
-export type OpenDesignHostUpdaterArtifactSnapshot = {
+export type ComposerDesignHostUpdaterArtifactSnapshot = {
   name?: string;
   platformKey?: string;
   size?: number;
@@ -232,18 +232,18 @@ export type OpenDesignHostUpdaterArtifactSnapshot = {
   url: string;
 };
 
-export type OpenDesignHostUpdaterProgressSnapshot = {
+export type ComposerDesignHostUpdaterProgressSnapshot = {
   receivedBytes: number;
   totalBytes?: number;
 };
 
-export type OpenDesignHostUpdaterErrorSnapshot = {
+export type ComposerDesignHostUpdaterErrorSnapshot = {
   code: string;
   details?: unknown;
   message: string;
 };
 
-export type OpenDesignHostUpdaterInstallResult = {
+export type ComposerDesignHostUpdaterInstallResult = {
   activeVersion?: string;
   artifactPath?: string;
   dryRun?: boolean;
@@ -254,11 +254,11 @@ export type OpenDesignHostUpdaterInstallResult = {
   path: string;
 };
 
-export type OpenDesignHostUpdaterReleaseSnapshot = {
+export type ComposerDesignHostUpdaterReleaseSnapshot = {
   arch: string;
-  artifact: OpenDesignHostUpdaterArtifactSnapshot;
-  checksum: OpenDesignHostUpdaterChecksumSnapshot;
-  channel: OpenDesignHostUpdaterChannel;
+  artifact: ComposerDesignHostUpdaterArtifactSnapshot;
+  checksum: ComposerDesignHostUpdaterChecksumSnapshot;
+  channel: ComposerDesignHostUpdaterChannel;
   downloadedAt: string;
   key: string;
   metadata?: Record<string, unknown>;
@@ -267,29 +267,29 @@ export type OpenDesignHostUpdaterReleaseSnapshot = {
   version: string;
 };
 
-export type OpenDesignHostUpdaterIncomingSnapshot = {
+export type ComposerDesignHostUpdaterIncomingSnapshot = {
   arch: string;
-  artifact: OpenDesignHostUpdaterArtifactSnapshot;
-  channel: OpenDesignHostUpdaterChannel;
+  artifact: ComposerDesignHostUpdaterArtifactSnapshot;
+  channel: ComposerDesignHostUpdaterChannel;
   key?: string;
   metadata?: Record<string, unknown>;
-  progress?: OpenDesignHostUpdaterProgressSnapshot;
+  progress?: ComposerDesignHostUpdaterProgressSnapshot;
   startedAt: string;
   version: string;
 };
 
-export type OpenDesignHostUpdaterCacheLifecycleTrigger = "cold-start" | "manual" | "next-version-ready";
+export type ComposerDesignHostUpdaterCacheLifecycleTrigger = "cold-start" | "manual" | "next-version-ready";
 
-export type OpenDesignHostUpdaterReleaseLifecycleState =
+export type ComposerDesignHostUpdaterReleaseLifecycleState =
   | "cleanup-deferred"
   | "cleanup-removed"
   | "deprecated"
   | "retained"
   | "unknown";
 
-export type OpenDesignHostUpdaterCacheLifecycleSummary = {
+export type ComposerDesignHostUpdaterCacheLifecycleSummary = {
   lastRunAt?: string;
-  lastTrigger?: OpenDesignHostUpdaterCacheLifecycleTrigger;
+  lastTrigger?: ComposerDesignHostUpdaterCacheLifecycleTrigger;
   platform: string;
   releases: {
     cleanupDeferred: number;
@@ -302,11 +302,11 @@ export type OpenDesignHostUpdaterCacheLifecycleSummary = {
   };
 };
 
-export type OpenDesignHostUpdaterCacheSnapshot = {
-  lifecycle?: OpenDesignHostUpdaterCacheLifecycleSummary;
+export type ComposerDesignHostUpdaterCacheSnapshot = {
+  lifecycle?: ComposerDesignHostUpdaterCacheLifecycleSummary;
 };
 
-export type OpenDesignHostUpdaterReinstallReason =
+export type ComposerDesignHostUpdaterReinstallReason =
   | "launcher-schema"
   | "outer-below-min"
   | "outer-version-unreadable";
@@ -317,47 +317,47 @@ export type OpenDesignHostUpdaterReinstallReason =
  * outer package version; `url` is an optional operator-supplied explanation
  * link.
  */
-export type OpenDesignHostUpdaterReinstallSnapshot = {
+export type ComposerDesignHostUpdaterReinstallSnapshot = {
   installedVersion?: string;
   minVersion?: string;
-  reason: OpenDesignHostUpdaterReinstallReason;
+  reason: ComposerDesignHostUpdaterReinstallReason;
   url?: string;
 };
 
-export type OpenDesignHostUpdaterStatusSnapshot = {
-  active?: OpenDesignHostUpdaterReleaseSnapshot;
+export type ComposerDesignHostUpdaterStatusSnapshot = {
+  active?: ComposerDesignHostUpdaterReleaseSnapshot;
   arch: string;
-  artifact?: OpenDesignHostUpdaterArtifactSnapshot;
+  artifact?: ComposerDesignHostUpdaterArtifactSnapshot;
   artifactUrl?: string;
   availableVersion?: string;
-  cache?: OpenDesignHostUpdaterCacheSnapshot;
-  capabilities: OpenDesignHostUpdaterCapabilitySet;
-  channel: OpenDesignHostUpdaterChannel;
-  checksum?: OpenDesignHostUpdaterChecksumSnapshot;
+  cache?: ComposerDesignHostUpdaterCacheSnapshot;
+  capabilities: ComposerDesignHostUpdaterCapabilitySet;
+  channel: ComposerDesignHostUpdaterChannel;
+  checksum?: ComposerDesignHostUpdaterChecksumSnapshot;
   currentVersion: string;
   downloadPath?: string;
   enabled: boolean;
-  error?: OpenDesignHostUpdaterErrorSnapshot;
-  incoming?: OpenDesignHostUpdaterIncomingSnapshot;
-  installResult?: OpenDesignHostUpdaterInstallResult;
+  error?: ComposerDesignHostUpdaterErrorSnapshot;
+  incoming?: ComposerDesignHostUpdaterIncomingSnapshot;
+  installResult?: ComposerDesignHostUpdaterInstallResult;
   lastCheckedAt?: string;
   metadata?: Record<string, unknown>;
-  mode: OpenDesignHostUpdaterMode;
-  paths?: OpenDesignHostUpdaterPathSnapshot;
+  mode: ComposerDesignHostUpdaterMode;
+  paths?: ComposerDesignHostUpdaterPathSnapshot;
   platform: string;
-  progress?: OpenDesignHostUpdaterProgressSnapshot;
-  reinstall?: OpenDesignHostUpdaterReinstallSnapshot;
-  state: OpenDesignHostUpdaterState;
+  progress?: ComposerDesignHostUpdaterProgressSnapshot;
+  reinstall?: ComposerDesignHostUpdaterReinstallSnapshot;
+  state: ComposerDesignHostUpdaterState;
   supported: boolean;
 };
 
-export type OpenDesignHostUpdaterResult =
-  | { ok: true; status: OpenDesignHostUpdaterStatusSnapshot }
-  | OpenDesignHostFailure;
+export type ComposerDesignHostUpdaterResult =
+  | { ok: true; status: ComposerDesignHostUpdaterStatusSnapshot }
+  | ComposerDesignHostFailure;
 
-export type OpenDesignHostUpdaterStatusListener = (status: OpenDesignHostUpdaterStatusSnapshot) => void;
+export type ComposerDesignHostUpdaterStatusListener = (status: ComposerDesignHostUpdaterStatusSnapshot) => void;
 
-export type OpenDesignHostUpdaterMenuLabels = {
+export type ComposerDesignHostUpdaterMenuLabels = {
   check: string;
   checking: string;
   downloading: string;
@@ -366,27 +366,27 @@ export type OpenDesignHostUpdaterMenuLabels = {
   restart: string;
 };
 
-export type OpenDesignHostUpdaterOpenDialogRequest = {
+export type ComposerDesignHostUpdaterOpenDialogRequest = {
   source: string;
 };
 
-export type OpenDesignHostUpdaterOpenDialogListener = (request: OpenDesignHostUpdaterOpenDialogRequest) => void;
+export type ComposerDesignHostUpdaterOpenDialogListener = (request: ComposerDesignHostUpdaterOpenDialogRequest) => void;
 
-export type OpenDesignHostBridge = {
+export type ComposerDesignHostBridge = {
   // Optional so older host builds still satisfy the bridge shape; callers
   // must feature-detect before invoking.
   appearance?: {
-    setTheme(theme: OpenDesignHostAppearanceTheme): void;
+    setTheme(theme: ComposerDesignHostAppearanceTheme): void;
   };
   browser: {
-    clearData(options?: OpenDesignHostBrowserClearDataOptions): Promise<OpenDesignHostActionResult>;
+    clearData(options?: ComposerDesignHostBrowserClearDataOptions): Promise<ComposerDesignHostActionResult>;
   };
   capture: {
-    page(options?: OpenDesignHostCaptureOptions): Promise<OpenDesignHostCaptureResult>;
+    page(options?: ComposerDesignHostCaptureOptions): Promise<ComposerDesignHostCaptureResult>;
   };
-  client: OpenDesignHostClient;
+  client: ComposerDesignHostClient;
   pdf: {
-    print(html: string, nonce?: string, options?: OpenDesignHostPdfPrintOptions): Promise<OpenDesignHostActionResult>;
+    print(html: string, nonce?: string, options?: ComposerDesignHostPdfPrintOptions): Promise<ComposerDesignHostActionResult>;
   };
   pet: {
     setVisible(visible: boolean): void;
@@ -395,34 +395,34 @@ export type OpenDesignHostBridge = {
   // Electron is the only layer that can observe a compositor-affecting
   // subframe navigation failure after the iframe DOM remains healthy.
   preview?: {
-    getLatestNavigationFailure(): OpenDesignHostPreviewNavigationFailure | null;
-    subscribeNavigationFailure(listener: OpenDesignHostPreviewNavigationFailureListener): () => void;
+    getLatestNavigationFailure(): ComposerDesignHostPreviewNavigationFailure | null;
+    subscribeNavigationFailure(listener: ComposerDesignHostPreviewNavigationFailureListener): () => void;
   };
   project: {
-    pickAndImport(init?: OpenDesignHostProjectImportInit): Promise<OpenDesignHostProjectImportResult>;
-    pickAndReplaceWorkingDir(projectId: string): Promise<OpenDesignHostProjectReplaceWorkingDirResult>;
+    pickAndImport(init?: ComposerDesignHostProjectImportInit): Promise<ComposerDesignHostProjectImportResult>;
+    pickAndReplaceWorkingDir(projectId: string): Promise<ComposerDesignHostProjectReplaceWorkingDirResult>;
     // Optional so older host builds still satisfy the bridge shape; callers
     // must feature-detect before invoking.
-    pickWorkingDir?(): Promise<OpenDesignHostPickWorkingDirResult>;
+    pickWorkingDir?(): Promise<ComposerDesignHostPickWorkingDirResult>;
   };
   shell: {
-    openExternal(url: string): Promise<OpenDesignHostActionResult>;
-    openPath(projectId: string): Promise<OpenDesignHostActionResult>;
+    openExternal(url: string): Promise<ComposerDesignHostActionResult>;
+    openPath(projectId: string): Promise<ComposerDesignHostActionResult>;
   };
   updater: {
-    check(options?: OpenDesignHostUpdaterActionOptions): Promise<OpenDesignHostUpdaterStatusSnapshot>;
-    "clear-cache"(options?: OpenDesignHostUpdaterActionOptions): Promise<OpenDesignHostUpdaterStatusSnapshot>;
-    download(options?: OpenDesignHostUpdaterActionOptions): Promise<OpenDesignHostUpdaterStatusSnapshot>;
-    install(options?: OpenDesignHostUpdaterActionOptions): Promise<OpenDesignHostUpdaterStatusSnapshot>;
-    quit(options?: OpenDesignHostUpdaterActionOptions): Promise<OpenDesignHostActionResult>;
-    setMenuLabels(labels: OpenDesignHostUpdaterMenuLabels): Promise<OpenDesignHostActionResult>;
-    status(options?: OpenDesignHostUpdaterActionOptions): Promise<OpenDesignHostUpdaterStatusSnapshot>;
-    subscribe(listener: OpenDesignHostUpdaterStatusListener): () => void;
-    subscribeOpenDialog(listener: OpenDesignHostUpdaterOpenDialogListener): () => void;
+    check(options?: ComposerDesignHostUpdaterActionOptions): Promise<ComposerDesignHostUpdaterStatusSnapshot>;
+    "clear-cache"(options?: ComposerDesignHostUpdaterActionOptions): Promise<ComposerDesignHostUpdaterStatusSnapshot>;
+    download(options?: ComposerDesignHostUpdaterActionOptions): Promise<ComposerDesignHostUpdaterStatusSnapshot>;
+    install(options?: ComposerDesignHostUpdaterActionOptions): Promise<ComposerDesignHostUpdaterStatusSnapshot>;
+    quit(options?: ComposerDesignHostUpdaterActionOptions): Promise<ComposerDesignHostActionResult>;
+    setMenuLabels(labels: ComposerDesignHostUpdaterMenuLabels): Promise<ComposerDesignHostActionResult>;
+    status(options?: ComposerDesignHostUpdaterActionOptions): Promise<ComposerDesignHostUpdaterStatusSnapshot>;
+    subscribe(listener: ComposerDesignHostUpdaterStatusListener): () => void;
+    subscribeOpenDialog(listener: ComposerDesignHostUpdaterOpenDialogListener): () => void;
   };
   version: typeof OPEN_DESIGN_HOST_VERSION;
 };
 
-export type OpenDesignHostGlobalScope = Record<string, unknown> & {
+export type ComposerDesignHostGlobalScope = Record<string, unknown> & {
   window?: unknown;
 };

@@ -812,7 +812,7 @@ function codexExecutableGuidance(
   ) {
     return '';
   }
-  return ` Configured Codex path failed: ${configuredOverridePath}. OpenDesign also detected a PATH Codex CLI at ${pathResolvedPath}. Update CODEX_BIN or clear the custom path to use the detected binary.`;
+  return ` Configured Codex path failed: ${configuredOverridePath}. ComposerDesign also detected a PATH Codex CLI at ${pathResolvedPath}. Update CODEX_BIN or clear the custom path to use the detected binary.`;
 }
 
 function codexExecutableFallbackSuccessDetail(
@@ -1352,7 +1352,7 @@ function openAIChatCompletionsProviderCall(
       authorization: `Bearer ${apiKey}`,
       ...(new URL(baseUrl).hostname === 'openrouter.ai' ? {
         'HTTP-Referer': 'https://opendesign.dev',
-        'X-Title': 'OpenDesign',
+        'X-Title': 'ComposerDesign',
       } : {}),
     },
     body: {
@@ -2280,7 +2280,7 @@ function runQuietCommand(command: string, args: string[], cwd: string): Promise<
 async function prepareOpenCodeConnectionTestCwd(tempDir: string): Promise<void> {
   await fsp.writeFile(
     path.join(tempDir, 'README.md'),
-    'OpenDesign OpenCode connection test.\n',
+    'ComposerDesign OpenCode connection test.\n',
     'utf8',
   );
   try {

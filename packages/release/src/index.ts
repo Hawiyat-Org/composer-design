@@ -53,12 +53,12 @@ export const RELEASE_PLATFORM_NAMESPACE_SUFFIXES = Object.freeze({
   win: "win",
 } as const satisfies Record<ReleasePlatform, string>);
 
-const PRODUCT_NAME = "Open Design";
-const DEFAULT_NAMESPACE = "open-design";
+const PRODUCT_NAME = "Composer Design";
+const DEFAULT_NAMESPACE = "composer-design";
 
 const descriptors: Record<"prerelease" | "stable", ReleaseChannelDescriptor> = {
   prerelease: {
-    appId: "io.open-design.desktop.prerelease",
+    appId: "io.composer-design.desktop.prerelease",
     baseVersionField: "baseVersion",
     channel: "prerelease",
     counterField: "releaseNumber",
@@ -70,7 +70,7 @@ const descriptors: Record<"prerelease" | "stable", ReleaseChannelDescriptor> = {
     storagePrefix: "prerelease",
   },
   stable: {
-    appId: "io.open-design.desktop",
+    appId: "io.composer-design.desktop",
     baseVersionField: "baseVersion",
     channel: "stable",
     counterField: null,

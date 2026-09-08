@@ -95,7 +95,7 @@ export function readAnalyticsContext(req: Request): AnalyticsContext | null {
   const entrySurface = boundedHeader(
     req,
     ANALYTICS_HEADER_ENTRY_SURFACE,
-    ['open_design_ui', 'od_cli', 'external_mcp'] as const,
+    ['composer_design_ui', 'od_cli', 'external_mcp'] as const,
   );
   const hostProduct = boundedHeader(
     req,
@@ -110,7 +110,7 @@ export function readAnalyticsContext(req: Request): AnalyticsContext | null {
   const publisherClass = boundedHeader(
     req,
     ANALYTICS_HEADER_PUBLISHER_CLASS,
-    ['open_design_first_party', 'third_party', 'unknown'] as const,
+    ['composer_design_first_party', 'third_party', 'unknown'] as const,
   );
   const attributionQuality = boundedHeader(
     req,
@@ -318,7 +318,7 @@ export function createAnalyticsService(args: {
   // assumes a server deployment where the ingestion request originates from a
   // datacenter IP, so GeoIP would mis-attribute every user to the server's
   // location — hence it stamps `$geoip_disable: true` and PostHog skips
-  // country enrichment. OpenDesign's daemon runs on the USER'S OWN machine,
+  // country enrichment. ComposerDesign's daemon runs on the USER'S OWN machine,
   // so the request's source IP is the user's real public IP, identical to what
   // posthog-js already sends. Leaving the default on stripped country from
   // every daemon-emitted event (run_created, run_finished, *_result, …) —

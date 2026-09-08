@@ -1,5 +1,5 @@
 /**
- * Frozen Open Design consumer for Vela's private
+ * Frozen Composer Design consumer for Vela's private
  * `sessionUpdate: tool_execution_lifecycle`, `vela.tool_execution_lifecycle`
  * version 1 contract.
  * Rebuilds every persisted/telemetry field from fixed allowlists; arbitrary

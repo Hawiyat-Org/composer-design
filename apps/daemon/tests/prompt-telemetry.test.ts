@@ -16,10 +16,10 @@ import {
 describe('prompt telemetry builder', () => {
   it('binds the raw OD Next inner text identity while keeping its safe body bounded and redacted', () => {
     const finalText = [
-      '<open_design_prompt_bundle schema="open-design.od-next-prompt-bundle/v2">',
+      '<composer_design_prompt_bundle schema="open-design.od-next-prompt-bundle/v2">',
       'Inspect /Users/alice/private/design.ts with sk-test-1234567890123456789012.',
       'x'.repeat(80 * 1024),
-      '</open_design_prompt_bundle>',
+      '</composer_design_prompt_bundle>',
     ].join('\n');
     const sha256 = createHash('sha256').update(finalText, 'utf8').digest('hex');
     const telemetry = bindOdNextExactSendPromptEvidence({
@@ -57,7 +57,7 @@ describe('prompt telemetry builder', () => {
   });
 
   it('rejects raw OD Next text drift before a runtime wrapper can be applied', () => {
-    const finalText = '<open_design_request_turn>repair</open_design_request_turn>';
+    const finalText = '<composer_design_request_turn>repair</composer_design_request_turn>';
     const persistedText = `${finalText}\n`;
     expect(() => bindOdNextExactSendPromptEvidence({
       telemetry: buildPromptStackTelemetry({

@@ -1,6 +1,6 @@
 // Team-wide shared-project discovery. The Vela CLI is the only production
 // transport: it reuses the login session and keeps backend credentials out of
-// the OpenDesign daemon.
+// the ComposerDesign daemon.
 
 import type { TeamProject } from '@open-design/contracts';
 import {

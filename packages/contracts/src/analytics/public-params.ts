@@ -19,7 +19,7 @@ export const EVENT_SCHEMA_VERSION = 4;
 
 export type AnalyticsClientType = 'web' | 'desktop' | 'external_mcp';
 export type AnalyticsEntrySurface =
-  | 'open_design_ui'
+  | 'composer_design_ui'
   | 'od_cli'
   | 'external_mcp';
 export type AnalyticsHostProduct =
@@ -34,7 +34,7 @@ export type AnalyticsDistributionMechanism =
   | 'manual'
   | 'unknown';
 export type AnalyticsPublisherClass =
-  | 'open_design_first_party'
+  | 'composer_design_first_party'
   | 'third_party'
   | 'unknown';
 export type AnalyticsAttributionQuality =

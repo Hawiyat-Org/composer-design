@@ -57,7 +57,7 @@ describe('MEDIA_USER_REPLY_CONTRACT mirrors', () => {
     expect(daemonBody).toContain('图片模型的 API key 还没填 —— 在设置里填好就能用。');
     expect(daemonBody).toContain('图片模型的额度用完了 —— 重试不会恢复,去充值或换一个图片模型。');
     expect(daemonBody).toContain('图片生成这会儿不稳定 —— 不是你的问题,过一会儿再试通常就好。');
-    expect(daemonBody).toContain('需要更新 Open Design 才能生成图片。');
+    expect(daemonBody).toContain('需要更新 Composer Design 才能生成图片。');
     expect(daemonBody).toContain('这次任务里不能生成图片 —— 需要图片的话,新建一个图片项目再试。');
     expect(normalized).toContain('Reword it, drop the sensitive details, and try again.');
     expect(normalized).toContain('Pick a different image model and try again.');

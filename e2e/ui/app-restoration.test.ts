@@ -2022,7 +2022,7 @@ test('[P1] Browser Inspiration page_info action seeds Browser tab context into t
 
   const input = page.getByTestId('chat-composer-input');
   await expect(input).toContainText('@agent-browser');
-  await expect(input).toContainText('Use the selected OpenDesign Browser tab as the bound target.');
+  await expect(input).toContainText('Use the selected ComposerDesign Browser tab as the bound target.');
   await expect(input).toContainText('Operation: page_info');
   await expect(input).toContainText('- tab: Browser');
   await expect(input).toContainText('- url: about:blank');
@@ -2494,7 +2494,7 @@ async function seedAssistantMessage(
   await expectWorkspaceReady(page);
 }
 
-async function openDesignFile(page: Page, fileName: string) {
+async function composerDesignFile(page: Page, fileName: string) {
   const tab = tabBySuffix(page, fileName);
   if (await tab.isVisible().catch(() => false)) {
     await tab.click();
@@ -2633,7 +2633,7 @@ async function ensureFileTabOpen(page: Page, name: string): Promise<Locator> {
   if (await tab.isVisible().catch(() => false)) return tab;
 
   await page.getByTestId('design-files-tab').click();
-  await openDesignFile(page, name);
+  await composerDesignFile(page, name);
   await expect(tab).toBeVisible();
   return tab;
 }
@@ -2822,7 +2822,7 @@ async function runDeckPaginationNextPrevCorrectnessFlow(page: Page) {
   const { projectId } = await getCurrentProjectContext(page);
   await seedDeckArtifact(page, projectId, 'pagination.html', 'Pagination Deck', ['Slide One', 'Slide Two', 'Slide Three']);
   await page.reload();
-  await openDesignFile(page, 'pagination.html');
+  await composerDesignFile(page, 'pagination.html');
 
   const frame = artifactPreviewFrame(page);
   await expect(frame.getByText('Slide One')).toBeVisible();
@@ -2840,14 +2840,14 @@ async function runDeckPaginationPerFileIsolatedFlow(page: Page) {
   await seedDeckArtifact(page, projectId, 'deck-beta.html', 'Deck Beta', ['Beta One', 'Beta Two']);
   await page.reload();
 
-  await openDesignFile(page, 'deck-alpha.html');
+  await composerDesignFile(page, 'deck-alpha.html');
   const frame = artifactPreviewFrame(page);
   await expect(frame.getByText('Alpha One')).toBeVisible();
   await clickDeckNextSlide(page);
   await expect(frame.getByText('Alpha Two')).toBeVisible();
 
   await openAllProjectFiles(page);
-  await openDesignFile(page, 'deck-beta.html');
+  await composerDesignFile(page, 'deck-beta.html');
   await expect(frame.getByText('Beta One')).toBeVisible();
   await clickDeckNextSlide(page);
   await expect(frame.getByText('Beta Two')).toBeVisible();
@@ -2869,7 +2869,7 @@ async function runUploadedImageRendersInPreviewFlow(page: Page) {
     '<!doctype html><html><body><main><h1>Image Preview</h1><img alt="Brand logo" src="brand.png"></main></body></html>',
   );
   await page.reload();
-  await openDesignFile(page, 'image-preview.html');
+  await composerDesignFile(page, 'image-preview.html');
 
   const image = artifactPreviewFrame(page).getByRole('img', { name: 'Brand logo' });
   await expect(image).toBeVisible();
@@ -2882,7 +2882,7 @@ async function runPythonSourcePreviewFlow(page: Page) {
   const { projectId } = await getCurrentProjectContext(page);
   await seedProjectFile(page, projectId, 'app.py', 'def greet():\n    return "hello from python"\n');
   await page.reload();
-  await openDesignFile(page, 'app.py');
+  await composerDesignFile(page, 'app.py');
 
   await expect(page.locator('.code-viewer')).toContainText('def greet');
   await expect(page.locator('.code-viewer')).toContainText('hello from python');
@@ -2948,7 +2948,7 @@ async function createProjectNameOnly(
 async function gotoEntryHome(page: Page) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await waitForLoadingToClear(page);
-  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve OpenDesign' });
+  const privacyDialog = page.getByRole('dialog').filter({ hasText: 'Help us improve ComposerDesign' });
   if (await privacyDialog.isVisible()) {
     await privacyDialog.getByRole('button', { name: /I get it|not now|got it|don't share/i }).click();
     await expect(privacyDialog).toHaveCount(0);
@@ -3017,7 +3017,7 @@ async function expectProjectsView(page: Page) {
 }
 
 async function waitForLoadingToClear(page: Page) {
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ComposerDesign…').waitFor({ state: 'hidden', timeout: T.long });
 }
 
 async function getCurrentProjectContext(

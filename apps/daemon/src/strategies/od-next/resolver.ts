@@ -303,10 +303,10 @@ export function daemonOwnedOdNextPlanningCatalog(
  * Production preflight owned by the daemon, not the model. It recognizes only
  * the four bundled OD Next artifact profiles and a finite route/output
  * allowlist. Unknown future artifact types or route strings fail closed and
- * continue through ordinary Open Design unless explicitly added here.
+ * continue through ordinary Composer Design unless explicitly added here.
  */
 export function resolveDaemonOwnedOdNextExecutionPreflight(
-  plan: import('@open-design/contracts').OpenDesignPlanContractV2,
+  plan: import('@open-design/contracts').ComposerDesignPlanContractV2,
 ): OdNextExecutionPreflightInput {
   const taskType = plan.taskProfile.taskType as keyof typeof DAEMON_OWNED_PRODUCTION_ROUTES;
   const routes = DAEMON_OWNED_PRODUCTION_ROUTES[taskType];

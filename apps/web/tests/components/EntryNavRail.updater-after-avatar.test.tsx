@@ -21,8 +21,8 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { WorkspaceCollabContext } from '@open-design/contracts';
-import type { OpenDesignHostUpdaterStatusSnapshot } from '@open-design/host';
-import { installMockOpenDesignHost } from '@open-design/host/testing';
+import type { ComposerDesignHostUpdaterStatusSnapshot } from '@open-design/host';
+import { installMockComposerDesignHost } from '@open-design/host/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -59,7 +59,7 @@ function freeContext(): WorkspaceCollabContext {
   } as unknown as WorkspaceCollabContext;
 }
 
-function idleStatus(): OpenDesignHostUpdaterStatusSnapshot {
+function idleStatus(): ComposerDesignHostUpdaterStatusSnapshot {
   return {
     arch: 'arm64',
     capabilities: {
@@ -78,11 +78,11 @@ function idleStatus(): OpenDesignHostUpdaterStatusSnapshot {
   };
 }
 
-function downloadedStatus(): OpenDesignHostUpdaterStatusSnapshot {
+function downloadedStatus(): ComposerDesignHostUpdaterStatusSnapshot {
   return {
     ...idleStatus(),
     availableVersion: '0.16.2-beta.146',
-    downloadPath: '/tmp/open-design-updater/Open Design Beta.dmg',
+    downloadPath: '/tmp/open-design-updater/Composer Design Beta.dmg',
     state: 'downloaded',
   };
 }
@@ -136,7 +136,7 @@ afterEach(() => {
 });
 
 async function renderWithDownloadedUpdate(context: WorkspaceCollabContext | null = teamContext()) {
-  restoreHost = installMockOpenDesignHost({
+  restoreHost = installMockComposerDesignHost({
     host: { updater: { status: vi.fn(async () => downloadedStatus()) } },
   });
   const view = renderRail(context);
@@ -230,7 +230,7 @@ describe('standalone updater rocket placement in the top-right cluster', () => {
   });
 
   it('leaves an empty standalone slot after the capsule while no update is in flight', async () => {
-    restoreHost = installMockOpenDesignHost({
+    restoreHost = installMockComposerDesignHost({
       host: { updater: { status: vi.fn(async () => idleStatus()) } },
     });
 
@@ -260,7 +260,7 @@ describe('standalone updater rocket placement in the top-right cluster', () => {
   });
 
   it('keeps the signed-out top-right cluster absent while the updater is idle', async () => {
-    restoreHost = installMockOpenDesignHost({
+    restoreHost = installMockComposerDesignHost({
       host: { updater: { status: vi.fn(async () => idleStatus()) } },
     });
 

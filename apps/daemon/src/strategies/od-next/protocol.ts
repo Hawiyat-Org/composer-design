@@ -1,9 +1,9 @@
 import {
   OD_NEXT_PLAN_CONTRACT_BLOCK,
   OD_NEXT_RUNTIME_STATE_BLOCK,
-  OpenDesignPlanContractV2Schema,
+  ComposerDesignPlanContractV2Schema,
   StrategyRuntimeStateV2Schema,
-  type OpenDesignPlanContractV2,
+  type ComposerDesignPlanContractV2,
   type StrategyRuntimeStateV2,
 } from '@open-design/contracts';
 
@@ -25,14 +25,14 @@ export interface OdNextProtocolIssue {
 
 export interface OdNextMachineProtocolResult {
   visibleText: string;
-  planContract?: OpenDesignPlanContractV2;
+  planContract?: ComposerDesignPlanContractV2;
   runtimeState?: StrategyRuntimeStateV2;
   /**
    * Schema-valid semantic anchors recovered from wrapper/fence defects. They
    * are never accepted as wire output; the Coordinator may use exactly one as
    * the immutable hash anchor for the one allowed serialization repair.
    */
-  repairPlanContract?: OpenDesignPlanContractV2;
+  repairPlanContract?: ComposerDesignPlanContractV2;
   repairRuntimeState?: StrategyRuntimeStateV2;
   issues: OdNextProtocolIssue[];
   /**
@@ -406,10 +406,10 @@ export class OdNextMachineProtocolStream {
     kind: T,
     issues: OdNextProtocolIssue[],
   ): {
-    strict?: T extends 'plan' ? OpenDesignPlanContractV2 : StrategyRuntimeStateV2;
-    repair?: T extends 'plan' ? OpenDesignPlanContractV2 : StrategyRuntimeStateV2;
+    strict?: T extends 'plan' ? ComposerDesignPlanContractV2 : StrategyRuntimeStateV2;
+    repair?: T extends 'plan' ? ComposerDesignPlanContractV2 : StrategyRuntimeStateV2;
   } {
-    type Parsed = T extends 'plan' ? OpenDesignPlanContractV2 : StrategyRuntimeStateV2;
+    type Parsed = T extends 'plan' ? ComposerDesignPlanContractV2 : StrategyRuntimeStateV2;
     const blocks = this.blocks.filter((block) => block.kind === kind);
     const metadata = MACHINE[kind];
     if (blocks.length > 1) {
@@ -422,7 +422,7 @@ export class OdNextMachineProtocolStream {
     const block = blocks[0];
     if (!block || block.tooLarge) return {};
     const schema = kind === 'plan'
-      ? OpenDesignPlanContractV2Schema
+      ? ComposerDesignPlanContractV2Schema
       : StrategyRuntimeStateV2Schema;
 
     if (block.exactOpen && block.exactClose) {

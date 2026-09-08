@@ -70,7 +70,7 @@ const ROWS: Row[] = [
   //
   // Every row here reports a credential the daemon cannot reach: signing in to
   // the agent, or to AMR Cloud, changes none of them. Landing them on `auth`
-  // put an "Open Design 尚未登录 / Sign in" card in front of the user
+  // put an "Composer Design 尚未登录 / Sign in" card in front of the user
   // (`apps/web/src/runtime/amr-guidance.ts` — `AGENT_AUTH_REQUIRED` is aliased
   // onto the AMR sign-in card for a hosted run, and onto S02「本地 agent 没登录」
   // for every other agent), so the fix the card offered was guaranteed not to

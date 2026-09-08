@@ -11,7 +11,7 @@ import {
 } from '../../src/db.js';
 import {
   accountScopedRunWorkspaceScopeForProject,
-  openDesignAmrTraceEnvForRun,
+  composerDesignAmrTraceEnvForRun,
   pinRunWorkspaceScopeForProject,
 } from '../../src/runtimes/project-amr-trace-env.js';
 
@@ -48,7 +48,7 @@ function projectDb(input: {
   return db;
 }
 
-describe('openDesignAmrTraceEnvForRun', () => {
+describe('composerDesignAmrTraceEnvForRun', () => {
   it('pins the creator member with the Workspace and does not follow later project rebinding', () => {
     const db = projectDb({
       projectId: 'project-a',
@@ -75,7 +75,7 @@ describe('openDesignAmrTraceEnvForRun', () => {
       workspaceId: 'workspace-a',
       memberId: 'member-a',
     });
-    await expect(openDesignAmrTraceEnvForRun({
+    await expect(composerDesignAmrTraceEnvForRun({
       agentId: 'claude',
       runId: 'run-claude',
       runAttempt: 0,
@@ -89,7 +89,7 @@ describe('openDesignAmrTraceEnvForRun', () => {
       workspaceId: 'workspace-a',
       memberId: 'member-a',
     });
-    const env = await openDesignAmrTraceEnvForRun({
+    const env = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-a',
       conversationId: 'conversation-a',
@@ -111,7 +111,7 @@ describe('openDesignAmrTraceEnvForRun', () => {
       workspaceId: 'workspace-team',
       memberId: 'member-team',
     });
-    const env = await openDesignAmrTraceEnvForRun({
+    const env = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-team-draft',
       runAttempt: 0,
@@ -128,7 +128,7 @@ describe('openDesignAmrTraceEnvForRun', () => {
       workspaceId: 'workspace-personal',
       memberId: 'member-personal',
     });
-    const env = await openDesignAmrTraceEnvForRun({
+    const env = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-personal',
       runAttempt: 0,
@@ -141,7 +141,7 @@ describe('openDesignAmrTraceEnvForRun', () => {
 
   it('spawns a truly unbound local project on the signed-in account wallet', async () => {
     const db = projectDb({ projectId: 'project-legacy' });
-    const env = await openDesignAmrTraceEnvForRun({
+    const env = await composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-legacy',
       runAttempt: 0,
@@ -154,7 +154,7 @@ describe('openDesignAmrTraceEnvForRun', () => {
 
   it('does not infer account scope from a missing run proof', async () => {
     projectDb({ projectId: 'project-proof-missing' });
-    await expect(openDesignAmrTraceEnvForRun({
+    await expect(composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-proof-missing',
       runAttempt: 0,
@@ -168,7 +168,7 @@ describe('openDesignAmrTraceEnvForRun', () => {
 
   it('refuses AMR scratch execution without a Workspace-bound project', async () => {
     const db = projectDb({ projectId: 'project-control' });
-    await expect(openDesignAmrTraceEnvForRun({
+    await expect(composerDesignAmrTraceEnvForRun({
       agentId: 'amr',
       runId: 'run-scratch',
       runAttempt: 0,

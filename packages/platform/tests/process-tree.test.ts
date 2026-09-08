@@ -129,23 +129,23 @@ describe("parseWindowsProcessSnapshots", () => {
 describe("processCommandExactlyRunsExecutable", () => {
   it("accepts exact POSIX and quoted Windows executable commands", () => {
     expect(processCommandExactlyRunsExecutable(
-      "/Applications/Open Design.app/Contents/MacOS/Open Design",
-      "/Applications/Open Design.app/Contents/MacOS/Open Design",
+      "/Applications/Composer Design.app/Contents/MacOS/Composer Design",
+      "/Applications/Composer Design.app/Contents/MacOS/Composer Design",
       "darwin",
     )).toBe(true);
     expect(processCommandExactlyRunsExecutable(
-      '"C:\\Program Files\\Open Design\\Open Design.exe"',
-      "C:\\Program Files\\Open Design\\Open Design.exe",
+      '"C:\\Program Files\\Composer Design\\Composer Design.exe"',
+      "C:\\Program Files\\Composer Design\\Composer Design.exe",
       "win32",
     )).toBe(true);
   });
 
   it("rejects arguments and lookalike executable prefixes", () => {
-    const executable = "/Applications/Open Design.app/Contents/MacOS/Open Design";
+    const executable = "/Applications/Composer Design.app/Contents/MacOS/Composer Design";
     expect(processCommandExactlyRunsExecutable(`${executable} --inspect`, executable, "darwin")).toBe(false);
     expect(processCommandExactlyRunsExecutable(`${executable} Helper`, executable, "darwin")).toBe(false);
 
-    const windowsExecutable = "C:\\Program Files\\Open Design\\Open Design.exe";
+    const windowsExecutable = "C:\\Program Files\\Composer Design\\Composer Design.exe";
     expect(processCommandExactlyRunsExecutable(
       `"${windowsExecutable}" od://project/123`,
       windowsExecutable,
@@ -161,7 +161,7 @@ describe("processCommandExactlyRunsExecutable", () => {
   it("compares Windows executable paths case-insensitively", () => {
     expect(processCommandExactlyRunsExecutable(
       '"C:\\PROGRAM FILES\\OPEN DESIGN\\OPEN DESIGN.EXE"',
-      "c:\\Program Files\\Open Design\\Open Design.exe",
+      "c:\\Program Files\\Composer Design\\Composer Design.exe",
       "win32",
     )).toBe(true);
   });

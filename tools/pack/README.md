@@ -1,6 +1,6 @@
 # tools/pack
 
-Local packaging control plane for Open Design.
+Local packaging control plane for Composer Design.
 
 `tools-pack` is the cross-platform packaging and smoke-lifecycle control plane. The macOS commands include:
 
@@ -16,8 +16,8 @@ Local packaging control plane for Open Design.
 - `tools-pack mac cleanup`
 
 Build artifacts are namespace-scoped under `.tmp/tools-pack/out/mac/namespaces/<namespace>/`.
-Public release bundles keep channel-distinct identities: `Open Design.app`, `Open Design Beta.app`,
-`Open Design Prerelease.app`, or `Open Design Preview.app`. Local `tools-pack install` adds the developer
+Public release bundles keep channel-distinct identities: `Composer Design.app`, `Composer Design Beta.app`,
+`Composer Design Prerelease.app`, or `Composer Design Preview.app`. Local `tools-pack install` adds the developer
 namespace so installs can coexist without affecting runtime data/log/cache paths.
 
 Packaged runtime state is namespace-scoped under `.tmp/tools-pack/runtime/mac/namespaces/<namespace>/`:
@@ -67,7 +67,7 @@ from the user's Electron `userData` root instead of the build machine's `.tmp` p
 ### macOS compatibility notes
 
 - `tools-pack mac build --portable --to zip` is the safest manual-install artifact for Intel Macs. This path was smoke-tested on macOS 12.7.6 Monterey on a 2015 Intel iMac and the app launched successfully from `/Applications`.
-- Finder/manual launches on macOS may not inherit your shell-managed `PATH`. If packaged Open Design cannot detect agent CLIs that work in Terminal, expose those binaries to the GUI login environment or launch the packaged app from a shell session that already sees them.
+- Finder/manual launches on macOS may not inherit your shell-managed `PATH`. If packaged Composer Design cannot detect agent CLIs that work in Terminal, expose those binaries to the GUI login environment or launch the packaged app from a shell session that already sees them.
 
 ## Windows
 

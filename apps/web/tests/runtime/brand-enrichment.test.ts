@@ -20,7 +20,7 @@ describe('brand enrichment runtime helpers', () => {
   it('builds a complete fallback prompt when no seeded prompt is available', () => {
     const prompt = buildBrandEnrichmentPrompt('');
 
-    expect(prompt).toContain('AI optimize this OpenDesign design system in place.');
+    expect(prompt).toContain('AI optimize this ComposerDesign design system in place.');
     expect(prompt).toContain('Do not create a duplicate system.');
     expect(prompt).toContain('10-20');
     expect(prompt).toContain('anti-bot verification page');
@@ -42,13 +42,13 @@ describe('brand enrichment runtime helpers', () => {
       metadata: {
         kind: 'brand',
         brandSourceUrl: 'https://open-design.ai/',
-        brandId: 'brand_open_design',
+        brandId: 'brand_composer_design',
         brandDesignSystemId: 'user:open-design-6',
         entryFile: 'brand.html',
         importedFrom: 'brand-extraction',
       },
       designSystemId: 'user:open-design-6',
-      designSystemTitle: 'OpenDesign',
+      designSystemTitle: 'ComposerDesign',
       projectFiles: [
         {
           name: 'system/variables.css',
@@ -66,7 +66,7 @@ describe('brand enrichment runtime helpers', () => {
     });
 
     expect(prompt).toContain('Current programmatic extraction context:');
-    expect(prompt).toContain('Existing registered design system: OpenDesign (user:open-design-6)');
+    expect(prompt).toContain('Existing registered design system: ComposerDesign (user:open-design-6)');
     expect(prompt).toContain('Source to re-check: https://open-design.ai/');
     expect(prompt).toContain('system/variables.css');
     expect(prompt).toContain('fonts/Inter.woff2');

@@ -219,9 +219,9 @@ interface Props {
   // MCP/plugins/connectors/files; this next-step flyout keeps the same shape
   // while using the resource data already owned by the chat pane.
   skills?: SkillSummary[];
-  // Contribute the artifact to the OpenDesign community gallery.
-  onShareToOpenDesign?: () => void;
-  shareToOpenDesignBusy?: boolean;
+  // Contribute the artifact to the ComposerDesign community gallery.
+  onShareToComposerDesign?: () => void;
+  shareToComposerDesignBusy?: boolean;
   /**
    * This turn's follow-up suggestions, written by the agent about what it just
    * built and parsed out of its `<od-next key="…">` marker by the daemon.
@@ -349,8 +349,8 @@ export function NextStepActions({
   createDesignSystemBusy = false,
   onPickSkill,
   skills = [],
-  onShareToOpenDesign,
-  shareToOpenDesignBusy = false,
+  onShareToComposerDesign,
+  shareToComposerDesignBusy = false,
   suggestions,
   onSuggestion,
   variant = 'default',
@@ -470,7 +470,7 @@ export function NextStepActions({
         | 'share'
         | 'toolbox_action'
         | 'toolbox_more'
-        | 'share_to_open_design'
+        | 'share_to_composer_design'
         | 'suggestion',
       chipId?: string,
     ) => {
@@ -516,11 +516,11 @@ export function NextStepActions({
   }, [closeAll, fileName, onDownload, track]);
 
   const handleContribute = useCallback(() => {
-    if (!onShareToOpenDesign || shareToOpenDesignBusy) return;
-    track('share_to_open_design');
-    onShareToOpenDesign();
+    if (!onShareToComposerDesign || shareToComposerDesignBusy) return;
+    track('share_to_composer_design');
+    onShareToComposerDesign();
     closeAll();
-  }, [closeAll, onShareToOpenDesign, shareToOpenDesignBusy, track]);
+  }, [closeAll, onShareToComposerDesign, shareToComposerDesignBusy, track]);
 
   const handleToolboxAction = useCallback(
     (id: DesignToolboxActionId) => {
@@ -678,7 +678,7 @@ export function NextStepActions({
   // Share group is available whenever any of its three actions can fire.
   const canShare = !!(fileName && onShare);
   const canDownload = !!(fileName && onDownload);
-  const canContribute = !!onShareToOpenDesign;
+  const canContribute = !!onShareToComposerDesign;
   const hasShareGroup = canShare || canDownload || canContribute;
   const showCreateDesignSystem = (
     variant === 'default' ||
@@ -1085,13 +1085,13 @@ export function NextStepActions({
                   type="button"
                   className={styles.flyoutRow}
                   data-testid="next-step-share-contribute"
-                  disabled={shareToOpenDesignBusy}
+                  disabled={shareToComposerDesignBusy}
                   onClick={handleContribute}
                 >
                   <Icon
-                    name={shareToOpenDesignBusy ? 'spinner' : 'globe'}
+                    name={shareToComposerDesignBusy ? 'spinner' : 'globe'}
                     size={14}
-                    className={shareToOpenDesignBusy ? 'icon-spin' : styles.toolboxRowIcon}
+                    className={shareToComposerDesignBusy ? 'icon-spin' : styles.toolboxRowIcon}
                   />
                   <span className={styles.toolboxRowTitle}>{t('nextStep.contribute')}</span>
                 </button>

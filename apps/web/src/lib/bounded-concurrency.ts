@@ -4,7 +4,7 @@
 // recoverable state releases one reattach per message. Each reattach is a
 // long-lived SSE subscription, and the browser gives one origin about six
 // HTTP/1.1 connections for the WHOLE profile — shared across tabs, so a
-// backgrounded Open Design tab already spends some of them. Releasing the
+// backgrounded Composer Design tab already spends some of them. Releasing the
 // whole batch in one pass therefore does not make the batch finish sooner; it
 // makes every OTHER request the page still owes (file lists, comments, cover
 // probes) sit in the connection queue behind it.

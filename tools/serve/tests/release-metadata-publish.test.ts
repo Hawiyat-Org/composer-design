@@ -40,7 +40,7 @@ async function writeReleaseNote(
   await mkdir(directory, { recursive: true });
   await writeFile(
     join(directory, `${locale}.md`),
-    `${options.bom === true ? "\uFEFF" : ""}---\ntitle: Open Design ${version}\ndescription: Release notes for ${version}.\n---\n\n## Changes\n\n${body}\n`,
+    `${options.bom === true ? "\uFEFF" : ""}---\ntitle: Composer Design ${version}\ndescription: Release notes for ${version}.\n---\n\n## Changes\n\n${body}\n`,
     "utf8",
   );
 }
@@ -221,7 +221,7 @@ describe("shared release metadata publisher", () => {
         }
         expect(server.getObject(`${channel}/latest/metadata.json`)).not.toBeNull();
         expect(server.getObject(`${channel}/versions/${version}/release-notes/en.md`)?.toString("utf8")).toContain(
-          `title: Open Design ${version}`,
+          `title: Composer Design ${version}`,
         );
 
         if (channel === "beta") {
