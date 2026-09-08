@@ -1,6 +1,6 @@
 # Maintainers
 
-<p align="center"><a href="MAINTAINERS.md">English</a> · <a href="MAINTAINERS.pt-BR.md">Português (Brasil)</a> · <a href="MAINTAINERS.de.md">Deutsch</a> · <a href="MAINTAINERS.fr.md">Français</a> · <a href="MAINTAINERS.zh-CN.md">简体中文</a> · <a href="MAINTAINERS.ja-JP.md">日本語</a> · <b>한국어</b></p>
+<p align="center"><a href="../../MAINTAINERS.md">English</a> · <a href="MAINTAINERS.pt-BR.md">Português (Brasil)</a> · <a href="MAINTAINERS.de.md">Deutsch</a> · <a href="MAINTAINERS.fr.md">Français</a> · <a href="MAINTAINERS.zh-CN.md">简体中文</a> · <a href="MAINTAINERS.ja-JP.md">日本語</a> · <b>한국어</b> · <a href="MAINTAINERS.th.md">ภาษาไทย</a></p>
 
 이 문서는 `nexu-io/open-design`의 Maintainer가 되고, 그 역할을 맡고, 물러나는 규칙을 정합니다. Core Team의 개별 명단은 내부에서 관리하므로 여기에 적지 않습니다. 공개적으로 중요한 건 모두가 따르는 규칙 그 자체입니다.
 
@@ -14,7 +14,7 @@
 |---|---|
 | **Contributor** | 머지된 PR이 1건 이상인 모든 사람. 특별한 권한은 없습니다. |
 | **External Maintainer** | 아래 규칙에 따라 승격된 커뮤니티 기여자. 리뷰, 승인, issue 닫기/다시 열기, issue 셀프 배정을 할 수 있습니다. **머지 버튼은 누를 수 없습니다** — 이 권한은 Core Team이 갖습니다. |
-| **Core Team** | Open Design의 내부 팀. 저장소 전체 쓰기 권한을 갖고, 거버넌스 결정의 최종 권한을 가집니다. 명단은 내부에서 관리합니다. |
+| **Core Team** | OpenDesign의 내부 팀. 저장소 전체 쓰기 권한을 갖고, 거버넌스 결정의 최종 권한을 가집니다. 명단은 내부에서 관리합니다. |
 
 별도 언급이 없으면 이 문서의 나머지는 모두 **External Maintainer**에 관한 내용입니다.
 

@@ -1,6 +1,54 @@
-import { chmod, mkdir, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { DECK_SKELETON_HTML } from '@open-design/contracts';
+
+const PROTOCOL_DECK_CANARY_HTML = DECK_SKELETON_HTML
+  .replace('<!-- SLOT: deck title -->', 'Deck protocol matrix canary')
+  .replace('<!-- SLOT: slide 1 content -->', '<h1>Matrix Slide One</h1>')
+  .replace('<!-- SLOT: slide 2 content -->', '<h1>Matrix Slide Two</h1>')
+  .replace(
+    '<!-- ... add as many <section class="slide"> blocks as the brief asks\n           for. The first one is .active; the rest are not. -->',
+    '<section class="slide" data-screen-label="03"><h1>Matrix Slide Three</h1></section>',
+  );
+
+const LEGACY_TEMPLATE_DECK_CANARY_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Legacy template matrix canary</title>
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; }
+    body { display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; }
+    .slide { flex: 0 0 100vw; width: 100vw; height: 100vh; scroll-snap-align: start; display: grid; place-items: center; }
+  </style>
+</head>
+<body>
+  <section class="slide" data-screen-label="01"><h1>Matrix Slide One</h1></section>
+  <section class="slide" data-screen-label="02"><h1>Matrix Slide Two</h1></section>
+  <section class="slide" data-screen-label="03"><h1>Matrix Slide Three</h1></section>
+  <script>
+    (function () {
+      var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+      var active = 0;
+      function go(index) {
+        active = Math.max(0, Math.min(slides.length - 1, index));
+        window.scrollTo({ left: active * window.innerWidth, behavior: 'smooth' });
+      }
+      function onKey(event) {
+        if (event.key === 'ArrowRight') { event.preventDefault(); go(active + 1); }
+        if (event.key === 'ArrowLeft') { event.preventDefault(); go(active - 1); }
+      }
+      window.addEventListener('keydown', onKey, true);
+      document.addEventListener('keydown', onKey, true);
+      document.body.setAttribute('tabindex', '-1');
+      document.body.focus({ preventScroll: true });
+    })();
+  </script>
+</body>
+</html>`;
 
 export type FakeAgentId =
   | 'claude'
@@ -24,6 +72,59 @@ export type FakeAgentRuntimeOptions = {
   root?: string;
   runtimeIds?: FakeAgentId[];
 };
+
+export type FakeAcpHandshakeRuntime = {
+  bin: string;
+  env: Record<string, string>;
+  invocationLog: string;
+};
+
+export type FakeAcpHandshakeRuntimeOptions = {
+  root?: string;
+};
+
+/** Install the intentionally failing ACP fixture owned by the E2E harness. */
+export async function createFakeAcpHandshakeRuntime(
+  options: FakeAcpHandshakeRuntimeOptions = {},
+): Promise<FakeAcpHandshakeRuntime> {
+  const root = options.root ?? path.join(
+    tmpdir(),
+    `open-design-fake-acp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
+  await mkdir(root, { recursive: true });
+  const script = path.join(root, 'fake-acp-handshake-cli.mjs');
+  await copyFile(
+    fileURLToPath(new URL('../resources/fake-acp-handshake-cli.ts', import.meta.url)),
+    script,
+  );
+
+  const invocationLog = path.join(root, 'invocations.jsonl');
+  const bin = process.platform === 'win32'
+    ? path.join(root, 'fake-acp-handshake-cli.cmd')
+    : path.join(root, 'fake-acp-handshake-cli');
+  if (process.platform === 'win32') {
+    await writeFile(
+      bin,
+      `@echo off\r\nset "FAKE_ACP_INVOCATION_LOG=${invocationLog}"\r\n"${process.execPath}" "${script}" %*\r\n`,
+      'utf8',
+    );
+  } else {
+    await writeFile(
+      bin,
+      `#!/bin/sh\nFAKE_ACP_INVOCATION_LOG=${JSON.stringify(invocationLog)} exec ${JSON.stringify(process.execPath)} ${JSON.stringify(script)} "$@"\n`,
+      'utf8',
+    );
+    await chmod(bin, 0o755);
+  }
+
+  return {
+    bin,
+    invocationLog,
+    env: {
+      KIMI_BIN: bin,
+    },
+  };
+}
 
 const AGENT_BIN_NAMES: Record<FakeAgentId, string> = {
   claude: 'claude-e2e.cjs',
@@ -51,7 +152,6 @@ const AGENT_BIN_ENV_KEYS: Record<FakeAgentId, string> = {
 
 export const FAKE_AGENT_RUNTIME_IDS: FakeAgentId[] = [
   'claude',
-  'gemini',
   'opencode',
   'cursor-agent',
   'qwen',
@@ -100,7 +200,10 @@ function renderFakeAgentScript(agentId: FakeAgentId): string {
 const agentId = ${JSON.stringify(agentId)};
 const args = process.argv.slice(2);
 const { mkdir, writeFile: writeFileFs } = require('node:fs/promises');
+const { readFileSync, writeFileSync } = require('node:fs');
 const { join } = require('node:path');
+const protocolDeckCanaryHtml = ${JSON.stringify(PROTOCOL_DECK_CANARY_HTML)};
+const legacyTemplateDeckCanaryHtml = ${JSON.stringify(LEGACY_TEMPLATE_DECK_CANARY_HTML)};
 
 if (args.includes('--version')) {
   process.stdout.write(agentId + '-e2e 0.0.0\\n');
@@ -157,19 +260,183 @@ async function emitRun(promptText) {
     emitServiceFailure(503);
     return;
   }
+  if (promptText.includes('Return a daemon model-not-found failure')) {
+    emitModelUnavailableFailure();
+    return;
+  }
+  if (promptText.includes('Return a daemon timeout failure')) {
+    emitTimeoutFailure();
+    return;
+  }
   if (promptText.includes('Return a daemon socket-drop failure')) {
     emitSocketDropFailure();
+    return;
+  }
+  if (promptText.includes('Return a Claude prompt-too-long failure')) {
+    emitClaudePromptTooLongFailure();
+    return;
+  }
+  if (promptText.includes('Return repeated OpenCode tool failures')) {
+    emitOpenCodeRepeatedToolFailures();
     return;
   }
   if (promptText.includes('Return an empty daemon smoke response')) {
     emitEmptySuccess();
     return;
   }
+  if (promptText.includes('# OD Next native continuation — production')) {
+    await emitOdNextProductionRun(promptText);
+    return;
+  }
+  if (promptText.includes('# OD Next native continuation — clarification')) {
+    emitOdNextClarificationRun(promptText);
+    return;
+  }
+  if (promptText.includes('Create an OD Next clarification canary artifact')) {
+    emitOdNextClarificationRequest(promptText);
+    return;
+  }
+  if (promptText.includes('Create an OD Next PowerPoint protocol canary from this prototype project')) {
+    const requiredDeckProtocolMarkers = [
+      'OD Deck Protocol v1',
+      'data-od-deck-protocol="1"',
+      "type: 'od:deck-ready'",
+      "type: 'od:slide-state'",
+    ];
+    const missingDeckProtocolMarkers = requiredDeckProtocolMarkers.filter(
+      (marker) => !promptText.includes(marker),
+    );
+    if (missingDeckProtocolMarkers.length > 0) {
+      process.stderr.write(
+        'OD Next prototype-to-PPT prompt is missing Deck Protocol v1 markers: '
+          + missingDeckProtocolMarkers.join(', ')
+          + '\\n',
+      );
+      process.exitCode = 1;
+      return;
+    }
+    if (promptText.includes('<recipe_identity ')) {
+      emitOdNextPlanningRun(promptText);
+    } else {
+      await emitDeckProtocolCanaryRun(protocolDeckCanaryHtml, 'Created the classic/off-rollout Deck Protocol canary.');
+    }
+    return;
+  }
+  if (promptText.includes('Create a selected-template deck navigation canary')) {
+    const requiredTemplateMarkers = ['assets/template.html'];
+    const missingTemplateMarkers = requiredTemplateMarkers.filter(
+      (marker) => !promptText.includes(marker),
+    );
+    if (missingTemplateMarkers.length > 0) {
+      process.stderr.write(
+        'Selected deck template prompt is missing markers: '
+          + missingTemplateMarkers.join(', ')
+          + '\\n',
+      );
+      process.exitCode = 1;
+      return;
+    }
+    if (promptText.includes('<recipe_identity ')) {
+      const requiredCompatibilityMarkers = [
+        'selected or existing scaffold compatibility',
+        'assets/template.html',
+      ];
+      const missingCompatibilityMarkers = requiredCompatibilityMarkers.filter(
+        (marker) => !promptText.includes(marker),
+      );
+      if (missingCompatibilityMarkers.length > 0) {
+        process.stderr.write(
+          'OD Next selected-template prompt is missing compatibility markers: '
+            + missingCompatibilityMarkers.join(', ')
+            + '\\n',
+        );
+        process.exitCode = 1;
+        return;
+      }
+      if (promptText.includes('data-od-deck-protocol="1"')) {
+        process.stderr.write('OD Next selected-template prompt unexpectedly injected Deck Protocol v1\\n');
+        process.exitCode = 1;
+        return;
+      }
+      emitOdNextPlanningRun(promptText, 'request', 'ppt', { legacyDeck: true });
+    } else {
+      await emitDeckProtocolCanaryRun(
+        legacyTemplateDeckCanaryHtml,
+        'Created the selected-template legacy deck canary.',
+      );
+    }
+    return;
+  }
+  if (promptText.includes('Create an OD Next blocked canary')) {
+    emitOdNextBlockedRun();
+    return;
+  }
+  if (promptText.includes('Create an OD Next active canary artifact')) {
+    emitOdNextPlanningRun(promptText);
+    return;
+  }
+  if (promptText.includes('Return a stderr-only daemon smoke failure')) {
+    process.stderr.write('stderr-only daemon smoke failure from fake ' + agentId + '\\n');
+    process.exitCode = 1;
+    exitSoon(1);
+    return;
+  }
   if (
-    promptText.includes('Create a Composer Design plugin for:') &&
+    promptText.includes('Create an ComposerDesign plugin for:') &&
     promptText.includes('produce a folder named generated-plugin')
   ) {
     await emitPluginAuthoringRun();
+    return;
+  }
+  // Checked before the plan-document fixture: a follow-up generation turn's
+  // stdin can carry the first turn's "Create a deterministic plan document"
+  // text as conversation history.
+  if (promptText.includes('Generate the deterministic artifact from the plan document')) {
+    await emitPlanArtifactGenerateRun();
+    return;
+  }
+  if (promptText.includes('Create a deterministic media-only artifact')) {
+    await emitMediaOnlyRun();
+    return;
+  }
+  if (promptText.includes('Create a deterministic plan document')) {
+    await emitPlanDocumentRun();
+    return;
+  }
+  // Work-completeness fixtures (#1247 / #1060): drive a Claude run that ends its
+  // turn while its TodoWrite plan still has unfinished tasks (or is truncated by
+  // max_tokens), so tests can assert the run reports endedWithUnfinishedWork.
+  if (promptText.includes('Emit an unfinished-todo run')) {
+    emitClaudeTodoRun([
+      { content: 'Draft layout', status: 'completed' },
+      { content: 'Build components', status: 'in_progress' },
+      { content: 'Run QA', status: 'pending' },
+    ], 'end_turn');
+    return;
+  }
+  if (promptText.includes('Emit a stopped-todo run')) {
+    emitClaudeTodoRun([{ content: 'Build components', status: 'stopped' }], 'end_turn');
+    return;
+  }
+  if (promptText.includes('Emit a max-tokens truncated run')) {
+    // All todos look done, but the turn was cut off — truncation alone must flag
+    // the run incomplete.
+    emitClaudeTodoRun([{ content: 'Draft layout', status: 'completed' }], 'max_tokens');
+    return;
+  }
+  if (promptText.includes('Emit an all-completed-todo run')) {
+    emitClaudeTodoRun([
+      { content: 'Draft layout', status: 'completed' },
+      { content: 'Build components', status: 'completed' },
+    ], 'end_turn');
+    return;
+  }
+  if (promptText.includes('Edit the existing deterministic smoke artifact through the managed project alias')) {
+    await emitManagedAliasArtifactEditRun(promptText);
+    return;
+  }
+  if (promptText.includes('Edit the existing deterministic smoke artifact')) {
+    await emitExistingArtifactEditRun(promptText);
     return;
   }
   const isSlowReload = promptText.includes('Create a slow reload deterministic smoke artifact');
@@ -205,8 +472,194 @@ async function emitRun(promptText) {
   exitSoon(0);
 }
 
+function promptIdentity(promptText, label) {
+  const prefix = '- ' + label + ': ';
+  const line = promptText.split('\\n').find((candidate) => candidate.startsWith(prefix));
+  if (!line) throw new Error('OD Next fake could not read ' + label);
+  return line.slice(prefix.length).split(String.fromCharCode(96)).join('');
+}
+
+const odNextIdentityPath = join(__dirname, 'od-next-' + agentId + '-identity.json');
+
+function odNextPromptIdentity(promptText) {
+  const identityStart = promptText.indexOf('<recipe_identity ');
+  const identityEnd = identityStart < 0 ? -1 : promptText.indexOf('/>', identityStart);
+  if (identityStart >= 0 && identityEnd >= 0) {
+    const identityMarker = promptText.slice(identityStart, identityEnd);
+    const attribute = (name) => {
+      const prefix = name + '="';
+      const start = identityMarker.indexOf(prefix);
+      if (start < 0) throw new Error('OD Next fake could not read recipe_identity.' + name);
+      const valueStart = start + prefix.length;
+      const end = identityMarker.indexOf('"', valueStart);
+      if (end < 0) throw new Error('OD Next fake could not finish recipe_identity.' + name);
+      return identityMarker.slice(valueStart, end);
+    };
+    const packageHashPrefix = '"packageHash": "';
+    const packageHashStart = promptText.indexOf(packageHashPrefix);
+    if (packageHashStart < 0) throw new Error('OD Next fake could not read packageHash');
+    const packageHashValueStart = packageHashStart + packageHashPrefix.length;
+    const packageHashEnd = promptText.indexOf('"', packageHashValueStart);
+    const taskTypeMatch = /<task_type>\\s*([^<]+?)\\s*<\\/task_type>/.exec(promptText);
+    const identity = {
+      version: attribute('strategy_version'),
+      snapshotId: attribute('applied_snapshot'),
+      packageHash: promptText.slice(packageHashValueStart, packageHashEnd),
+      taskProfileVersion: attribute('task_profile_version'),
+      taskType: taskTypeMatch ? taskTypeMatch[1].trim() : 'prototype',
+    };
+    writeFileSync(odNextIdentityPath, JSON.stringify(identity), 'utf8');
+    return identity;
+  }
+  if (promptText.includes('- strategy: ')) {
+    const strategy = promptIdentity(promptText, 'strategy').split('@');
+    const identity = {
+      version: strategy[1],
+      snapshotId: promptIdentity(promptText, 'applied snapshot'),
+      packageHash: promptIdentity(promptText, 'strategy package'),
+      taskProfileVersion: '2.0.0',
+      taskType: 'prototype',
+    };
+    writeFileSync(odNextIdentityPath, JSON.stringify(identity), 'utf8');
+    return identity;
+  }
+  return JSON.parse(readFileSync(odNextIdentityPath, 'utf8'));
+}
+
+function emitOdNextPlanningRun(promptText, inputStage = 'request', taskTypeOverride, options = {}) {
+  const identity = odNextPromptIdentity(promptText);
+  if (taskTypeOverride) {
+    identity.taskType = taskTypeOverride;
+  }
+  if (options.legacyDeck) identity.legacyDeck = true;
+  if (taskTypeOverride || options.legacyDeck) {
+    writeFileSync(odNextIdentityPath, JSON.stringify(identity), 'utf8');
+  }
+  const deliverableKind = identity.taskType === 'ppt' ? 'deck' : 'prototype';
+  const plan = {
+    schema: 'open-design.plan-contract/v2',
+    strategy: {
+      id: 'od-next-strategy', version: identity.version,
+      packageHash: identity.packageHash, snapshotId: identity.snapshotId,
+    },
+    taskProfile: {
+      schemaVersion: '2', taskType: identity.taskType, taskProfileVersion: identity.taskProfileVersion,
+      goal: 'Create an OD Next active canary artifact', contextAndAudience: 'Local rollout operators',
+      inputsAndReferences: ['user-request'], constraints: [],
+      canonicalDeliverable: { id: 'canary', kind: deliverableKind, format: 'html' },
+      requiredDeliverables: [{ id: 'canary', kind: deliverableKind }],
+      designSpec: { source: 'resolved-baseline', version: '1', decisions: { palette: 'neutral' } },
+      buildRequirements: [{ id: 'build', text: 'Build the local canary artifact.' }],
+      assumptions: [], risks: [], taskSpecific: {},
+    },
+    fullPlan: {
+      executionMode: 'simple',
+      steps: [{ id: 'build', objective: 'Build the canary.', outputs: ['canary'] }],
+      readinessArtifacts: [], buildPackages: [],
+    },
+    runManifest: {
+      selectedAgentId: agentId, capabilitySnapshotHash: '0'.repeat(64),
+      inputRefs: ['user-request'], productionRoutes: ['html'],
+      preflight: { intake: 'passed', execution: 'passed' },
+    },
+    decisionSummary: {
+      goal: 'Create an OD Next active canary artifact', deliverables: ['canary'],
+      keyConstraints: ['local synthetic canary'], assumptions: [], risks: [], openDecisions: [],
+    },
+  };
+  const state = {
+    schema: 'open-design.strategy-state/v2', route: 'full_plan', inputStage,
+    outcome: 'plan_ready', executionMode: 'simple', reasonCodes: [],
+  };
+  emitSuccess(
+    'The local canary plan is ready.\\n<open-design-plan-contract>\\n'
+      + JSON.stringify(plan) + '\\n</open-design-plan-contract>\\n'
+      + '<open-design-runtime-state>\\n' + JSON.stringify(state)
+      + '\\n</open-design-runtime-state>',
+    false,
+    false,
+  );
+  process.exitCode = 0;
+  exitSoon(0);
+}
+
+function emitOdNextClarificationRequest(promptText) {
+  odNextPromptIdentity(promptText);
+  const state = {
+    schema: 'open-design.strategy-state/v2', route: 'full_plan', inputStage: 'request',
+    outcome: 'clarification_required', executionMode: null,
+    reasonCodes: ['od_next_clarification_required'],
+  };
+  const form = '<question-form id="od-next-canary-platform" title="Choose platform">'
+    + '{"questions":[{"id":"platform","label":"Target platform","type":"radio",'
+    + '"options":[{"label":"Desktop web","value":"desktop"}],"required":true}]}'
+    + '</question-form>';
+  emitSuccess(
+    'One platform choice is required.\\n' + form
+      + '\\n<open-design-runtime-state>\\n' + JSON.stringify(state)
+      + '\\n</open-design-runtime-state>',
+    false,
+    false,
+  );
+  process.exitCode = 0;
+  exitSoon(0);
+}
+
+function emitOdNextClarificationRun(promptText) {
+  emitOdNextPlanningRun(promptText, 'clarification');
+}
+
+function emitOdNextBlockedRun() {
+  const state = {
+    schema: 'open-design.strategy-state/v2', route: 'full_plan', inputStage: 'request',
+    outcome: 'blocked', executionMode: null,
+    reasonCodes: ['od_next_canary_fixture_blocked'],
+  };
+  emitSuccess(
+    'The local canary was blocked by its fixture guard.\\n'
+      + '<open-design-runtime-state>\\n' + JSON.stringify(state)
+      + '\\n</open-design-runtime-state>',
+    false,
+    false,
+  );
+  process.exitCode = 0;
+  exitSoon(0);
+}
+
+async function emitOdNextProductionRun(promptText) {
+  const identity = odNextPromptIdentity(promptText);
+  const legacyDeck = identity.legacyDeck === true;
+  await writeFileFs(
+    join(projectDir(), 'od-next-active-canary.html'),
+    legacyDeck ? legacyTemplateDeckCanaryHtml : protocolDeckCanaryHtml,
+    'utf8',
+  );
+  const state = {
+    schema: 'open-design.strategy-state/v2', route: 'full_plan', inputStage: 'production',
+    outcome: 'completed', executionMode: 'simple', reasonCodes: [],
+  };
+  emitSuccess(
+    (legacyDeck
+      ? 'Created the selected-template legacy deck canary.\\n'
+      : 'Created od-next-active-canary.html through the continued native session.\\n')
+      + '<open-design-runtime-state>\\n' + JSON.stringify(state)
+      + '\\n</open-design-runtime-state>',
+    false,
+    false,
+  );
+  process.exitCode = 0;
+  exitSoon(0);
+}
+
+async function emitDeckProtocolCanaryRun(html, message) {
+  await writeFileFs(join(projectDir(), 'od-next-active-canary.html'), html, 'utf8');
+  emitSuccess(message + '\\n', false, false);
+  process.exitCode = 0;
+  exitSoon(0);
+}
+
 async function emitPluginAuthoringRun() {
-  const folder = join(process.cwd(), 'generated-plugin');
+  const folder = join(projectDir(), 'generated-plugin');
   await mkdir(join(folder, 'examples'), { recursive: true });
   await writeFileFs(
     join(folder, 'open-design.json'),
@@ -242,6 +695,198 @@ async function emitPluginAuthoringRun() {
   exitSoon(0);
 }
 
+async function emitPlanDocumentRun() {
+  await writeFileFs(
+    join(projectDir(), 'plan.md'),
+    [
+      '# Deterministic Plan',
+      '',
+      '## Scope',
+      '- Confirm the target workflow.',
+      '- Draft the project milestones.',
+      '',
+      '## Risks',
+      '- Keep the plan editable before design handoff.',
+      '',
+    ].join('\\n'),
+    'utf8',
+  );
+  emitSuccess('Created plan.md with a deterministic planning outline.', false, false);
+  process.exitCode = 0;
+  exitSoon(0);
+}
+
+async function emitMediaOnlyRun() {
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5W6McAAAAASUVORK5CYII=',
+    'base64',
+  );
+  await writeFileFs(join(projectDir(), 'media-only.png'), png);
+  emitSuccess('Created media-only.png as the only file produced by this turn.', false, false);
+  process.exitCode = 0;
+  exitSoon(0);
+}
+
+// Plan-mode generation turn (issue: Plan 模式生成 HTML 后没有自动打开): the
+// agent reads the reviewed plan document, writes the final HTML deliverable
+// as a project FILE (not an inline <artifact> echo), then touches the plan
+// document again (e.g. updating its "Next step" section). Mirrors the real
+// event order captured in the bug report: index.html first, plan.md second.
+async function emitPlanArtifactGenerateRun() {
+  const dir = projectDir();
+  const html = '<!doctype html><html><body><main><h1>Plan Generated Deck</h1><p>Generated from the reviewed plan document.</p></main></body></html>';
+  const planUpdate = [
+    '# Deterministic Plan',
+    '',
+    '## Scope',
+    '- Confirm the target workflow.',
+    '- Draft the project milestones.',
+    '',
+    '## Next step',
+    '- Review the generated index.html.',
+    '',
+  ].join('\\n');
+  await writeFileFs(join(dir, 'index.html'), html, 'utf8');
+  await writeFileFs(join(dir, 'plan.md'), planUpdate, 'utf8');
+  if (agentId === 'claude') {
+    // Emit the real Claude stream-json shape (tool_use + tool_result pairs)
+    // so the web per-write auto-open path sees the same events a live
+    // filesystem run produces.
+    writeJson({ type: 'system', subtype: 'init', model: 'fake-claude', session_id: 'fake-session' });
+    writeJson({
+      type: 'assistant',
+      message: {
+        id: 'msg-1',
+        content: [{ type: 'tool_use', id: 'toolu-plan-html', name: 'Write', input: { file_path: join(dir, 'index.html'), content: html } }],
+      },
+    });
+    writeJson({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu-plan-html', content: 'ok' }] } });
+    writeJson({
+      type: 'assistant',
+      message: {
+        id: 'msg-2',
+        content: [{ type: 'tool_use', id: 'toolu-plan-md', name: 'Write', input: { file_path: join(dir, 'plan.md'), content: planUpdate } }],
+      },
+    });
+    writeJson({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'toolu-plan-md', content: 'ok' }] } });
+    writeJson({
+      type: 'assistant',
+      message: { id: 'msg-3', content: [{ type: 'text', text: 'Generated index.html from plan.md and refreshed the plan next steps.' }] },
+    });
+    writeJson({ type: 'result', usage: { input_tokens: 1, output_tokens: 1 }, total_cost_usd: 0, duration_ms: 1, stop_reason: 'end_turn' });
+    process.exitCode = 0;
+    exitSoon(0);
+    return;
+  }
+  emitSuccess('Generated index.html from plan.md and refreshed the plan next steps.', false, false);
+  process.exitCode = 0;
+  exitSoon(0);
+}
+
+async function emitExistingArtifactEditRun(promptText) {
+  const projectId = process.env.OD_PROJECT_ID || projectIdFromPrompt(promptText);
+  const daemonUrl = process.env.OD_DAEMON_URL;
+  if (!projectId || !daemonUrl) {
+    throw new Error('fake artifact edit requires OD_PROJECT_ID and OD_DAEMON_URL');
+  }
+  const response = await fetch(new URL('/api/projects/' + encodeURIComponent(projectId) + '/files', daemonUrl), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      name: 'real-daemon-smoke.html',
+      content: '<!doctype html><html><body><main><h1>Real Daemon Smoke Edited</h1><p>Edited in place by a follow-up daemon run.</p></main></body></html>',
+    }),
+  });
+  if (!response.ok) {
+    throw new Error('fake artifact edit write failed: HTTP ' + response.status + ' ' + (await response.text()).slice(0, 500));
+  }
+  emitSuccess('Updated real-daemon-smoke.html in place with a deterministic follow-up edit.', false, false);
+  process.exitCode = 0;
+  exitSoon(0);
+}
+
+async function emitManagedAliasArtifactEditRun(promptText) {
+  if (agentId !== 'claude') {
+    throw new Error('managed-project alias edit fixture requires the Claude fake runtime');
+  }
+  const projectId = process.env.OD_PROJECT_ID || projectIdFromPrompt(promptText);
+  if (!projectId) {
+    throw new Error('managed-project alias edit fixture requires OD_PROJECT_ID');
+  }
+  const fileName = 'real-daemon-smoke.html';
+  const content = '<!doctype html><html><body><main><h1 data-od-id="smoke-title">Real Daemon Smoke Edited</h1><p>Edited in place through a managed-project alias.</p></main></body></html>';
+  await writeFileFs(join(projectDir(promptText), fileName), content, 'utf8');
+
+  writeJson({ type: 'system', subtype: 'init', model: 'fake-claude', session_id: 'fake-session' });
+  writeJson({
+    type: 'assistant',
+    message: {
+      id: 'msg-managed-alias-write',
+      content: [{
+        type: 'tool_use',
+        id: 'toolu-managed-alias-write',
+        name: 'Write',
+        input: {
+          file_path: '.od/projects/' + projectId + '/' + fileName,
+          content,
+        },
+      }],
+    },
+  });
+  writeJson({
+    type: 'user',
+    message: {
+      content: [{
+        type: 'tool_result',
+        tool_use_id: 'toolu-managed-alias-write',
+        content: 'Updated ' + fileName,
+      }],
+    },
+  });
+  writeJson({
+    type: 'assistant',
+    message: {
+      id: 'msg-managed-alias-summary',
+      content: [{ type: 'text', text: 'Updated ' + fileName + ' in place.' }],
+    },
+  });
+  writeJson({
+    type: 'result',
+    usage: { input_tokens: 1, output_tokens: 1 },
+    total_cost_usd: 0,
+    duration_ms: 1,
+    stop_reason: 'end_turn',
+  });
+  process.exitCode = 0;
+  exitSoon(0);
+}
+
+function projectIdFromPrompt(promptText = '') {
+  const marker = '.od/projects/';
+  const idx = promptText.indexOf(marker);
+  if (idx === -1) return '';
+  return promptText
+    .slice(idx + marker.length)
+    .split(/[\\s/]/)[0]
+    .replace(/[^a-zA-Z0-9_-].*$/, '');
+}
+
+function projectDir(promptText = '') {
+  const marker = 'current working directory: \`';
+  const idx = promptText.toLowerCase().indexOf(marker);
+  const fromPrompt = idx === -1
+    ? ''
+    : promptText.slice(idx + marker.length).split('\`')[0] || '';
+  const fromEnv = process.env.OD_DATA_DIR && process.env.OD_PROJECT_ID
+    ? join(process.env.OD_DATA_DIR, 'projects', process.env.OD_PROJECT_ID)
+    : '';
+  const cwdFlagIndex = args.indexOf('-C');
+  const fromArgs = cwdFlagIndex >= 0 && typeof args[cwdFlagIndex + 1] === 'string'
+    ? args[cwdFlagIndex + 1]
+    : '';
+  return process.env.OD_PROJECT_DIR || fromEnv || fromArgs || fromPrompt || process.cwd();
+}
+
 function writeJson(value) {
   process.stdout.write(JSON.stringify(value) + '\\n');
 }
@@ -250,12 +895,38 @@ function exitSoon(code) {
   setTimeout(() => process.exit(code), 10);
 }
 
+// Emit a Claude stream-json turn that carries a TodoWrite tool_use snapshot and
+// a chosen terminal stop_reason. The turn ends cleanly (exit 0 -> succeeded), but
+// its declared work is left in whatever state the todos describe — the fixture the
+// #1247 / #1060 completeness tests drive. Only the claude runtime models a
+// content-level tool_use + per-turn stop_reason, so these fixtures use it.
+function emitClaudeTodoRun(todos, stopReason) {
+  if (agentId !== 'claude') {
+    throw new Error('emitClaudeTodoRun fixtures require the claude fake runtime, got ' + agentId);
+  }
+  writeJson({ type: 'system', subtype: 'init', model: 'fake-claude', session_id: 'fake-session' });
+  writeJson({
+    type: 'assistant',
+    message: {
+      id: 'msg-1',
+      stop_reason: stopReason,
+      content: [
+        { type: 'tool_use', id: 'tw-1', name: 'TodoWrite', input: { todos } },
+        { type: 'text', text: 'Here is the plan.' },
+      ],
+    },
+  });
+  writeJson({ type: 'result', usage: { input_tokens: 1, output_tokens: 1 }, total_cost_usd: 0, duration_ms: 1, stop_reason: stopReason });
+  process.exitCode = 0;
+  exitSoon(0);
+}
+
 function emitSuccess(artifact, isChunked, includeThinking) {
   const first = artifact.slice(0, Math.ceil(artifact.length / 2));
   const second = artifact.slice(Math.ceil(artifact.length / 2));
   switch (agentId) {
     case 'codex':
-      writeJson({ type: 'thread.started' });
+      writeJson({ type: 'thread.started', thread_id: 'fake-codex-session' });
       writeJson({ type: 'turn.started' });
       if (isChunked) {
         writeJson({ type: 'item.completed', item: { type: 'agent_message', text: first } });
@@ -433,6 +1104,24 @@ function emitServiceFailure(statusCode) {
   }
 }
 
+function emitModelUnavailableFailure() {
+  const message = 'The selected model is not available for this account: model not found.';
+  writeJson({ type: 'thread.started' });
+  writeJson({ type: 'turn.started' });
+  writeJson({ type: 'turn.failed', error: { message } });
+  process.exitCode = 0;
+  exitSoon(0);
+}
+
+function emitTimeoutFailure() {
+  const message = 'The upstream model request timed out while waiting for a response.';
+  writeJson({ type: 'thread.started' });
+  writeJson({ type: 'turn.started' });
+  writeJson({ type: 'turn.failed', error: { message } });
+  process.exitCode = 0;
+  exitSoon(0);
+}
+
 // Reproduces a connection that dropped mid-response. This shape is NOT guessed:
 // it was captured by pointing the real Claude Code CLI (2.1.168) at a fake
 // Anthropic endpoint that accepts the request, starts streaming, then destroys
@@ -482,6 +1171,72 @@ function emitSocketDropFailure() {
   process.stderr.write(sdkError + '\\n');
   process.exitCode = 1;
   exitSoon(1);
+}
+
+// Mirrors the terminal result frame emitted by Claude Code when its composed
+// prompt exceeds the model context window. This deliberately goes through the
+// stream parser and run-failure classifier instead of pre-seeding a normalized
+// AGENT_PROMPT_TOO_LARGE event in the project message store.
+function emitClaudePromptTooLongFailure() {
+  if (agentId !== 'claude') {
+    process.stderr.write('prompt-too-long fixture requires the claude fake runtime\\n');
+    process.exitCode = 1;
+    exitSoon(1);
+    return;
+  }
+  writeJson({ type: 'system', subtype: 'init', model: 'fake-claude', session_id: 'fake-session' });
+  writeJson({
+    type: 'result',
+    subtype: 'error_during_execution',
+    is_error: true,
+    result: 'Prompt is too long',
+    stop_reason: null,
+  });
+  process.exitCode = 1;
+  exitSoon(1);
+}
+
+// Exercise the real OpenCode JSON event parser with the structured shape fixed
+// in #6933. A completed tool part with exitCode != 0 must become an errored
+// tool_result; four identical failures cross the daemon guard's default WARN
+// threshold while still allowing the run to finish (HALT is opt-in).
+function emitOpenCodeRepeatedToolFailures() {
+  if (agentId !== 'opencode') {
+    process.stderr.write('repeated tool-failure fixture requires the opencode fake runtime\\n');
+    process.exitCode = 1;
+    exitSoon(1);
+    return;
+  }
+  writeJson({ type: 'step_start', sessionID: 'fake-opencode-loop', part: { type: 'step-start' } });
+  for (let index = 0; index < 4; index += 1) {
+    writeJson({
+      type: 'tool_use',
+      sessionID: 'fake-opencode-loop',
+      part: {
+        type: 'tool',
+        tool: 'bash',
+        callID: 'fake-opencode-failure-' + index,
+        state: {
+          status: 'completed',
+          input: { command: 'cat missing-open-design-file.txt' },
+          output: 'cat: missing-open-design-file.txt: No such file or directory',
+          exitCode: 1,
+        },
+      },
+    });
+  }
+  writeJson({
+    type: 'text',
+    sessionID: 'fake-opencode-loop',
+    part: { type: 'text', text: 'Stopped retrying after repeated tool failures.' },
+  });
+  writeJson({
+    type: 'step_finish',
+    sessionID: 'fake-opencode-loop',
+    part: { type: 'step-finish', tokens: { input: 1, output: 1 }, cost: 0 },
+  });
+  process.exitCode = 0;
+  exitSoon(0);
 }
 
 function emitEmptySuccess() {

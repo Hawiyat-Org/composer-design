@@ -1,6 +1,6 @@
 # Maintainers
 
-<p align="center"><a href="../../MAINTAINERS.md">English</a> · <a href="MAINTAINERS.pt-BR.md">Português (Brasil)</a> · <a href="MAINTAINERS.de.md">Deutsch</a> · <a href="MAINTAINERS.fr.md">Français</a> · <b>简体中文</b> · <a href="MAINTAINERS.ja-JP.md">日本語</a></p>
+<p align="center"><a href="../../MAINTAINERS.md">English</a> · <a href="MAINTAINERS.pt-BR.md">Português (Brasil)</a> · <a href="MAINTAINERS.de.md">Deutsch</a> · <a href="MAINTAINERS.fr.md">Français</a> · <b>简体中文</b> · <a href="MAINTAINERS.ja-JP.md">日本語</a> · <a href="MAINTAINERS.ko.md">한국어</a> · <a href="MAINTAINERS.th.md">ภาษาไทย</a></p>
 
 本文档定义了 `nexu-io/open-design` 项目中**成为、担任、退出 Maintainer** 的规则。Core Team 个人名册由内部维护，本文档不公开列出——对外公开的是大家共同遵守的规则。
 
@@ -14,7 +14,7 @@
 |---|---|
 | **Contributor**（贡献者） | 任何提过至少 1 个 merged PR 的人，无特殊权限。 |
 | **External Maintainer**（外部 Maintainer） | 按本文档规则晋升的社区贡献者。可 review、approve、关闭/重开 issue、自分配 issue。**不能点 Merge 按钮**——这一权限保留在 Core Team。 |
-| **Core Team**（核心团队） | Open Design 内部团队。拥有完整仓库写权限，是治理决策的最终权威。名册由内部维护。 |
+| **Core Team**（核心团队） | OpenDesign 内部团队。拥有完整仓库写权限，是治理决策的最终权威。名册由内部维护。 |
 
 下文除非特别说明，**讨论的都是 External Maintainer**。
 

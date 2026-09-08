@@ -1,5 +1,5 @@
 // Client-side export helpers used by the Share menu in the HTML viewer.
-// Four of the five formats run entirely in the browser:
+// Export formats run entirely in the browser:
 //   - PDF  : open the artifact in a popup window and trigger window.print().
 //            The user picks "Save as PDF" from the system print dialog.
 //   - HTML : download the artifact as a single .html file via a Blob URL.
@@ -9,18 +9,33 @@
 //            windows, vault apps, etc.). No conversion is performed — the
 //            file content is the same source the Source view shows. See
 //            issue #279.
-// PPTX export is fundamentally different — it asks the agent to convert the
-// artifact server-side, so it lives in ProjectView.tsx (not here).
+
+import {
+  findRealTagEnd,
+  findRealTagOffset,
+  HTML_TAG_PATTERNS,
+} from '@open-design/contracts/runtime/html-injection-points';
 
 import { buildSrcdoc, type SrcdocOptions } from './srcdoc';
 import { buildReactComponentSrcdoc } from './react-component';
 import { buildZip } from './zip';
+import { isDaemonProxyConnectionFailure } from './daemon-proxy-failure';
 import { randomUUID } from '../utils/uuid';
 import {
   captureHostPage,
-  isOpenDesignHostAvailable,
+  isComposerDesignHostAvailable,
   printHostPdf,
 } from '@open-design/host';
+import type { WorkspaceCollabContext } from '@open-design/contracts';
+import {
+  workspaceProjectHeaders,
+  workspaceResourceUrl,
+} from '../collab/workspace-identity';
+import { sourceHasLegacyDeckScreenSlides } from './deck-slide-structure';
+
+// Re-exported so app components can gate desktop-only export paths without
+// importing the host package directly.
+export { isComposerDesignHostAvailable } from '@open-design/host';
 
 const DESIGN_HANDOFF_FILENAME = 'DESIGN-HANDOFF.md';
 const DESIGN_MANIFEST_FILENAME = 'DESIGN-MANIFEST.json';
@@ -42,6 +57,23 @@ function triggerHrefDownload(href: string, filename: string): void {
   document.body.removeChild(a);
 }
 
+// Pulls the attachment filename out of a Content-Disposition header,
+// preferring the RFC 5987 UTF-8 form. Returns null when absent so callers
+// can fall back to a locally derived name.
+function filenameFromContentDisposition(resp: Response): string | null {
+  const header = resp.headers.get('content-disposition') || '';
+  const star = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (star && star[1]) {
+    try {
+      return decodeURIComponent(star[1]);
+    } catch {
+      // fall through
+    }
+  }
+  const plain = /filename="([^"]+)"/i.exec(header);
+  return plain && plain[1] ? plain[1] : null;
+}
+
 function triggerDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   triggerHrefDownload(url, filename);
@@ -59,24 +91,37 @@ export function exportAsHtml(html: string, title: string): void {
 export async function exportProjectAsHtml(opts: {
   projectId: string;
   filePath: string;
-  fallbackHtml: string;
   fallbackTitle: string;
+  versionId?: string;
+  workspaceContext?: WorkspaceCollabContext | null;
 }): Promise<void> {
-  const segments = opts.filePath
-    .split('/')
-    .filter(Boolean)
-    .map((segment) => encodeURIComponent(segment))
-    .join('/');
-  const url = `/api/projects/${encodeURIComponent(opts.projectId)}/export/${segments}?inline=1`;
-  try {
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`html export request failed (${resp.status})`);
-    const blob = await resp.blob();
-    triggerDownload(blob, `${safeFilename(opts.fallbackTitle, 'artifact')}.html`);
-  } catch (err) {
-    console.warn('[exportProjectAsHtml] falling back to source HTML export:', err);
-    exportAsHtml(opts.fallbackHtml, opts.fallbackTitle);
+  const url = `/api/projects/${encodeURIComponent(opts.projectId)}/export/html`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(opts.workspaceContext ? workspaceProjectHeaders(opts.workspaceContext) : {}),
+    },
+    body: JSON.stringify({
+      fileName: opts.filePath,
+      title: opts.fallbackTitle,
+      ...(opts.versionId ? { versionId: opts.versionId } : {}),
+    }),
+  });
+  if (!resp.ok) {
+    let message = `html export request failed (${resp.status})`;
+    try {
+      const body = await resp.json();
+      if (body?.error?.message) message = String(body.error.message);
+    } catch {
+      // Keep the status-based fallback when the response is not JSON.
+    }
+    throw new Error(message);
   }
+  const blob = await resp.blob();
+  const filename = filenameFromContentDisposition(resp)
+    ?? `${safeFilename(opts.fallbackTitle, 'artifact')}.html`;
+  triggerDownload(blob, filename);
 }
 
 // A file is treated as a preview-chrome wrapper only when it lives inside
@@ -119,7 +164,7 @@ export function buildDesignManifestContent(opts: {
   files?: string[];
   kind?: 'html' | 'react';
 }): string {
-  const title = opts.title || 'Composer Design artifact';
+  const title = opts.title || 'ComposerDesign artifact';
   const requestedEntryFile = opts.entryFile || 'index.html';
   const { files, htmlFiles, screenHtmlFiles, cssFiles, jsFiles, assetFiles, entryFile } = designFileMap(requestedEntryFile, opts.files);
   const screenFiles = screenHtmlFiles.length > 0 ? screenHtmlFiles : [entryFile];
@@ -210,7 +255,7 @@ export function buildDesignHandoffContent(opts: {
   files?: string[];
   kind?: 'html' | 'react';
 }): string {
-  const title = opts.title || 'Composer Design artifact';
+  const title = opts.title || 'ComposerDesign artifact';
   const requestedEntryFile = opts.entryFile || 'index.html';
   const { files, htmlFiles, cssFiles, jsFiles, assetFiles, entryFile } = designFileMap(requestedEntryFile, opts.files);
   const accentLikelyBrandLed =
@@ -233,7 +278,7 @@ This archive is the source of truth for turning the design into production code.
 - Build production UI from the exported design, not a loose reinterpretation.
 - Preserve typography scale, spacing rhythm, color tokens, border radii, shadows, motion timing, and component states.
 - Replace static placeholders only when the target app has real data or functional equivalents.
-- Keep generated product UI free of Composer Design chrome, preview labels, or design-process annotations.
+- Keep generated product UI free of ComposerDesign chrome, preview labels, or design-process annotations.
 - Treat this handoff as a visual contract: if implementation choices conflict, match the exported pixels and behavior first, then refactor internals.
 
 ## Source map
@@ -264,7 +309,7 @@ For responsive web exports, treat these as a modern breakpoint system for one ad
 - Preserve real copy, labels, and data shown in the export. Do not replace specific text with generic marketing filler.
 - Preserve interactive affordances: hover, focus, pressed, disabled, loading, validation, copy/share, tab/accordion, modal/sheet, and keyboard states where present.
 - Preserve accessibility semantics when converting: headings stay hierarchical, controls remain buttons/links/inputs, focus states stay visible.
-- Do not keep prototype-only annotations, frame labels, or Composer Design chrome in the production UI.
+- Do not keep prototype-only annotations, frame labels, or ComposerDesign chrome in the production UI.
 
 ## CJX-ready UX contract
 - Use \`${DESIGN_MANIFEST_FILENAME}\` as the machine-readable map for screens, app modules, OS widgets, landing pages, tokens, interactions, and viewport checks.
@@ -361,6 +406,8 @@ export function exportAsMd(source: string, title: string): void {
  */
 export type PreviewSnapshot = { dataUrl: string; w: number; h: number };
 
+export type PreviewSnapshotOptions = { full?: boolean };
+
 export type PreviewSnapshotResult =
   | { ok: true; snapshot: PreviewSnapshot }
   | { ok: false; reason: 'loading' | 'post-message-error' | 'render-error' | 'timeout'; error?: string };
@@ -368,6 +415,7 @@ export type PreviewSnapshotResult =
 export function requestPreviewSnapshotResult(
   iframe: HTMLIFrameElement,
   timeout = 8000,
+  options: PreviewSnapshotOptions = {},
 ): Promise<PreviewSnapshotResult> {
   const win = iframe.contentWindow;
   if (!win) return Promise.resolve({ ok: false, reason: 'loading' });
@@ -393,7 +441,7 @@ export function requestPreviewSnapshotResult(
     }
     window.addEventListener('message', onMsg);
     try {
-      win.postMessage({ type: 'od:snapshot', id }, '*');
+      win.postMessage({ type: 'od:snapshot', id, ...(options.full ? { full: true } : {}) }, '*');
     } catch {
       done = true;
       window.removeEventListener('message', onMsg);
@@ -412,8 +460,9 @@ export function requestPreviewSnapshotResult(
 export async function requestPreviewSnapshot(
   iframe: HTMLIFrameElement,
   timeout = 8000,
+  options: PreviewSnapshotOptions = {},
 ): Promise<PreviewSnapshot | null> {
-  const result = await requestPreviewSnapshotResult(iframe, timeout);
+  const result = await requestPreviewSnapshotResult(iframe, timeout, options);
   return result.ok ? result.snapshot : null;
 }
 
@@ -433,7 +482,7 @@ export async function requestPreviewSnapshot(
 export async function captureHostRegionSnapshot(
   clipRect: { left: number; top: number; width: number; height: number } | null,
 ): Promise<PreviewSnapshot | null> {
-  if (!isOpenDesignHostAvailable()) return null;
+  if (!isComposerDesignHostAvailable()) return null;
   const clip = clipRect && clipRect.width >= 1 && clipRect.height >= 1
     ? {
         x: Math.max(0, Math.round(clipRect.left)),
@@ -731,10 +780,12 @@ export type ProjectPdfExportResult = 'desktop' | 'fallback' | 'cancelled';
 
 export async function exportProjectAsPdf(opts: {
   deck: boolean;
-  fallbackPdf: () => void;
+  fallbackPdf: () => void | Promise<void>;
   filePath: string;
   projectId: string;
   title: string;
+  versionId?: string;
+  workspaceContext?: WorkspaceCollabContext | null;
 }): Promise<ProjectPdfExportResult> {
   try {
     const resp = await fetch(`/api/projects/${encodeURIComponent(opts.projectId)}/export/pdf`, {
@@ -742,8 +793,14 @@ export async function exportProjectAsPdf(opts: {
         deck: opts.deck,
         fileName: opts.filePath,
         title: opts.title,
+        ...(opts.versionId ? { versionId: opts.versionId } : {}),
       }),
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...(opts.workspaceContext
+          ? workspaceProjectHeaders(opts.workspaceContext)
+          : {}),
+      },
       method: 'POST',
     });
     if (!resp.ok) throw new Error(`desktop PDF export unavailable (${resp.status})`);
@@ -752,8 +809,8 @@ export async function exportProjectAsPdf(opts: {
     if (body && body.ok === false) throw new Error(body.error || 'desktop PDF export failed');
     return 'desktop';
   } catch (err) {
-    console.warn('[exportProjectAsPdf] falling back to browser print:', err);
-    opts.fallbackPdf();
+    console.warn('[exportProjectAsPdf] falling back to programmatic PDF:', err);
+    await opts.fallbackPdf();
     return 'fallback';
   }
 }
@@ -819,19 +876,407 @@ export async function exportProjectAsZip(opts: {
   filePath: string;
   fallbackHtml: string;
   fallbackTitle: string;
+  versionId?: string;
+  workspaceContext?: WorkspaceCollabContext | null;
 }): Promise<void> {
+  if (opts.versionId) {
+    const segments = opts.filePath
+      .split('/')
+      .filter(Boolean)
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+    const query = new URLSearchParams({ inline: '1', versionId: opts.versionId });
+    try {
+      const url = `/api/projects/${encodeURIComponent(opts.projectId)}/export/${segments}?${query.toString()}`;
+      const resp = opts.workspaceContext
+        ? await fetch(url, {
+            headers: workspaceProjectHeaders(opts.workspaceContext),
+          })
+        : await fetch(url);
+      if (!resp.ok) throw new Error(`version html export request failed (${resp.status})`);
+      exportAsZip(await resp.text(), opts.fallbackTitle);
+      return;
+    } catch (err) {
+      console.warn('[exportProjectAsZip] falling back to single-file ZIP:', err);
+      exportAsZip(opts.fallbackHtml, opts.fallbackTitle);
+      return;
+    }
+  }
   const root = archiveRootFromFilePath(opts.filePath);
   const url = `/api/projects/${encodeURIComponent(opts.projectId)}/archive${
     root ? `?root=${encodeURIComponent(root)}` : ''
   }`;
   try {
-    const resp = await fetch(url);
+    const resp = opts.workspaceContext
+      ? await fetch(url, {
+          headers: workspaceProjectHeaders(opts.workspaceContext),
+        })
+      : await fetch(url);
     if (!resp.ok) throw new Error(`archive request failed (${resp.status})`);
     const blob = await resp.blob();
     triggerDownload(blob, archiveFilenameFrom(resp, opts.fallbackTitle, root));
   } catch (err) {
     console.warn('[exportProjectAsZip] falling back to single-file ZIP:', err);
     exportAsZip(opts.fallbackHtml, opts.fallbackTitle);
+  }
+}
+
+// Tri-state, mirroring exportProjectImageDataUrl: callers must distinguish a
+// genuinely-unavailable off-screen renderer (no desktop host / 501 / transport
+// failure) — where falling back to the vector/browser PDF is correct — from a
+// SEMANTIC export failure (bad deck routing, unreadable renderer output, a
+// renderer-side 502, "page too tall", …), which must be surfaced rather than
+// silently masked by the old vector path (which can reintroduce the CJK-glyph /
+// fidelity bugs this screenshot path exists to avoid).
+/**
+ * Why the off-screen renderer could not be used. Both values keep
+ * `unavailable: true` so the existing fallback checks (`'unavailable' in res`)
+ * still classify them as "renderer not usable, you may fall back", but callers
+ * that surface a message can now tell the two apart:
+ *
+ * - `no-renderer` — the daemon answered 501: this runtime has no off-screen
+ *   renderer at all. Permanent until the deployment changes.
+ * - `unreachable` — the request never got an answer (daemon down, connection
+ *   dropped). Says nothing about whether the feature exists, and is very likely
+ *   transient.
+ *
+ * They were previously collapsed into one flag, so a dead daemon was reported
+ * to the user as "this export is not available here" — a claim about the
+ * product when the real problem was the connection.
+ */
+export type ExportUnavailableReason = 'no-renderer' | 'unreachable';
+
+export type ProjectScreenshotExportResult =
+  | { ok: true }
+  | { ok: false; unavailable: true; reason: ExportUnavailableReason }
+  | { ok: false; error: string };
+
+// Programmatic screenshot-based PPTX export. POSTs to the daemon, which renders
+// each deck slide to a pixel-perfect PNG (via the desktop's Electron Chromium)
+// and assembles a one-image-per-slide .pptx, then streams the bytes back for a
+// blob download. Replaces the old "send a prompt and let the agent run
+// python-pptx" path. `format: 'pdf'` produces the raster (screenshot) PDF.
+export async function exportProjectAsPptx(opts: {
+  projectId: string;
+  fileName: string;
+  title?: string;
+  format?: 'pptx' | 'pdf';
+  deck?: boolean;
+  versionId?: string;
+  // pptx only: produce an editable deck (native shapes/text) instead of a
+  // screenshot one (one image per slide).
+  editable?: boolean;
+  workspaceContext?: WorkspaceCollabContext | null;
+}): Promise<ProjectScreenshotExportResult> {
+  const format = opts.format ?? 'pptx';
+  const path = format === 'pdf' ? 'export/pdf-image' : 'export/pptx';
+  const url = `/api/projects/${encodeURIComponent(opts.projectId)}/${path}`;
+  let resp: Response;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(opts.workspaceContext
+          ? workspaceProjectHeaders(opts.workspaceContext)
+          : {}),
+      },
+      body: JSON.stringify({
+        fileName: opts.fileName,
+        ...(opts.title ? { title: opts.title } : {}),
+        ...(opts.versionId ? { versionId: opts.versionId } : {}),
+        ...(format === 'pptx'
+          ? { deck: true, ...(opts.editable ? { editable: true } : {}) }
+          : typeof opts.deck === 'boolean'
+            ? { deck: opts.deck }
+            : {}),
+      }),
+    });
+  } catch {
+    // Transport-level failure (offline, daemon down) — genuinely unavailable, so
+    // the caller may fall back to the vector/browser PDF.
+    return { ok: false, unavailable: true, reason: 'unreachable' };
+  }
+  if (!resp.ok) {
+    // 501 = this runtime has no off-screen renderer → caller may fall back to
+    // the vector/browser PDF. Everything else is a real (semantic) failure that
+    // must surface, not be masked by the vector path.
+    if (resp.status === 501) return { ok: false, unavailable: true, reason: 'no-renderer' };
+    // The proxy in front of the daemon answers instead of failing the fetch
+    // when the daemon is down, so an outage arrives as a plain-text 5xx rather
+    // than a rejection. Classify it before the generic branch below, otherwise
+    // the daemon-down diagnostic never fires on the packaged / sidecar path.
+    if (await isDaemonProxyConnectionFailure(resp)) {
+      return { ok: false, unavailable: true, reason: 'unreachable' };
+    }
+    let message = `export request failed (${resp.status})`;
+    try {
+      const err = await resp.json();
+      if (err?.error?.message) message = String(err.error.message);
+    } catch {
+      // non-JSON error body; keep the status-based message
+    }
+    return { ok: false, error: message };
+  }
+  // The renderer already produced bytes — a failure reading the body or
+  // triggering the download is a real (post-response) export failure, NOT
+  // "renderer unavailable". Returning `error` (not `unavailable`) keeps the
+  // caller from silently downgrading to the lower-fidelity vector path.
+  try {
+    const blob = await resp.blob();
+    const base = opts.fileName.replace(/^.*\//, '').replace(/\.html?$/i, '');
+    const slug = safeFilename(opts.title || base, 'deck');
+    const fromHeader = filenameFromContentDisposition(resp);
+    triggerDownload(blob, fromHeader || `${slug}.${format}`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'export download failed' };
+  }
+}
+
+// Whether an HTML artifact carries a structured deck runtime for EXPORT
+// purposes, beyond explicit project/file metadata. Runtime-managed decks render
+// slides through a custom element (e.g. `<deck-stage>` with slotted
+// `<section data-screen-label="...">` children toggled via `data-deck-active`)
+// and can carry no literal `class="slide"`, so metadata-only checks can miss
+// them. Older html-ppt templates use `.slide` together with deck-specific
+// structure such as `data-title` or a `.deck` wrapper. Deliberately DO NOT treat
+// a plain `.slide` class as proof of a deck: ordinary pages often use that token
+// for carousels/testimonials and still need full-page/scroll-stitch capture.
+function sourceLooksLikeStructuredDeck(source: string): boolean {
+  // Inspect markup, not examples or compatibility notes embedded in the
+  // document. Print bridges commonly mention `<deck-stage>` in comments or
+  // script strings while guarding optional deck behavior; treating those
+  // literals as real elements turns ordinary reports into a one-slide deck and
+  // incorrectly mounts navigation and speaker notes.
+  const markup = source
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '');
+  return (
+    /<deck-stage[\s/>]|class\s*=\s*['"](?:[^'"]*\s)?(?:deck-slide|ppt-slide)(?:\s|['"])/i.test(
+      markup,
+    ) ||
+    /<[^>]*\bclass\s*=\s*['"](?:[^'"]*\s)?slide(?:\s|['"])[^>]*\bdata-title\s*=|<[^>]*\bdata-title\s*=[^>]*\bclass\s*=\s*['"](?:[^'"]*\s)?slide(?:\s|['"])/i.test(
+      markup,
+    ) ||
+    /<[^>]*\bclass\s*=\s*['"](?:[^'"]*\s)?deck(?:\s|['"])[^>]*>\s*<[^>]*\bclass\s*=\s*['"](?:[^'"]*\s)?slide(?:\s|['"])/i.test(
+      markup,
+    )
+  );
+}
+
+export function sourceLooksLikeExportableDeck(source: string | null | undefined): boolean {
+  if (!source) return false;
+  return sourceLooksLikeStructuredDeck(source) || /\bdata-screen-label\s*=/i.test(source);
+}
+
+/**
+ * Viewer navigation needs stronger evidence than export. `data-screen-label`
+ * is shared with ordinary prototype annotations, so only explicit deck
+ * structure or a numbered sibling collection of legacy slide sections may
+ * turn the live preview into deck mode.
+ */
+export function sourceLooksLikeNavigableDeck(source: string | null | undefined): boolean {
+  if (!source) return false;
+  if (sourceLooksLikeStructuredDeck(source)) return true;
+  return sourceHasLegacyDeckScreenSlides(source);
+}
+
+// Decides how a current-slide / whole-deck / page image capture should run.
+// The off-screen renderer needs a concrete slide `index` for a CURRENT-slide
+// capture (Copy screenshot / annotation), but we only know the active slide when
+// the viewer tracks it (`trackedActive`). Runtime-managed decks (`<deck-stage>` /
+// `data-screen-label`) are deliberately kept out of the viewer's nav signal, so
+// they have no active-slide bridge (`trackedActive === null`); a current-slide
+// off-screen render would then always grab slide 0, exporting slide 1 instead of
+// the slide on screen. For that case the caller must skip the off-screen path and
+// use the visible host snapshot (which IS the current slide). Whole-deck (Export
+// as image, omits index → stitches all), ordinary pages, and tracked `.slide`
+// decks still use the off-screen renderer.
+export function planDeckImageCapture(opts: {
+  deck: boolean;
+  wholeDeck: boolean;
+  trackedActive: number | null;
+}): { useOffscreen: boolean; index: number | undefined } {
+  // Export as image: the whole page / whole deck, off-screen and
+  // viewport-independent.
+  if (opts.wholeDeck) return { useOffscreen: true, index: undefined };
+  // A current-view capture (Copy screenshot / annotation) must stay
+  // viewport-based: an ordinary page uses the visible host snapshot, NOT an
+  // off-screen full-page render (which would copy the whole document instead of
+  // what the user is looking at, and break captureViewport annotations). A deck
+  // current-slide uses the off-screen renderer at the active slide ONLY when the
+  // viewer tracks it; a runtime-managed deck with no tracked active slide also
+  // falls back to the visible snapshot (we can't tell which slide it's on).
+  if (!opts.deck || opts.trackedActive === null) return { useOffscreen: false, index: undefined };
+  return { useOffscreen: true, index: opts.trackedActive };
+}
+
+// Programmatic image export: render a single pixel-perfect PNG via the daemon
+// (off-screen Electron Chromium). Optional width/height select a responsive page
+// viewport without depending on preview-pane geometry. For a deck pass the
+// current slide `index` (Copy screenshot); omit it to stitch the WHOLE deck
+// top-to-bottom into one long image (Export as image) or to capture an ordinary
+// page at natural size. Returns a {dataUrl,w,h} snapshot compatible with
+// the existing image-export pipeline, or null if unavailable.
+// Discriminates a genuinely-unavailable off-screen renderer (no desktop host /
+// 501 / network) — where the caller may fall back to a visible-preview capture —
+// from a SEMANTIC export failure (e.g. "page is too tall — export as PDF"), which
+// must be surfaced rather than silently downgraded to a partial viewport shot.
+export type ProjectImageExportResult =
+  | { ok: true; snapshot: PreviewSnapshot }
+  | { ok: false; unavailable: true; reason: ExportUnavailableReason }
+  // `code` / `status` carry the daemon's own classification through to the
+  // caller. Dropping them (as this used to) forced `exportErrorCode` to
+  // re-derive a code by regex-matching the message, and anything it could not
+  // match fell through to `err.name` — the literal string "Error", which is
+  // what 48% of image-export failures reported in analytics. See
+  // `apps/web/src/analytics/export-error-code.ts`.
+  | { ok: false; error: string; code?: string; status?: number };
+
+export async function exportProjectImageDataUrl(opts: {
+  projectId: string;
+  fileName: string;
+  index?: number;
+  deck?: boolean;
+  width?: number;
+  height?: number;
+  versionId?: string;
+  workspaceContext?: WorkspaceCollabContext | null;
+}): Promise<ProjectImageExportResult> {
+  const url = `/api/projects/${encodeURIComponent(opts.projectId)}/export/image`;
+  let resp: Response;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(opts.workspaceContext
+          ? workspaceProjectHeaders(opts.workspaceContext)
+          : {}),
+      },
+      body: JSON.stringify({
+        fileName: opts.fileName,
+        ...(typeof opts.index === 'number' ? { index: opts.index } : {}),
+        ...(typeof opts.deck === 'boolean' ? { deck: opts.deck } : {}),
+        ...(typeof opts.width === 'number' ? { width: opts.width } : {}),
+        ...(typeof opts.height === 'number' ? { height: opts.height } : {}),
+        ...(opts.versionId ? { versionId: opts.versionId } : {}),
+      }),
+    });
+  } catch {
+    // Transport-level failure (offline, daemon down) — genuinely unavailable, so
+    // the caller may fall back to a visible-preview capture.
+    return { ok: false, unavailable: true, reason: 'unreachable' };
+  }
+  if (!resp.ok) {
+    // 501 = this runtime has no off-screen renderer → caller may fall back.
+    if (resp.status === 501) return { ok: false, unavailable: true, reason: 'no-renderer' };
+    // The proxy in front of the daemon answers instead of failing the fetch
+    // when the daemon is down, so an outage arrives as a plain-text 5xx rather
+    // than a rejection. Classify it before the generic branch below, otherwise
+    // the daemon-down diagnostic never fires on the packaged / sidecar path.
+    if (await isDaemonProxyConnectionFailure(resp)) {
+      return { ok: false, unavailable: true, reason: 'unreachable' };
+    }
+    let message = `image export failed (${resp.status})`;
+    let code: string | undefined;
+    try {
+      const err = await resp.json();
+      if (err?.error?.message) message = String(err.error.message);
+      if (typeof err?.error?.code === 'string' && err.error.code) code = err.error.code;
+    } catch {
+      // non-JSON body; keep the status-based message
+    }
+    return { ok: false, error: message, status: resp.status, ...(code ? { code } : {}) };
+  }
+  // A 200 with an unreadable/corrupt payload is a real export failure, NOT
+  // "renderer unavailable" — surface it instead of silently downgrading to the
+  // viewport screenshot.
+  try {
+    const blob = await resp.blob();
+    const dataUrl = await blobToDataUrl(blob);
+    const img = await loadImageFromDataUrl(dataUrl);
+    return { ok: true, snapshot: { dataUrl, w: img.naturalWidth, h: img.naturalHeight } };
+  } catch {
+    return { ok: false, error: 'image export returned an unreadable response' };
+  }
+}
+
+// Pixel-perfect screenshot PDF (one raster page per deck slide, or the whole
+// page for a website) via the same off-screen renderer as image/PPTX. Used as
+// the default UI PDF because Chromium's vector printToPDF drops CJK glyphs in
+// the packaged runtime.
+export function exportProjectScreenshotPdf(opts: {
+  projectId: string;
+  fileName: string;
+  title?: string;
+  deck?: boolean;
+  versionId?: string;
+  workspaceContext?: WorkspaceCollabContext | null;
+}): Promise<ProjectScreenshotExportResult> {
+  return exportProjectAsPptx({ ...opts, format: 'pdf' });
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error('blob read failed'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Design system ZIP export — asks the daemon to bundle the whole brand
+// directory plus a generated SKILLS.md usage guide so the user gets a
+// self-contained, shareable package. Used by the Design Systems detail panel's
+// download button. Returns false on failure so the caller can surface an error.
+export async function downloadDesignSystemArchive(opts: {
+  designSystemId: string;
+  fallbackTitle: string;
+  workspaceContext?: WorkspaceCollabContext | null;
+}): Promise<boolean> {
+  const url = workspaceResourceUrl(
+    `/api/design-systems/${encodeURIComponent(opts.designSystemId)}/archive`,
+    opts.workspaceContext,
+  );
+  try {
+    const resp = opts.workspaceContext
+      ? await fetch(url, { headers: workspaceProjectHeaders(opts.workspaceContext) })
+      : await fetch(url);
+    if (!resp.ok) throw new Error(`archive request failed (${resp.status})`);
+    const blob = await resp.blob();
+    triggerDownload(blob, archiveFilenameFrom(resp, opts.fallbackTitle, ''));
+    return true;
+  } catch (err) {
+    console.warn('[downloadDesignSystemArchive] failed:', err);
+    return false;
+  }
+}
+
+export async function downloadProjectArchive(opts: {
+  projectId: string;
+  fallbackTitle: string;
+  root?: string;
+  workspaceContext?: WorkspaceCollabContext | null;
+}): Promise<boolean> {
+  const root = opts.root?.replace(/^\/+|\/+$/g, '') ?? '';
+  const url = `/api/projects/${encodeURIComponent(opts.projectId)}/archive${
+    root ? `?root=${encodeURIComponent(root)}` : ''
+  }`;
+  try {
+    const resp = opts.workspaceContext
+      ? await fetch(url, {
+          headers: workspaceProjectHeaders(opts.workspaceContext),
+        })
+      : await fetch(url);
+    if (!resp.ok) throw new Error(`archive request failed (${resp.status})`);
+    const blob = await resp.blob();
+    triggerDownload(blob, archiveFilenameFrom(resp, opts.fallbackTitle, root));
+    return true;
+  } catch (err) {
+    console.warn('[downloadProjectArchive] failed:', err);
+    return false;
   }
 }
 
@@ -957,7 +1402,7 @@ export function openSandboxedPreviewInNewTab(
 export async function exportAsPdf(
   html: string,
   title: string,
-  opts?: SrcdocOptions & { sandboxedPreview?: boolean },
+  opts?: SrcdocOptions & { sandboxedPreview?: boolean; onProgress?: ExportProgress },
 ): Promise<void> {
   const sandboxedPreview = opts?.sandboxedPreview ?? true;
   // Generate a per-export nonce so the print-ready handshake is resistant to
@@ -974,7 +1419,7 @@ export async function exportAsPdf(
   // omits allow-modals here because the native flow never calls
   // window.print(); granting it would let untrusted artifact code call
   // alert()/confirm() and stall the hidden Electron window indefinitely.
-  if (isOpenDesignHostAvailable()) {
+  if (isComposerDesignHostAvailable()) {
     if (sandboxedPreview) {
       doc = buildSandboxedPreviewDocument(doc, title);
     }
@@ -993,9 +1438,19 @@ export async function exportAsPdf(
     return;
   }
 
-  // Browser fallback: wrap with allow-modals so the injected script can
-  // call window.print(), then inject the self-printing script and open a
-  // popup.
+  // Browser fallback (pure web): assemble the PDF programmatically — capture
+  // each slide (deck) or the full page through the export-capture bridge, then
+  // build it with jsPDF. No print dialog, no agent. The window.print() popup
+  // below is kept only as a last-resort fallback if the capture path throws.
+  try {
+    await exportArtifactAsPdf(html, title, { deck: !!opts?.deck, onProgress: opts?.onProgress });
+    return;
+  } catch (err) {
+    console.warn('[exportAsPdf] programmatic PDF failed, falling back to print popup:', err);
+  }
+
+  // Last-resort: wrap with allow-modals so the injected script can call
+  // window.print(), then inject the self-printing script and open a popup.
   if (sandboxedPreview) {
     doc = buildSandboxedPreviewDocument(doc, title, { allowModals: true });
   }
@@ -1096,7 +1551,27 @@ export function reportPrintSizeWhenStable(
   step(maxFrames);
 }
 
-function injectPrintScript(doc: string, title: string): string {
+/**
+ * Place an export bridge as late as the document allows: before the real
+ * `</head>`, otherwise before the real `</body>`, otherwise appended.
+ *
+ * The boundaries are located structurally, so a `</head>` or `</body>` an
+ * author wrote into a script string or an attribute is not mistaken for this
+ * document's own (nexu-io/open-design#7410). Exports splice into the artifact's
+ * own bytes just like the preview transports do, and a print/PDF export of a
+ * prototype that builds an HTML document string is exactly the shape that broke
+ * there.
+ */
+function injectBeforeDocumentEnd(doc: string, payload: string): string {
+  const headClose = findRealTagOffset(doc, HTML_TAG_PATTERNS.headClose);
+  if (headClose >= 0) return doc.slice(0, headClose) + payload + doc.slice(headClose);
+  const bodyClose = findRealTagOffset(doc, HTML_TAG_PATTERNS.bodyClose);
+  if (bodyClose >= 0) return doc.slice(0, bodyClose) + payload + doc.slice(bodyClose);
+  return doc + payload;
+}
+
+/** @internal Exported for unit testing; not part of the public API surface. */
+export function injectPrintScript(doc: string, title: string): string {
   const safeTitle = JSON.stringify(title || 'artifact');
   // Browser fallback PDF export shares the same print-readiness signal as the
   // desktop native path. When the cache is present, wait for it so the popup
@@ -1105,12 +1580,11 @@ function injectPrintScript(doc: string, title: string): string {
   // CSP that forbids inline scripts), fall back to the historical load+delay
   // behavior instead of waiting for the full ready deadline.
   const script = `<script>(function(){try{document.title=${safeTitle}}catch(e){}function doPrint(){try{window.focus();window.print()}catch(e){}}function afterStableFrames(fn){requestAnimationFrame(function(){requestAnimationFrame(fn)})}window.addEventListener('load',function(){if(typeof window.__odPrintReady!=='boolean'){setTimeout(doPrint,300);return}var deadline=Date.now()+30000;var handshakeStartDeadline=Date.now()+1000;(function waitForReady(){if(window.__odPrintReady===true){afterStableFrames(doPrint);return}if(window.__odPrintReadyStarted===false&&Date.now()>=handshakeStartDeadline){setTimeout(doPrint,300);return}if(Date.now()>=deadline){afterStableFrames(doPrint);return}setTimeout(waitForReady,50)})()})})();</script>`;
-  if (/<\/head>/i.test(doc)) return doc.replace(/<\/head>/i, `${script}</head>`);
-  if (/<\/body>/i.test(doc)) return doc.replace(/<\/body>/i, `${script}</body>`);
-  return doc + script;
+  return injectBeforeDocumentEnd(doc, script);
 }
 
-function injectPrintReadyHandshake(doc: string, nonce: string): string {
+/** @internal Exported for unit testing; not part of the public API surface. */
+export function injectPrintReadyHandshake(doc: string, nonce: string): string {
   // Wait for fonts, the window load event (which covers initial images), and
   // any images that are still loading after load fires (dynamically added or
   // slow images that weren't complete by the time this script ran). Also wait
@@ -1133,9 +1607,7 @@ function injectPrintReadyHandshake(doc: string, nonce: string): string {
   // came from our injected handshake, not a spoofed message from untrusted
   // artifact code.
   const script = `<script data-od-print-ready>(function(){window.parent.postMessage({type:'OD_PRINT_READY_STARTED',nonce:'${nonce}'},'*');function waitForImages(){var imgs=Array.from(document.images).filter(function(img){if(img.loading==='lazy')img.loading='eager';return !img.complete});return Promise.all(imgs.map(function(img){return new Promise(function(r){img.addEventListener('load',r,{once:true});img.addEventListener('error',r,{once:true});if(img.complete)r()})}))}function cssUrlValues(value){var urls=[];if(!value||value==='none')return urls;value.replace(/url\\((['"]?)(.*?)\\1\\)/g,function(_,q,rawUrl){if(rawUrl&&!/^data:/i.test(rawUrl))urls.push(rawUrl);return''});return urls}function waitForCssBackgroundImages(){var urls=new Set();Array.from(document.querySelectorAll('*')).forEach(function(el){var style=window.getComputedStyle(el);cssUrlValues(style.backgroundImage).forEach(function(url){urls.add(url)});cssUrlValues(style.borderImageSource).forEach(function(url){urls.add(url)});cssUrlValues(style.listStyleImage).forEach(function(url){urls.add(url)})});return Promise.all(Array.from(urls).map(function(url){return new Promise(function(r){var img=new Image();img.onload=r;img.onerror=r;img.src=url})}))}function nextFrame(){return new Promise(function(r){requestAnimationFrame(function(){r(true)})})}Promise.all([document.fonts&&document.fonts.ready?document.fonts.ready.catch(function(){}):Promise.resolve(),new Promise(function(r){if(document.readyState==='complete')r();else window.addEventListener('load',r,{once:true})})]).then(function(){return Promise.all([waitForImages(),waitForCssBackgroundImages()])}).then(nextFrame).then(nextFrame).then(function(){var __odReport=${reportPrintSizeWhenStable.toString()};function measure(){var de=document.documentElement;var b=document.body||de;return {width:Math.max(de.scrollWidth,b.scrollWidth,de.offsetWidth,b.offsetWidth),height:Math.max(de.scrollHeight,b.scrollHeight,de.offsetHeight,b.offsetHeight)}}__odReport(measure,function(size){window.parent.postMessage({type:'OD_PRINT_READY',nonce:'${nonce}',width:size.width,height:size.height},'*')},30)})})();<\/script>`;
-  if (/<\/head>/i.test(doc)) return doc.replace(/<\/head>/i, `${script}</head>`);
-  if (/<\/body>/i.test(doc)) return doc.replace(/<\/body>/i, `${script}</body>`);
-  return doc + script;
+  return injectBeforeDocumentEnd(doc, script);
 }
 
 function injectParentPrintReadyCache(doc: string, nonce: string): string {
@@ -1149,7 +1621,8 @@ function injectParentPrintReadyCache(doc: string, nonce: string): string {
   // from a CSP-blocked one so the browser fallback can preserve the historical
   // quick print path when the inner script never runs.
   const script = `<script>window.__odPrintReady=false;window.__odPrintReadyStarted=false;window.__odPrintSize=null;var __odUsable=${isUsablePrintSize.toString()};window.addEventListener('message',function(e){if(e.data&&e.data.nonce==='${nonce}'&&(e.source===window||(window.frames&&e.source===window.frames[0]))){if(e.data.type==='OD_PRINT_READY_STARTED'){window.__odPrintReadyStarted=true;return}if(e.data.type==='OD_PRINT_READY'){window.__odPrintReady=true;if(__odUsable(e.data.width,e.data.height))window.__odPrintSize={width:e.data.width,height:e.data.height}}}});<\/script>`;
-  if (/<head>/i.test(doc)) return doc.replace(/<head>/i, `<head>${script}`);
+  const headEnd = findRealTagEnd(doc, HTML_TAG_PATTERNS.headOpen);
+  if (headEnd >= 0) return doc.slice(0, headEnd) + script + doc.slice(headEnd);
   return script + doc;
 }
 
@@ -1183,6 +1656,13 @@ const DECK_PRINT_CSS = `
     transform: none !important;
     position: relative !important;
     overflow: hidden !important;
+    /* Decks commonly show one slide at a time via opacity; without this the
+       inactive slides print as blank pages. Force every slide visible (and
+       freeze entrance animations) so each becomes a real page. */
+    opacity: 1 !important;
+    visibility: visible !important;
+    animation: none !important;
+    transition: none !important;
   }
   .slide:last-child, [data-screen-label]:last-child { page-break-after: auto; break-after: auto; }
   .deck-counter, .deck-hint, .deck-nav,
@@ -1192,9 +1672,294 @@ const DECK_PRINT_CSS = `
 }
 `;
 
-function injectDeckPrintStylesheet(doc: string): string {
+/** @internal Exported for unit testing; not part of the public API surface. */
+export function injectDeckPrintStylesheet(doc: string): string {
   const tag = `<style data-deck-print="injected">${DECK_PRINT_CSS}</style>`;
-  if (/<\/head>/i.test(doc)) return doc.replace(/<\/head>/i, `${tag}</head>`);
-  if (/<head[^>]*>/i.test(doc)) return doc.replace(/<head[^>]*>/i, (m) => `${m}${tag}`);
+  const headClose = findRealTagOffset(doc, HTML_TAG_PATTERNS.headClose);
+  if (headClose >= 0) return doc.slice(0, headClose) + tag + doc.slice(headClose);
+  const headEnd = findRealTagEnd(doc, HTML_TAG_PATTERNS.headOpen);
+  if (headEnd >= 0) return doc.slice(0, headEnd) + tag + doc.slice(headEnd);
   return tag + doc;
+}
+
+// ===========================================================================
+// Programmatic client-side capture + PDF assembly.
+//
+// The in-iframe capture half lives in ./srcdoc.ts (injectExportCaptureBridge).
+// Here we drive it: spin up a hidden, full-resolution export iframe, collect
+// one image per slide, then assemble the output with jsPDF — entirely in the
+// browser, with no print dialog and no agent/model call. The library is
+// dynamically imported so it stays out of the
+// main bundle until an export actually runs.
+// ===========================================================================
+
+export type CapturedSlide = {
+  index: number;
+  dataUrl?: string;
+  w: number;
+  h: number;
+  notes?: string;
+};
+
+/** Progress callback: `(slidesDone, totalSlides)`. */
+export type ExportProgress = (done: number, total: number) => void;
+
+function delayMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function waitForIframeWindow(iframe: HTMLIFrameElement, timeout = 15_000): Promise<Window> {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      const win = iframe.contentWindow;
+      if (win) resolve(win);
+      else reject(new Error('export iframe window unavailable'));
+    };
+    const timer = setTimeout(finish, timeout);
+    iframe.addEventListener('load', finish, { once: true });
+  });
+}
+
+type CaptureRequest = {
+  id: string;
+  mode: 'image';
+  deck: boolean;
+  single?: boolean;
+  delay: number;
+};
+
+/**
+ * Drive the in-iframe export-capture bridge for one window, invoking `onSlide`
+ * for each captured slide. Resolves on the bridge's `done`, rejects on its
+ * `error` or an inactivity timeout (so a wedged capture never hangs forever).
+ */
+function runExportCapture(
+  win: Window,
+  req: CaptureRequest,
+  onSlide: (slide: CapturedSlide, total: number) => void,
+  timeoutMs = 120_000,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let finished = false;
+    let lastActivity = Date.now();
+    const cleanup = () => {
+      window.removeEventListener('message', onMsg);
+      clearInterval(watchdog);
+    };
+    function onMsg(ev: MessageEvent) {
+      if (ev.source !== win) return;
+      const d = ev.data as {
+        type?: string; id?: string; index?: number; total?: number;
+        dataUrl?: string; w?: number; h?: number;
+        notes?: string; error?: string;
+      } | null;
+      if (!d || d.id !== req.id) return;
+      if (d.type === 'od:export-capture:slide') {
+        lastActivity = Date.now();
+        onSlide(
+          {
+            index: d.index ?? 0,
+            dataUrl: d.dataUrl,
+            w: d.w ?? 0,
+            h: d.h ?? 0,
+            notes: typeof d.notes === 'string' ? d.notes : '',
+          },
+          d.total ?? 1,
+        );
+      } else if (d.type === 'od:export-capture:done') {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        resolve();
+      } else if (d.type === 'od:export-capture:error') {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        reject(new Error(String(d.error || 'export capture failed')));
+      }
+    }
+    const watchdog = setInterval(() => {
+      if (Date.now() - lastActivity > timeoutMs) {
+        if (finished) return;
+        finished = true;
+        cleanup();
+        reject(new Error('export capture timed out'));
+      }
+    }, 2_000);
+    window.addEventListener('message', onMsg);
+    try {
+      win.postMessage({ type: 'od:export-capture', ...req }, '*');
+    } catch (err) {
+      finished = true;
+      cleanup();
+      reject(err instanceof Error ? err : new Error(String(err)));
+    }
+  });
+}
+
+/**
+ * Capture every slide of a deck (or the full page, for a non-deck artifact) by
+ * rendering the HTML in a hidden, full-resolution export iframe and driving the
+ * export-capture bridge. Returns the slides ordered by index.
+ */
+async function captureArtifactSlides(
+  html: string,
+  opts: {
+    deck: boolean;
+    mode: 'image';
+    width?: number;
+    height?: number;
+    onProgress?: ExportProgress;
+    timeoutMs?: number;
+  },
+): Promise<CapturedSlide[]> {
+  const width = opts.width ?? (opts.deck ? 1920 : 1440);
+  const height = opts.height ?? (opts.deck ? 1080 : 900);
+  const timeoutMs = opts.timeoutMs ?? 45_000;
+
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('sandbox', 'allow-scripts');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.setAttribute('tabindex', '-1');
+  iframe.style.cssText = `position:fixed;left:-100000px;top:0;width:${width}px;height:${height}px;border:0;background:#fff;`;
+  iframe.srcdoc = buildSrcdoc(html, { deck: opts.deck });
+  document.body.appendChild(iframe);
+
+  const slides: CapturedSlide[] = [];
+  try {
+    const win = await waitForIframeWindow(iframe, Math.min(timeoutMs, 15_000));
+    // Give the deck bridge time to fit fixed-canvas (transform: scale) layouts
+    // to the iframe before the first capture.
+    await delayMs(opts.deck ? 600 : 150);
+    await runExportCapture(
+      win,
+      {
+        id: `exp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        mode: opts.mode,
+        deck: opts.deck,
+        delay: 350,
+      },
+      (slide, total) => {
+        slides.push(slide);
+        opts.onProgress?.(slides.length, total);
+      },
+      timeoutMs,
+    );
+  } finally {
+    iframe.remove();
+  }
+  slides.sort((a, b) => a.index - b.index);
+  return slides;
+}
+
+/** Programmatic, client-side image export for an in-memory HTML snapshot. */
+export async function exportArtifactImageDataUrl(
+  html: string,
+  opts: { deck: boolean; onProgress?: ExportProgress; timeoutMs?: number },
+): Promise<PreviewSnapshot> {
+  const slides = await captureArtifactSlides(html, {
+    deck: opts.deck,
+    mode: 'image',
+    onProgress: opts.onProgress,
+    timeoutMs: opts.timeoutMs,
+  });
+  const images = slides.filter((s) => s.dataUrl && s.w > 0 && s.h > 0);
+  if (!images.length) throw new Error('Nothing was captured for image export');
+  if (images.length === 1) {
+    const image = images[0]!;
+    return { dataUrl: image.dataUrl!, w: image.w, h: image.h };
+  }
+
+  const width = Math.max(...images.map((image) => image.w));
+  const height = images.reduce((sum, image) => sum + image.h, 0);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas is not available');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, width, height);
+
+  let top = 0;
+  for (const image of images) {
+    const element = await loadImageFromDataUrl(image.dataUrl!);
+    ctx.drawImage(element, 0, top, image.w, image.h);
+    top += image.h;
+  }
+
+  return { dataUrl: canvas.toDataURL('image/png'), w: width, h: height };
+}
+
+/** Programmatic, client-side PDF: image-per-slide (deck) or paginated full page. */
+export async function exportArtifactAsPdf(
+  html: string,
+  title: string,
+  opts: { deck: boolean; onProgress?: ExportProgress; timeoutMs?: number },
+): Promise<void> {
+  const slides = await captureArtifactSlides(html, {
+    deck: opts.deck,
+    mode: 'image',
+    onProgress: opts.onProgress,
+    timeoutMs: opts.timeoutMs,
+  });
+  const images = slides.filter((s) => s.dataUrl && s.w > 0 && s.h > 0);
+  if (!images.length) throw new Error('Nothing was captured for PDF export');
+
+  const { jsPDF } = await import('jspdf');
+  const filename = `${safeFilename(title, 'artifact')}.pdf`;
+
+  if (opts.deck) {
+    const first = images[0]!;
+    const pdf = new jsPDF({
+      orientation: first.w >= first.h ? 'landscape' : 'portrait',
+      unit: 'px',
+      format: [first.w, first.h],
+      compress: true,
+    });
+    images.forEach((s, i) => {
+      if (i > 0) pdf.addPage([s.w, s.h], s.w >= s.h ? 'landscape' : 'portrait');
+      pdf.addImage(s.dataUrl!, 'PNG', 0, 0, s.w, s.h);
+    });
+    triggerDownload(pdf.output('blob'), filename);
+    return;
+  }
+
+  // Non-deck: slice the tall full-page capture into A4-proportioned pages.
+  const img = images[0]!;
+  const pageW = img.w;
+  const pageH = Math.max(1, Math.round(pageW * Math.SQRT2)); // A4 portrait ≈ 1:1.414
+  const pages = Math.max(1, Math.ceil(img.h / pageH));
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [pageW, pageH], compress: true });
+  for (let p = 0; p < pages; p++) {
+    if (p > 0) pdf.addPage([pageW, pageH], 'portrait');
+    pdf.addImage(img.dataUrl!, 'PNG', 0, -p * pageH, img.w, img.h);
+  }
+  triggerDownload(pdf.output('blob'), filename);
+}
+
+/** Build a one-image PDF from an already-captured preview snapshot. */
+export async function exportSnapshotAsPdf(
+  snapshot: PreviewSnapshot,
+  title: string,
+): Promise<void> {
+  if (!snapshot.dataUrl || snapshot.w <= 0 || snapshot.h <= 0) {
+    throw new Error('Nothing was captured for PDF export');
+  }
+  const image = await loadImageFromDataUrl(snapshot.dataUrl);
+  const width = snapshot.w || image.naturalWidth || image.width;
+  const height = snapshot.h || image.naturalHeight || image.height;
+  if (width <= 0 || height <= 0) throw new Error('Nothing was captured for PDF export');
+  const { jsPDF } = await import('jspdf');
+  const pdf = new jsPDF({
+    orientation: width >= height ? 'landscape' : 'portrait',
+    unit: 'px',
+    format: [width, height],
+    compress: true,
+  });
+  pdf.addImage(snapshot.dataUrl, 'PNG', 0, 0, width, height);
+  triggerDownload(pdf.output('blob'), `${safeFilename(title, 'artifact')}.pdf`);
 }

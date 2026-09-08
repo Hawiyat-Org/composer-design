@@ -16,7 +16,10 @@
 
 import { Button, Input } from '@open-design/components';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { InstalledPluginRecord } from '@open-design/contracts';
+import type {
+  InstalledPluginRecord,
+  WorkspaceCollabContext,
+} from '@open-design/contracts';
 import { useI18n, useT } from '../i18n';
 import type { PluginShareAction } from '../state/projects';
 import { Icon } from './Icon';
@@ -26,20 +29,25 @@ import { localizePluginTitle } from './plugins-home/localization';
 import { usePluginFacets } from './plugins-home/usePluginFacets';
 import { pluginSubfacetLabel } from './plugins-home/subfacetLabel';
 import { useSavedPluginIds } from './plugins-home/savedPlugins';
+import type { PluginSortOrder } from './plugins-home/sortOrder';
 import type { PluginUseAction } from './plugins-home/useActions';
 import { Toast } from './Toast';
 import { AnimatePresence } from 'motion/react';
 
-const INITIAL_PLUGIN_RENDER_LIMIT = 60;
-const PLUGIN_RENDER_BATCH_SIZE = 60;
+const RICH_PLUGIN_RENDER_LIMIT = 60;
+const RICH_PLUGIN_RENDER_BATCH_SIZE = 60;
+const GALLERY_PLUGIN_RENDER_LIMIT = 12;
+const GALLERY_PLUGIN_RENDER_BATCH_SIZE = 12;
 
 interface Props {
   plugins: InstalledPluginRecord[];
   loading: boolean;
   activePluginId: string | null;
   pendingApplyId: string | null;
+  pendingDuplicateId?: string | null;
   pendingShareAction?: { pluginId: string; action: PluginShareAction } | null;
   onUse: (record: InstalledPluginRecord, action: PluginUseAction) => void;
+  onDuplicate?: (record: InstalledPluginRecord) => void;
   onOpenDetails: (record: InstalledPluginRecord) => void;
   onPluginShareAction?: (
     record: InstalledPluginRecord,
@@ -53,6 +61,7 @@ interface Props {
   // 'gallery' renders each card as a minimal live example.html preview
   // tile (Community); 'rich' keeps the hover-overlay metadata card.
   cardLayout?: 'rich' | 'gallery';
+  workspaceContext?: WorkspaceCollabContext | null;
 }
 
 export function PluginsHomeSection({
@@ -60,8 +69,10 @@ export function PluginsHomeSection({
   loading,
   activePluginId,
   pendingApplyId,
+  pendingDuplicateId = null,
   pendingShareAction = null,
   onUse,
+  onDuplicate,
   onOpenDetails,
   onPluginShareAction,
   onBrowseRegistry,
@@ -70,11 +81,17 @@ export function PluginsHomeSection({
   subtitle,
   emptyMessage,
   cardLayout = 'rich',
+  workspaceContext = null,
 }: Props) {
   const { locale, t } = useI18n();
   const { savedPluginIds, savePluginId } = useSavedPluginIds();
   const [saveToast, setSaveToast] = useState<string | null>(null);
-  const [renderLimit, setRenderLimit] = useState(INITIAL_PLUGIN_RENDER_LIMIT);
+  const initialRenderLimit =
+    cardLayout === 'gallery' ? GALLERY_PLUGIN_RENDER_LIMIT : RICH_PLUGIN_RENDER_LIMIT;
+  const renderBatchSize =
+    cardLayout === 'gallery' ? GALLERY_PLUGIN_RENDER_BATCH_SIZE : RICH_PLUGIN_RENDER_BATCH_SIZE;
+  const loadMoreRootMargin = cardLayout === 'gallery' ? '900px' : '640px';
+  const [renderLimit, setRenderLimit] = useState(initialRenderLimit);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const {
     visiblePlugins,
@@ -89,11 +106,13 @@ export function PluginsHomeSection({
     setMode,
     query,
     setQuery,
+    sortOrder,
+    setSortOrder,
     totalVisible,
   } = usePluginFacets({
     plugins,
     savedPluginIds,
-    preferDefaultFacet,
+    preferDefaultFacet: cardLayout === 'gallery' ? false : preferDefaultFacet,
     locale,
   });
   const renderedPlugins = useMemo(
@@ -101,10 +120,13 @@ export function PluginsHomeSection({
     [filtered, renderLimit],
   );
   const hasMorePlugins = renderLimit < filtered.length;
+  const handlePickCategory = (slug: string | null): void => {
+    pickCategory(slug);
+  };
 
   useEffect(() => {
-    setRenderLimit(INITIAL_PLUGIN_RENDER_LIMIT);
-  }, [filtered]);
+    setRenderLimit(initialRenderLimit);
+  }, [filtered, initialRenderLimit]);
 
   useEffect(() => {
     if (!hasMorePlugins) return;
@@ -118,14 +140,14 @@ export function PluginsHomeSection({
       (entries) => {
         if (!entries.some((entry) => entry.isIntersecting)) return;
         setRenderLimit((limit) =>
-          Math.min(filtered.length, limit + PLUGIN_RENDER_BATCH_SIZE),
+          Math.min(filtered.length, limit + renderBatchSize),
         );
       },
-      { rootMargin: '640px' },
+      { rootMargin: loadMoreRootMargin },
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [filtered.length, hasMorePlugins]);
+  }, [filtered.length, hasMorePlugins, loadMoreRootMargin, renderBatchSize]);
 
   function handleSavePlugin(record: InstalledPluginRecord): void {
     const result = savePluginId(record.id);
@@ -179,7 +201,6 @@ export function PluginsHomeSection({
               options={catalog.category}
               selectedSlug={selection.category}
               totalVisible={totalVisible}
-              onPick={pickCategory}
               // The Saved collection lives on the rich management surface
               // (PluginsView). The minimal Community gallery has no per-card
               // save affordance, so the orthogonal Saved chip is hidden there.
@@ -189,8 +210,12 @@ export function PluginsHomeSection({
               onToggleSaved={() =>
                 setMode(mode === 'saved' ? 'all' : 'saved')
               }
+              showAll
               query={query}
               onQueryChange={setQuery}
+              sortOrder={sortOrder}
+              onSortOrderChange={setSortOrder}
+              onPick={handlePickCategory}
             />
             {selection.category ? (
               <SubcategoryRow
@@ -225,14 +250,18 @@ export function PluginsHomeSection({
                   isActive={activePluginId === p.id}
                   isPending={pendingApplyId === p.id}
                   pendingAny={pendingApplyId !== null}
+                  isDuplicatePending={pendingDuplicateId === p.id}
+                  pendingDuplicateAny={pendingDuplicateId !== null}
                   pendingShareAction={pendingShareAction}
                   isFeatured={isFeaturedPlugin(p)}
                   isSaved={savedPluginIds.has(p.id)}
                   onUse={onUse}
+                  onDuplicate={onDuplicate}
                   onOpenDetails={onOpenDetails}
                   onSave={handleSavePlugin}
                   onShareAction={onPluginShareAction}
                   layout={cardLayout}
+                  workspaceContext={workspaceContext}
                 />
               ))}
               {hasMorePlugins ? (
@@ -270,14 +299,18 @@ interface CategoryRowProps {
   savedCount: number;
   savedActive: boolean;
   onToggleSaved: () => void;
+  showAll: boolean;
   query: string;
   onQueryChange: (next: string) => void;
+  sortOrder: PluginSortOrder;
+  onSortOrderChange: (next: PluginSortOrder) => void;
 }
 
 // Single combined filter bar: an optional Saved override chip + category
-// pills on the left, search field on the right. The "All" pill doubles as a
-// clear-filters affordance, so a separate `X / Y` counter and `Clear` link
-// would just repeat what the pill strip already shows.
+// pills on the left, sort toggle + search field on the right. The "All"
+// pill doubles as a clear-filters affordance, so a separate `X / Y`
+// counter and `Clear` link would just repeat what the pill strip already
+// shows.
 function CategoryRow({
   options,
   selectedSlug,
@@ -287,8 +320,11 @@ function CategoryRow({
   savedCount,
   savedActive,
   onToggleSaved,
+  showAll,
   query,
   onQueryChange,
+  sortOrder,
+  onSortOrderChange,
 }: CategoryRowProps) {
   const t = useT();
   if (options.length === 0) return null;
@@ -316,19 +352,21 @@ function CategoryRow({
             aria-pressed={savedActive}
             data-testid="plugins-home-chip-saved"
           >
-            <Icon name="star" size={11} />
+            <Icon name="star" size={14} />
             <span>{t('pluginsHome.featured')}</span>
             <span className="plugins-home__chip-count">{savedCount}</span>
           </button>
         ) : null}
-        <CategoryPill
-          slug={null}
-          label={t('common.all')}
-          count={totalVisible}
-          active={selectedSlug === null}
-          onPick={onPick}
-          variant="all"
-        />
+        {showAll ? (
+          <CategoryPill
+            slug={null}
+            label={t('common.all')}
+            count={totalVisible}
+            active={selectedSlug === null}
+            onPick={onPick}
+            variant="all"
+          />
+        ) : null}
         {options.map((opt) => (
           <CategoryPill
             key={opt.slug}
@@ -341,6 +379,7 @@ function CategoryRow({
         ))}
       </div>
       <div className="plugins-home__facet-tools">
+        <SortToggle value={sortOrder} onChange={onSortOrderChange} />
         <SearchInput value={query} onChange={onQueryChange} />
       </div>
     </div>
@@ -466,6 +505,46 @@ function pluginFacetLabel(slug: string, fallback: string, t: ReturnType<typeof u
   }
 }
 
+interface SortToggleProps {
+  value: PluginSortOrder;
+  onChange: (next: PluginSortOrder) => void;
+}
+
+// Hot / newest ordering toggle that lives next to the search field.
+// Rendered as a compact two-segment radio group: "hot" keeps the
+// visual-appeal ranking the gallery leads with today, "newest" re-ranks
+// by record freshness. The picked order persists per browser via the
+// hook (`sortOrder.ts`).
+function SortToggle({ value, onChange }: SortToggleProps) {
+  const t = useT();
+  const segments: Array<{ order: PluginSortOrder; label: string }> = [
+    { order: 'hot', label: t('pluginsHome.sortHot') },
+    { order: 'newest', label: t('pluginsHome.sortNewest') },
+  ];
+  return (
+    <div
+      className="plugins-home__sort"
+      role="radiogroup"
+      aria-label={t('pluginsHome.sortAria')}
+      data-testid="plugins-home-sort"
+    >
+      {segments.map((segment) => (
+        <button
+          key={segment.order}
+          type="button"
+          role="radio"
+          aria-checked={value === segment.order}
+          className={`plugins-home__sort-segment${value === segment.order ? ' is-active' : ''}`}
+          onClick={() => onChange(segment.order)}
+          data-testid={`plugins-home-sort-${segment.order}`}
+        >
+          {segment.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 interface SearchInputProps {
   value: string;
   onChange: (next: string) => void;
@@ -481,7 +560,7 @@ function SearchInput({ value, onChange }: SearchInputProps) {
   const t = useT();
   return (
     <div className="plugins-home__search">
-      <Icon name="search" size={12} className="plugins-home__search-icon" />
+      <Icon name="search" size={14} className="plugins-home__search-icon" />
       <Input
         type="search"
         className="plugins-home__search-input"
@@ -501,7 +580,7 @@ function SearchInput({ value, onChange }: SearchInputProps) {
           aria-label={t('pluginsHome.clearSearch')}
           data-testid="plugins-home-search-clear"
         >
-          <Icon name="close" size={12} />
+          <Icon name="close" size={14} />
         </Button>
       ) : null}
     </div>

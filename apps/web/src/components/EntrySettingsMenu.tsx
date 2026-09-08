@@ -23,13 +23,20 @@ import {
   trackSettingsPopoverSurfaceView,
 } from '../analytics/events';
 import { createSocialSharePayload } from '../providers/registry';
-import type { AppConfig, AppTheme } from '../types';
+import type { AppConfig } from '../types';
 import { formatDiscordPresenceCount, useDiscordPresence } from './useDiscordPresence';
 import { Icon } from './Icon';
 import { SocialShareGrid } from './SocialShareGrid';
+import { enterpriseUrl } from './enterpriseUrl';
 
-const DISCORD_URL = 'https://discord.gg/9ptkbbqRu';
-const X_URL = 'https://x.com/OpenDesignHQ';
+const DISCORD_URL = 'https://discord.gg/mHAjSMV6gz';
+const X_URL = 'https://x.com/ComposerDesignHQ';
+const THREADS_URL = 'https://www.threads.com/@opendesign.ai';
+const YOUTUBE_URL = 'https://www.youtube.com/@Open-Design-ai';
+const INSTAGRAM_URL = 'https://www.instagram.com/opendesign.ai/';
+const LINKEDIN_URL = 'https://www.linkedin.com/company/open-design-ai/';
+const XIAOHONGSHU_URL =
+  'https://www.xiaohongshu.com/user/profile/691effad000000003002978f';
 
 export type EntrySettingsSection =
   | 'execution'
@@ -39,6 +46,9 @@ export type EntrySettingsSection =
   | 'integrations'
   | 'mcpClient'
   | 'language'
+  // Legacy deep-link token: the theme setting is gone (the app ships
+  // light-only) and SettingsDialog folds this into General, but the token stays
+  // accepted so an old link does not become a type error at the call site.
   | 'appearance'
   | 'notifications'
   | 'pet'
@@ -48,19 +58,8 @@ export type EntrySettingsSection =
   | 'memory'
   | 'designSystems';
 
-const ENTRY_THEME_OPTIONS: Array<{
-  value: AppTheme;
-  icon: 'sun-moon' | 'sun' | 'moon';
-  labelKey: 'settings.themeSystem' | 'settings.themeLight' | 'settings.themeDark';
-}> = [
-  { value: 'system', icon: 'sun-moon', labelKey: 'settings.themeSystem' },
-  { value: 'light', icon: 'sun', labelKey: 'settings.themeLight' },
-  { value: 'dark', icon: 'moon', labelKey: 'settings.themeDark' },
-];
-
 interface Props {
   config: AppConfig;
-  onThemeChange: (theme: AppTheme) => void;
   onOpenSettings: (section?: EntrySettingsSection) => void;
   // Fired when the gear trigger is clicked. Used by the in-project header to
   // emit the `artifact_header` / `settings` ui_click; the home/entry shell
@@ -73,7 +72,6 @@ interface Props {
 
 export function EntrySettingsMenu({
   config,
-  onThemeChange,
   onOpenSettings,
   onTrackTriggerClick,
   trackingPageName,
@@ -85,32 +83,31 @@ export function EntrySettingsMenu({
   const discordPresence = useDiscordPresence();
   const [open, setOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
-  const [openDesignShare, setOpenDesignShare] = useState<SocialShareResponse | null>(null);
+  const [composerDesignShare, setComposerDesignShare] = useState<SocialShareResponse | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const langListRef = useRef<HTMLDivElement | null>(null);
-  const activeTheme = config.theme ?? 'system';
   const discordOnlineLabel = discordPresence
     ? t('entry.discordOnlineLabel', {
         count: formatDiscordPresenceCount(discordPresence.onlineCount),
       })
     : null;
-  const openDesignShareRequest = useMemo<SocialShareRequest>(() => {
-    const text = t('socialShare.openDesignText');
+  const composerDesignShareRequest = useMemo<SocialShareRequest>(() => {
+    const text = t('socialShare.composerDesignText');
     return {
       kind: 'open-design-repo',
       locale,
-      title: t('socialShare.openDesignTitle'),
+      title: t('socialShare.composerDesignTitle'),
       text,
-      copyText: t('socialShare.openDesignCopyText', {
+      copyText: t('socialShare.composerDesignCopyText', {
         text,
         url: OPEN_DESIGN_GITHUB_REPO_URL,
       }),
     };
   }, [locale, t]);
-  const fallbackOpenDesignShare = useMemo(
-    () => buildSocialSharePayload(openDesignShareRequest),
-    [openDesignShareRequest],
+  const fallbackComposerDesignShare = useMemo(
+    () => buildSocialSharePayload(composerDesignShareRequest),
+    [composerDesignShareRequest],
   );
 
   useEffect(() => {
@@ -148,7 +145,7 @@ export function EntrySettingsMenu({
   }, [open]);
 
   // surface_view — fire once each time the settings popover opens so the
-  // share / language / appearance funnels have a denominator.
+  // share / language funnels have a denominator.
   useEffect(() => {
     if (!open) return;
     trackSettingsPopoverSurfaceView(analytics.track, {
@@ -160,18 +157,18 @@ export function EntrySettingsMenu({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    setOpenDesignShare(null);
-    void createSocialSharePayload(openDesignShareRequest)
+    setComposerDesignShare(null);
+    void createSocialSharePayload(composerDesignShareRequest)
       .then((payload) => {
-        if (!cancelled) setOpenDesignShare(payload);
+        if (!cancelled) setComposerDesignShare(payload);
       })
       .catch(() => {
-        if (!cancelled) setOpenDesignShare(null);
+        if (!cancelled) setComposerDesignShare(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [open, openDesignShareRequest]);
+  }, [open, composerDesignShareRequest]);
 
   return (
     <div className="entry-settings-menu" ref={wrapRef}>
@@ -202,7 +199,7 @@ export function EntrySettingsMenu({
         >
           <section className="entry-settings-menu__section">
             <div className="entry-settings-menu__section-title">
-              <Icon name="languages" size={13} />
+              <Icon name="languages" size={14} />
               <span>{t('settings.language')}</span>
             </div>
             <div className="entry-settings-menu__select">
@@ -265,7 +262,7 @@ export function EntrySettingsMenu({
                           {active ? (
                             <Icon
                               name="check"
-                              size={12}
+                              size={14}
                               className="entry-settings-menu__option-check"
                             />
                           ) : null}
@@ -280,47 +277,11 @@ export function EntrySettingsMenu({
 
           <section className="entry-settings-menu__section">
             <div className="entry-settings-menu__section-title">
-              <Icon name="palette" size={13} />
-              <span>{t('settings.appearance')}</span>
-            </div>
-            <div className="entry-settings-menu__theme-row">
-              {ENTRY_THEME_OPTIONS.map((option) => {
-                const active = activeTheme === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={active}
-                    className={`entry-settings-menu__theme${
-                      active ? ' is-active' : ''
-                    }`}
-                    onClick={() => {
-                      trackSettingsPopoverClick(analytics.track, {
-                        page_name: pageName,
-                        area: 'settings_popover',
-                        element: 'appearance',
-                        value: option.value,
-                      });
-                      onThemeChange(option.value);
-                      setOpen(false);
-                    }}
-                  >
-                    <Icon name={option.icon} size={13} />
-                    <span>{t(option.labelKey)}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="entry-settings-menu__section">
-            <div className="entry-settings-menu__section-title">
-              <Icon name="external-link" size={13} />
-              <span>{t('socialShare.openDesignSection')}</span>
+              <Icon name="external-link" size={14} />
+              <span>{t('socialShare.composerDesignSection')}</span>
             </div>
             <SocialShareGrid
-              share={openDesignShare ?? fallbackOpenDesignShare}
+              share={composerDesignShare ?? fallbackComposerDesignShare}
               className="entry-settings-social-share"
               onShare={(platform) => {
                 trackSettingsPopoverClick(analytics.track, {
@@ -336,6 +297,27 @@ export function EntrySettingsMenu({
 
           <div className="entry-settings-menu__divider" aria-hidden />
 
+          <a
+            className="entry-settings-menu__item"
+            href={enterpriseUrl(locale)}
+            target="_blank"
+            rel="noreferrer noopener"
+            role="menuitem"
+            onClick={() => {
+              trackSettingsPopoverClick(analytics.track, {
+                page_name: pageName,
+                area: 'settings_popover',
+                element: 'workspace_teams',
+              });
+              setOpen(false);
+            }}
+          >
+            <span className="entry-settings-menu__item-icon" aria-hidden>
+              <Icon name="sparkles" size={14} />
+            </span>
+            <span>{t('entry.workspaceTeamsLabel')}</span>
+            <Icon name="external-link" size={12} className="entry-settings-menu__item-end" />
+          </a>
           <a
             className="entry-settings-menu__item"
             href={DISCORD_URL}
@@ -360,7 +342,7 @@ export function EntrySettingsMenu({
                 {discordOnlineLabel}
               </span>
             ) : null}
-            <Icon name="external-link" size={12} className="entry-settings-menu__item-end" />
+            <Icon name="external-link" size={14} className="entry-settings-menu__item-end" />
           </a>
           <a
             className="entry-settings-menu__item"
@@ -384,6 +366,126 @@ export function EntrySettingsMenu({
               X
             </span>
             <span>{t('entry.followXLabel')}</span>
+            <Icon name="external-link" size={14} className="entry-settings-menu__item-end" />
+          </a>
+          <a
+            className="entry-settings-menu__item"
+            href={THREADS_URL}
+            target="_blank"
+            rel="noreferrer noopener"
+            role="menuitem"
+            onClick={() => {
+              trackSettingsPopoverClick(analytics.track, {
+                page_name: pageName,
+                area: 'settings_popover',
+                element: 'follow_threads',
+              });
+              setOpen(false);
+            }}
+          >
+            <span
+              className="entry-settings-menu__item-icon entry-settings-menu__x-mark"
+              aria-hidden
+            >
+              @
+            </span>
+            <span>{t('entry.followThreadsLabel')}</span>
+            <Icon name="external-link" size={14} className="entry-settings-menu__item-end" />
+          </a>
+          <a
+            className="entry-settings-menu__item"
+            href={YOUTUBE_URL}
+            target="_blank"
+            rel="noreferrer noopener"
+            role="menuitem"
+            onClick={() => {
+              trackSettingsPopoverClick(analytics.track, {
+                page_name: pageName,
+                area: 'settings_popover',
+                element: 'open_youtube',
+              });
+              setOpen(false);
+            }}
+          >
+            <span
+              className="entry-settings-menu__item-icon entry-settings-menu__x-mark"
+              aria-hidden
+            >
+              YT
+            </span>
+            <span>{t('entry.youtubeLabel')}</span>
+            <Icon name="external-link" size={14} className="entry-settings-menu__item-end" />
+          </a>
+          <a
+            className="entry-settings-menu__item"
+            href={INSTAGRAM_URL}
+            target="_blank"
+            rel="noreferrer noopener"
+            role="menuitem"
+            onClick={() => {
+              trackSettingsPopoverClick(analytics.track, {
+                page_name: pageName,
+                area: 'settings_popover',
+                element: 'follow_instagram',
+              });
+              setOpen(false);
+            }}
+          >
+            <span
+              className="entry-settings-menu__item-icon entry-settings-menu__x-mark"
+              aria-hidden
+            >
+              IG
+            </span>
+            <span>{t('entry.followInstagramLabel')}</span>
+            <Icon name="external-link" size={12} className="entry-settings-menu__item-end" />
+          </a>
+          <a
+            className="entry-settings-menu__item"
+            href={LINKEDIN_URL}
+            target="_blank"
+            rel="noreferrer noopener"
+            role="menuitem"
+            onClick={() => {
+              trackSettingsPopoverClick(analytics.track, {
+                page_name: pageName,
+                area: 'settings_popover',
+                element: 'follow_linkedin',
+              });
+              setOpen(false);
+            }}
+          >
+            <span
+              className="entry-settings-menu__item-icon entry-settings-menu__x-mark"
+              aria-hidden
+            >
+              in
+            </span>
+            <span>{t('entry.followLinkedinLabel')}</span>
+            <Icon name="external-link" size={12} className="entry-settings-menu__item-end" />
+          </a>
+          <a
+            className="entry-settings-menu__item"
+            href={XIAOHONGSHU_URL}
+            target="_blank"
+            rel="noreferrer noopener"
+            role="menuitem"
+            onClick={() => {
+              trackSettingsPopoverClick(analytics.track, {
+                page_name: pageName,
+                area: 'settings_popover',
+                element: 'follow_xiaohongshu',
+              });
+              setOpen(false);
+            }}
+          >
+            <span
+              className="entry-settings-menu__item-icon entry-settings-menu__x-mark"
+              aria-hidden
+            >
+              RED
+            </span>
+            <span>{t('entry.followXiaohongshuLabel')}</span>
             <Icon name="external-link" size={12} className="entry-settings-menu__item-end" />
           </a>
 

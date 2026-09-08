@@ -77,6 +77,20 @@ function file(name: string, kind: ProjectFile['kind'], mtime: number): ProjectFi
   };
 }
 
+describe('ChatPane starter prompts', () => {
+  // #5517: an empty conversation renders a clean pane — no 开始一个对话 title
+  // and no starter template cards.
+  it('renders no starter title or example cards in an empty conversation', () => {
+    renderPane({});
+
+    expect(screen.queryByText('chat.startTitle')).toBeNull();
+    expect(screen.queryByText('chat.example1Title')).toBeNull();
+    // 这条**故意**按类名查:它钉的是 #5517 删掉的那块 DOM 不许回来 ——
+    // 被删的东西不会有 testid,类名就是它本身,换成别的钩子反而钉不住。
+    expect(document.querySelector('.chat-examples')).toBeNull();
+  });
+});
+
 describe('ChatPane imported folder artifacts', () => {
   it('replaces empty starter prompts with design artifact previews', () => {
     const onRequestOpenFile = vi.fn();

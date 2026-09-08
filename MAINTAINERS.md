@@ -1,6 +1,6 @@
 # Maintainers
 
-<p align="center"><b>English</b> · <a href="docs/i18n/MAINTAINERS.pt-BR.md">Português (Brasil)</a> · <a href="docs/i18n/MAINTAINERS.de.md">Deutsch</a> · <a href="docs/i18n/MAINTAINERS.fr.md">Français</a> · <a href="docs/i18n/MAINTAINERS.zh-CN.md">简体中文</a> · <a href="docs/i18n/MAINTAINERS.ja-JP.md">日本語</a></p>
+<p align="center"><b>English</b> · <a href="docs/i18n/MAINTAINERS.pt-BR.md">Português (Brasil)</a> · <a href="docs/i18n/MAINTAINERS.de.md">Deutsch</a> · <a href="docs/i18n/MAINTAINERS.fr.md">Français</a> · <a href="docs/i18n/MAINTAINERS.zh-CN.md">简体中文</a> · <a href="docs/i18n/MAINTAINERS.ja-JP.md">日本語</a> · <a href="docs/i18n/MAINTAINERS.ko.md">한국어</a> · <a href="docs/i18n/MAINTAINERS.th.md">ภาษาไทย</a></p>
 
 This document defines the rules for becoming, serving as, and stepping down from
 a Maintainer of `nexu-io/open-design`. The Core Team's individual roster is
@@ -17,7 +17,7 @@ the rules everyone plays by.
 |---|---|
 | **Contributor** | Anyone with at least 1 merged PR. No special permissions. |
 | **External Maintainer** | A community contributor promoted under the rules below. Can review, approve, close/reopen issues, and self-assign issues. **Cannot click the merge button** — that stays with the Core Team. |
-| **Core Team** | Open Design's internal team. Holds full repository write access and is the final authority on governance decisions. Roster maintained internally. |
+| **Core Team** | OpenDesign's internal team. Holds full repository write access and is the final authority on governance decisions. Roster maintained internally. |
 
 The rest of this document is about **External Maintainers** unless stated otherwise.
 

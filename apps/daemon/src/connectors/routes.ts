@@ -130,9 +130,17 @@ function parsePositiveIntegerHeader(value: string | null): number | null {
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
-async function readComposioLogoBody(response: globalThis.Response): Promise<Buffer | null> {
+async function readComposioLogoBody(
+  response: globalThis.Response,
+  controller: AbortController,
+): Promise<Buffer | null> {
   const contentLength = parsePositiveIntegerHeader(response.headers.get('content-length'));
-  if (contentLength !== null && contentLength > COMPOSIO_LOGO_MAX_BYTES) return null;
+  if (contentLength !== null && contentLength > COMPOSIO_LOGO_MAX_BYTES) {
+    // Abort so the unread response body is torn down instead of leaving the
+    // upstream connection occupied until GC.
+    controller.abort();
+    return null;
+  }
 
   const reader = response.body?.getReader();
   if (!reader) {
@@ -142,13 +150,26 @@ async function readComposioLogoBody(response: globalThis.Response): Promise<Buff
 
   const chunks: Uint8Array[] = [];
   let totalBytes = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-    totalBytes += value.byteLength;
-    if (totalBytes > COMPOSIO_LOGO_MAX_BYTES) return null;
-    chunks.push(value);
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      totalBytes += value.byteLength;
+      if (totalBytes > COMPOSIO_LOGO_MAX_BYTES) {
+        controller.abort(); // stop pulling more bytes from the upstream logo host
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    // Release the upstream connection instead of leaving the body half-read
+    // until GC (matches readBodyCapped in plugin-asset-cache.ts).
+    try {
+      await reader.cancel();
+    } catch {
+      // reader already closed / errored — nothing to release
+    }
   }
   return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), totalBytes);
 }
@@ -198,8 +219,13 @@ async function fetchComposioLogo(slug: string, theme: 'light' | 'dark'): Promise
         headers: { accept: 'image/avif,image/webp,image/apng,image/png,image/jpeg' },
         signal: controller.signal,
       });
-      if (!response.ok) return null;
-      const body = await readComposioLogoBody(response);
+      if (!response.ok) {
+        // Discard the error-response body so a run of misses (e.g. 404s for
+        // unknown slugs) can't exhaust reusable upstream connections.
+        controller.abort();
+        return null;
+      }
+      const body = await readComposioLogoBody(response, controller);
       if (!body) return null;
       const contentType = normalizeImageContentType(response.headers.get('content-type'));
       if (!contentType) return null;
@@ -293,7 +319,7 @@ function renderConnectorConnectedHtml(connectorId: string): string {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${connectorLabelHtml} connected · Composer Design</title>
+    <title>${connectorLabelHtml} connected · ComposerDesign</title>
     <style>
       :root {
         --bg: #f7f7f7;
@@ -429,7 +455,7 @@ function renderConnectorConnectedHtml(connectorId: string): string {
         padding: 8px 14px;
         color: white;
         background: var(--accent);
-        box-shadow: 0 1px 0 rgba(120, 120, 120, 0.15) inset, var(--shadow-xs);
+        box-shadow: 0 1px 0 rgba(120, 120, 120, 0.18) inset, var(--shadow-xs);
         font: 500 13px/1.4 var(--sans);
         cursor: pointer;
         transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
@@ -446,9 +472,9 @@ function renderConnectorConnectedHtml(connectorId: string): string {
   </head>
   <body>
     <main aria-labelledby="callback-title">
-      <div class="chrome" aria-label="Composer Design">
+      <div class="chrome" aria-label="ComposerDesign">
         <span class="brand-mark" aria-hidden="true">OD</span>
-        <span class="brand-title">Composer Design</span>
+        <span class="brand-title">ComposerDesign</span>
       </div>
       <section class="content">
         <div class="status-icon" aria-hidden="true">
@@ -458,7 +484,7 @@ function renderConnectorConnectedHtml(connectorId: string): string {
         </div>
         <div>
           <h1 id="callback-title">${connectorLabelHtml} connected</h1>
-          <p>Your connector is ready to use in Composer Design.</p>
+          <p>Your connector is ready to use in ComposerDesign.</p>
         </div>
         <div class="summary" role="status">
           <span class="summary-label">
@@ -480,7 +506,7 @@ function renderConnectorConnectedHtml(connectorId: string): string {
         const hint = document.getElementById('auto-close-hint');
         function showManualCloseHint() {
           closeButton.textContent = 'Close this tab manually';
-          hint.textContent = 'Your browser blocked automatic closing. You can close this tab and return to Composer Design.';
+          hint.textContent = 'Your browser blocked automatic closing. You can close this tab and return to ComposerDesign.';
         }
         function hasLiveOpener() {
           try {
@@ -513,10 +539,10 @@ function renderConnectorConnectedHtml(connectorId: string): string {
             window.opener.postMessage(message, '*');
             window.setTimeout(requestClose, 900);
           } else {
-            hint.textContent = 'You can close this tab and return to Composer Design.';
+            hint.textContent = 'You can close this tab and return to ComposerDesign.';
           }
         } catch {
-          hint.textContent = 'You can close this tab and return to Composer Design.';
+          hint.textContent = 'You can close this tab and return to ComposerDesign.';
         }
         closeButton.addEventListener('click', requestClose);
       })();

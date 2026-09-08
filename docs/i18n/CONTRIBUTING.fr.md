@@ -1,4 +1,4 @@
-# Contribuer à Open Design
+# Contribuer à OpenDesign
 
 Merci d'envisager de contribuer. OD reste volontairement petit : l'essentiel
 de la valeur vit dans des **fichiers** (Skills, Design Systems, morceaux de
@@ -9,7 +9,7 @@ dans une PR.
 Ce guide indique où intervenir pour chaque type de contribution et quel niveau
 une PR doit atteindre avant d’être mergée.
 
-<p align="center"><a href="../../CONTRIBUTING.md">English</a> · <a href="CONTRIBUTING.pt-BR.md">Português (Brasil)</a> · <a href="CONTRIBUTING.de.md">Deutsch</a> · <b>Français</b> · <a href="CONTRIBUTING.zh-CN.md">简体中文</a> · <a href="CONTRIBUTING.ja-JP.md">日本語</a></p>
+<p align="center"><a href="../../CONTRIBUTING.md">English</a> · <a href="CONTRIBUTING.pt-BR.md">Português (Brasil)</a> · <a href="CONTRIBUTING.de.md">Deutsch</a> · <b>Français</b> · <a href="CONTRIBUTING.zh-CN.md">简体中文</a> · <a href="CONTRIBUTING.ja-JP.md">日本語</a> · <a href="CONTRIBUTING.ko.md">한국어</a> · <a href="CONTRIBUTING.th.md">ภาษาไทย</a></p>
 
 ---
 
@@ -17,11 +17,12 @@ une PR doit atteindre avant d’être mergée.
 
 | Si vous voulez… | Vous ajoutez en réalité | Où cela vit | Taille |
 |---|---|---|---|
-| Faire générer à OD un nouveau type d'artifact (facture, écran iOS Settings, one-pager…) | un **Skill** | [`skills/<your-skill>/`](../../skills/) | un dossier, ~2 fichiers |
-| Faire parler à OD le langage visuel d'une nouvelle marque | un **Design System** | [`design-systems/<brand>/DESIGN.md`](../../design-systems/) | un fichier Markdown |
-| Brancher une nouvelle CLI de coding agent | un **Agent adapter** | [`apps/daemon/src/agents.ts`](../../apps/daemon/src/agents.ts) | ~10 lignes dans un tableau |
+| Faire générer à OD un nouveau type d'artifact (facture, écran iOS Settings, one-pager…) | un **template de design** | [`design-templates/<your-template>/`](../../design-templates/) | un dossier avec `SKILL.md` et ses assets de rendu |
+| Ajouter une capacité fonctionnelle invoquée par les agents pendant une tâche | un **Skill** | [`skills/<your-skill>/`](../../skills/) | un dossier avec `SKILL.md` et des ressources optionnelles |
+| Faire parler à OD le langage visuel d'une nouvelle marque | un **Design System** | [`design-systems/<brand>/`](../../design-systems/) | un paquet : `manifest.json`, `DESIGN.md` et `tokens.css` |
+| Brancher une nouvelle CLI de coding agent | un **Agent adapter** | [`apps/daemon/src/runtimes/defs/`](../../apps/daemon/src/runtimes/defs/) | une définition et une entrée de registre |
 | Ajouter une feature, corriger un bug, reprendre un pattern UX de [`open-codesign`][ocod] | du code | `apps/web/src/`, `apps/daemon/` | PR classique |
-| Améliorer la doc, porter une section en Français / Deutsch / 中文, corriger une faute | documentation | `README.md`, `README.fr.md`, `README.de.md`, `README.zh-CN.md`, `docs/`, `QUICKSTART.md` | une PR |
+| Améliorer la doc, porter une section en Français / Deutsch / 中文, corriger une faute | documentation | `README.md`, `docs/i18n/README.fr.md`, `docs/i18n/README.de.md`, `docs/i18n/README.zh-CN.md`, `docs/`, `QUICKSTART.md` | une PR |
 
 Si vous ne savez pas dans quelle catégorie tombe votre idée, [ouvrez d'abord
 une discussion ou une issue](https://github.com/nexu-io/open-design/issues/new)
@@ -48,215 +49,204 @@ Node `~24` et pnpm `10.33.x` sont requis. `nvm` / `fnm` sont optionnels ;
 utilisez `nvm install 24 && nvm use 24` ou `fnm install 24 && fnm use 24` si
 vous gérez Node comme cela. macOS, Linux et WSL2 sont les environnements
 principaux pris en charge.
-Windows natif est supporté ; voir [`docs/windows-troubleshooting.md`](../../docs/windows-troubleshooting.md)
+Windows natif est pris en charge au mieux ; voir [`docs/windows-troubleshooting.md`](../../docs/windows-troubleshooting.md)
 pour les pièges de configuration les plus courants.
 
-Vous n'avez pas besoin d'une CLI d'agent dans votre `PATH` pour développer OD.
-Le daemon indiquera "no agents found" ; utilisez alors le mode API/BYOK
-(Anthropic, OpenAI, Azure OpenAI ou Google Gemini), qui est souvent la boucle
-de dev la plus rapide.
+## Configuration Docker
 
----
+Exécutez OpenDesign sans installer Node.js ou pnpm localement.
 
-## Ajouter un nouveau Skill
+### Prérequis
 
-Un Skill est un dossier sous [`skills/`](../../skills/) avec un `SKILL.md` à la
-racine. Il suit la convention Claude Code [`SKILL.md`][skill], plus notre
-extension optionnelle `od:`. **Aucune étape d'enregistrement.** Déposez le
-dossier, redémarrez le daemon, et le picker l'affiche.
+Vérifiez que Docker Desktop et Compose v2 sont installés :
 
-### Structure d'un dossier Skill
-
-```text
-skills/your-skill/
-├── SKILL.md                    # requis
-├── assets/template.html        # optionnel mais recommandé — seed file
-├── references/                 # optionnel — fichiers de connaissance lus par l'agent
-│   ├── layouts.md
-│   ├── components.md
-│   └── checklist.md
-└── example.html                # fortement recommandé — vrai exemple construit à la main
+```bash
+docker compose version
 ```
 
-### Frontmatter de `SKILL.md`
+### Démarrer OpenDesign
 
-Les trois premières clés sont la spec Claude Code de base : `name`,
-`description`, `triggers`. Tout ce qui est sous `od:` est spécifique à OD et
-optionnel, mais **`od.mode`** décide dans quel groupe le Skill apparaît. La
-valeur est extensible ; les modes courants incluent Prototype, Deck, Image,
-Video, Audio, Design system et Utility.
+Depuis la racine du dépôt, préparez le fichier d'environnement :
 
-```yaml
----
-name: your-skill
-description: |
-  One-paragraph elevator pitch. The agent reads this verbatim to decide
-  if the user's brief matches. Be concrete: surface, audience, what's in
-  the artifact, what's not.
-triggers:
-  - "your trigger phrase"
-  - "another phrase"
-  - "中文触发词"
-od:
-  mode: prototype           # prototype | deck | image | video | audio | design-system | utility
-  platform: desktop         # desktop | mobile
-  scenario: marketing       # free-form tag for grouping
-  featured: 1               # any positive integer surfaces it under "Showcase examples"
-  preview:
-    type: html              # html | jsx | pptx | markdown
-    entry: index.html
-  design_system:
-    requires: true          # does the skill read the active DESIGN.md?
-    sections: [color, typography, layout, components]
-  example_prompt: "A copy-pastable prompt that nicely shows what this skill does."
----
-
-# Your Skill
-
-Body is free-form Markdown describing the workflow the agent should follow…
+```bash
+cd deploy
+cp .env.example .env
+openssl rand -hex 32
 ```
 
-La grammaire complète — typed inputs, paramètres de sliders, capability gating
-— se trouve dans [`docs/skills-protocol.md`](../../docs/skills-protocol.md).
+Dans `.env`, renseignez `OD_API_TOKEN=` avec le token généré, puis démarrez le service :
 
-### Critères de merge pour un nouveau Skill
+```bash
+docker compose up -d
+```
 
-Nous sommes exigeants sur les Skills parce qu'ils constituent la partie la plus
-visible pour l'utilisateur. Un nouveau Skill doit :
+Ouvrez `http://127.0.0.1:7456`. Si le navigateur demande des identifiants, utilisez `open-design` comme nom d'utilisateur et la valeur de `OD_API_TOKEN` comme mot de passe.
 
-1. **Livrer un vrai `example.html`.** Construit à la main, ouvrable directement
-   depuis le disque, avec un niveau qu'un designer pourrait réellement livrer.
-   Pas de lorem ipsum, pas de hero placeholder en `<svg><rect/></svg>`. Si vous
-   ne pouvez pas construire l'exemple vous-même, le Skill n'est probablement
-   pas prêt.
-2. **Passer l'anti-AI-slop checklist** dans le body. Pas de gradients violets,
-   pas d'icônes emoji génériques, pas de carte arrondie avec accent en bord
-   gauche, pas d'Inter comme fonte *display*, pas de statistiques inventées.
-   Lisez la section **Anti-AI-slop machinery** du README pour la liste complète.
-3. **Utiliser des placeholders honnêtes.** Si l'agent n'a pas de vraie donnée,
-   écrivez `—` ou un bloc gris libellé, pas "10× faster".
-4. **Avoir un `references/checklist.md`** avec au moins les gates P0, c'est-à-dire
-   ce que l'agent doit vérifier avant d'émettre `<artifact>`. Reprenez le format
-   de [`skills/guizang-ppt/references/checklist.md`](../../skills/guizang-ppt/) ou
-   [`skills/dating-web/references/checklist.md`](../../skills/dating-web/).
-5. **Ajouter une capture** sous `docs/screenshots/skills/<skill>.png` si le Skill
-   est featured. PNG, environ 1024×640 retina, capturé depuis le vrai
-   `example.html` avec un zoom navigateur adapté.
-6. **Rester dans un dossier autonome.** Pas d'import CDN au-delà de ce que les
-   autres Skills utilisent déjà ; pas de fonte sans licence ; pas d'image de
-   plus d'environ 250 KB.
+### Commandes courantes
 
-Si vous forkez un Skill existant (par exemple partir de `dating-web` pour en
-faire `recruiting-web`), conservez la LICENSE et l'attribution d'auteur dans
-`references/`, et mentionnez-le dans la description de la PR.
+```bash
+# View logs
+docker compose logs -f
 
-### Skills existants à imiter
+# Restart containers
+docker compose restart
 
-- Prototype visuel single-screen : [`skills/dating-web/`](../../skills/dating-web/),
-  [`skills/digital-eguide/`](../../skills/digital-eguide/)
-- Flow mobile multi-frame : [`skills/mobile-onboarding/`](../../skills/mobile-onboarding/),
-  [`skills/gamified-app/`](../../skills/gamified-app/)
-- Document / template sans Design System requis : [`skills/pm-spec/`](../../skills/pm-spec/),
-  [`skills/weekly-update/`](../../skills/weekly-update/)
-- Deck mode : [`skills/guizang-ppt/`](../../skills/guizang-ppt/) (bundle repris tel
-  quel depuis [op7418/guizang-ppt-skill][guizang]) et
-  [`skills/simple-deck/`](../../skills/simple-deck/)
+# Stop containers
+docker compose down
+
+# Pull latest image
+docker compose pull
+docker compose up -d
+```
+
+### Variables d'environnement optionnelles
+
+Ajustez ces valeurs dans `deploy/.env` en conservant votre `OD_API_TOKEN` :
+
+```env
+OPEN_DESIGN_PORT=7456
+OPEN_DESIGN_MEM_LIMIT=384m
+OPEN_DESIGN_ALLOWED_ORIGINS=https://yourdomain.com
+OPEN_DESIGN_IMAGE=ghcr.io/nexu-io/od:latest
+```
+
+Les projets et la base de données sont persistés dans des volumes Docker. Pour les règles de stockage du daemon, consultez la section **Daemon data directory contract** du fichier [`AGENTS.md`](../../AGENTS.md#daemon-data-directory-contract) à la racine.
+
+Le guide Docker complet et la configuration avancée se trouvent dans [`QUICKSTART.fr.md`](QUICKSTART.fr.md).
+
+---
+
+## Ajouter un nouveau template de design
+
+Un template de design est un dossier sous [`design-templates/`](../../design-templates/)
+avec un `SKILL.md` à la racine. Il suit la convention Claude Code
+[`SKILL.md`][skill], plus notre extension optionnelle `od:`, et regroupe la
+forme et les ressources de rendu d'un artifact affiché dans la galerie Templates.
+
+### → Voir [`docs/skills-contributing.md`](../../docs/skills-contributing.md) pour le guide complet
+
+Ce guide détaille :
+
+- **Le démarrage rapide** — cloner le dépôt, copier le modèle existant le plus proche, lancer `pnpm tools-dev run web`, vérifier le sélecteur et ouvrir une PR.
+- **Ce qui constitue un modèle de design** — pour distinguer un modèle d'une fonctionnalité ou d'une intégration fournisseur.
+- **La structure d'un modèle** — arborescence minimale et aide-mémoire du frontmatter de `SKILL.md`.
+- **L'exécution locale** — les quatre commandes essentielles.
+- **Les critères de fusion** — une checklist prête à copier de tous les points vérifiés en revue.
+- **Le modèle de description de PR** — à copier et à remplir.
+- **Les motifs de refus fréquents** — avec des exemples concrets tirés de revues récentes.
+
+La spécification du protocole — grammaire active du frontmatter, références aux règles de craft et primitives de test — se trouve dans [`docs/skills-protocol.md`](../../docs/skills-protocol.md). D'anciens champs portables comme `od.inputs`, `od.parameters` et `od.capabilities_required` peuvent encore apparaître dans des bundles externes, mais le registre des skills et des modèles ne les consomme pas.
+
+---
+
+## Ajouter un Skill fonctionnel
+
+Un Skill fonctionnel est une capacité que l'agent invoque pendant une tâche pour travailler sur les entrées de l'utilisateur. Consultez [`skills/README.md`](../../skills/README.md) pour la frontière de responsabilité, [`skills/AGENTS.md`](../../skills/AGENTS.md) pour le contrat du dossier et [`docs/skills-protocol.md`](../../docs/skills-protocol.md) pour la grammaire `SKILL.md` partagée. Le scanner paresseux du daemon parcourt les racines de Skills à la prochaine requête `/api/skills` : aucun rebuild ni redémarrage du daemon n'est nécessaire en local.
 
 ---
 
 ## Ajouter un nouveau Design System
 
-Un design system est un seul fichier [`DESIGN.md`](../../design-systems/README.md)
-sous `design-systems/<slug>/`. **Un fichier, pas de code.** Déposez-le,
-redémarrez le daemon, le picker l'affiche dans sa catégorie.
+Un nouveau design system du dépôt est un package sous
+[`design-systems/<slug>/`](../../design-systems/), pas un fichier Markdown isolé.
+Les 151 systèmes fournis utilisent désormais le contrat de package ci-dessous.
+Le daemon accepte encore les dossiers contenant uniquement `DESIGN.md` pour la
+compatibilité avec les contenus anciens ou installés par l'utilisateur, mais ce
+n'est pas la cible d'authoring. Le catalogue est rescanné à chaque requête
+`/api/design-systems` : rafraîchissez la surface Design System après une
+modification, sans redémarrer le daemon.
 
-### Structure d'un dossier Design System
+### Structure minimale du package
 
 ```text
 design-systems/your-brand/
-└── DESIGN.md
+├── manifest.json
+├── DESIGN.md
+└── tokens.css
 ```
+
+`manifest.json` porte l'id stable, le nom affiché, la catégorie, la description,
+la provenance et les chemins déclarés. `DESIGN.md` explique l'intention aux
+agents ; `tokens.css` est la feuille de tokens sémantiques compilée canonique.
+Le contrat complet se trouve dans [`docs/design-systems.md`](../../docs/design-systems.md)
+et [`design-systems/_schema/AGENTS.md`](../../design-systems/_schema/AGENTS.md).
 
 ### Forme de `DESIGN.md`
 
 ```markdown
-# Design System Inspired by YourBrand
+# YourBrand Design System
 
-> Category: Developer Tools
-> One-line summary that shows in the picker preview.
-
-## 1. Visual Theme & Atmosphere
+## Visual Theme
 …
 
-## 2. Color
-- Primary: `#hex` / `oklch(...)`
-- …
-
-## 3. Typography
+## Color Roles
 …
 
-## 4. Spacing & Grid
-## 5. Layout & Composition
-## 6. Components
-## 7. Motion & Interaction
-## 8. Voice & Brand
-## 9. Anti-patterns
+## Typography
+…
+
+## Layout and Spacing
+## Components and States
+## Motion and Interaction
+## Accessibility
+## Anti-patterns
 ```
 
-Le schéma à 9 sections est fixe : c'est ce que les Skill bodies cherchent. Le
-premier H1 devient le label dans le picker (le préfixe `Design System Inspired by`
-est retiré automatiquement), et la ligne `> Category: …` décide du groupe.
-Les catégories existantes sont listées dans [`design-systems/README.md`](../../design-systems/README.md) ;
-si votre marque ne rentre vraiment nulle part, vous pouvez en introduire une
-nouvelle, mais **essayez d'abord les catégories existantes**.
+Il n'existe pas de schéma fixe à neuf sections. Le guard de qualité exige au
+moins sept sections H2 substantielles, sans imposer leurs noms, leur ordre ou
+leur numérotation. Utilisez des titres adaptés au système réel ; un package utile couvre généralement le thème, les couleurs, la typographie, la mise en page, les composants, les animations, l’accessibilité et les pratiques à éviter.
 
 ### Critères de merge pour un nouveau Design System
 
-1. **Les 9 sections sont présentes.** Des sections vides sont acceptables pour
-   les informations difficiles à trouver (par exemple des tokens de motion),
-   mais les headings doivent exister, sinon la recherche utilisée par le prompt
-   risque de casser.
-2. **Les hex codes sont réels.** Échantillonnez directement depuis le site ou
-   le produit de la marque, pas de mémoire ni à partir d'une supposition de l'IA. Le
-   protocole d'extraction brand-spec en 5 étapes du README s'applique aussi aux
-   mainteneurs.
-3. **Les valeurs OKLch pour les couleurs d'accent** sont un plus : elles rendent
-   les palettes plus prévisibles entre light/dark.
-4. **Pas de fluff marketing.** La tagline d'une marque n'est pas un design token.
-   Coupez-la.
-5. **Le slug utilise l'ASCII** : `linear.app` devient `linear-app`, `x.ai`
-   devient `x-ai`. Les systèmes importés suivent déjà cette convention ;
-   imitez-la.
+1. **Livrer les trois fichiers requis.** Le slug du dossier et `manifest.id`
+   correspondent et utilisent un ASCII normalisé (`linear.app` → `linear-app`,
+   `x.ai` → `x-ai`).
+2. **Écrire au moins sept H2 substantielles.** N'ajoutez pas de titres vides
+   uniquement pour atteindre le compte.
+3. **Garder prose et tokens cohérents.** Couleurs, typo, espacement et motion
+   décrits dans `DESIGN.md` doivent correspondre à `tokens.css`, qui doit passer
+   les guards de tokens partagés.
+4. **Utiliser des preuves réelles et une provenance claire.** Échantillonnez le
+   produit ou site source, sans vous fier à vos souvenirs ni aux suppositions d’une IA,
+   et consignez la source dans le manifeste ou les preuves du package.
+5. **Rédiger une copie catalogue utile.** `manifest.name`, `category` et
+   `description` sont les métadonnées principales du picker ; évitez le fluff.
 
-Les product systems livrés sont importés depuis [`VoltAgent/awesome-design-md`][acd2]
+Les product systems dérivés de l'upstream sont importés depuis [`VoltAgent/awesome-design-md`][acd2]
 via [`scripts/sync-design-systems.ts`](../../scripts/sync-design-systems.ts). Si votre
 marque appartient à cet upstream, **envoyez d'abord la PR là-bas** : OD le
-récupérera au prochain sync. Le dossier `design-systems/` sert aux systèmes qui
-ne rentrent pas upstream, plus nos starters écrits à la main.
+récupérera au prochain sync. Le dossier `design-systems/` contient aussi des
+ajouts propres au projet qui ne rentrent pas upstream.
 
 ---
 
 ## Ajouter une nouvelle CLI de coding agent
 
 Brancher un nouvel agent (par exemple une CLI `foo-coder`) revient à ajouter
-une entrée dans [`apps/daemon/src/agents.ts`](../../apps/daemon/src/agents.ts) :
+une définition dans [`apps/daemon/src/runtimes/defs/`](../../apps/daemon/src/runtimes/defs/) et un import avec une entrée dans [`runtimes/registry.ts`](../../apps/daemon/src/runtimes/registry.ts) :
 
-```javascript
-{
+```ts
+import type { RuntimeAgentDef } from '../types.js';
+
+export const fooAgentDef = {
   id: 'foo',
   name: 'Foo Coder',
   bin: 'foo',
   versionArgs: ['--version'],
+  fallbackModels: [{ id: 'default', label: 'Default', default: true }],
   buildArgs: (prompt) => ['exec', '-p', prompt],
   streamFormat: 'plain',           // or 'claude-stream-json' if it speaks that
-}
+} satisfies RuntimeAgentDef;
 ```
 
-C'est tout : le daemon la détecte dans le `PATH`, le picker l'affiche et le
-chemin chat fonctionne. Si la CLI émet des **typed events** (comme
-`--output-format stream-json` de Claude Code), ajoutez un parser dans
-[`apps/daemon/src/claude-stream.ts`](../../apps/daemon/src/claude-stream.ts) et mettez
-`streamFormat: 'claude-stream-json'`.
+Importez la définition dans [`runtimes/registry.ts`](../../apps/daemon/src/runtimes/registry.ts)
+et ajoutez-la à `BASE_AGENT_DEFS` ; le moteur partagé la détecte alors dans le
+`PATH`, l'affiche dans le picker et construit son invocation. Réutilisez un
+`streamFormat` existant lorsque la forme du wire correspond. Un format wire
+réellement nouveau exige aussi un parser sous [`apps/daemon/src/runtimes/`](../../apps/daemon/src/runtimes/)
+ou [`apps/daemon/src/agent-protocol/`](../../apps/daemon/src/agent-protocol/),
+des tests de parser et une branche de dispatch correspondante dans
+[`server.ts`](../../apps/daemon/src/server.ts).
 
 Critères de merge :
 
@@ -295,7 +285,9 @@ qui motive cette mise à jour.
 
 La table `OVERRIDES` dans `maxTokens.ts` est réservée aux rares cas où LiteLLM
 est absent ou incorrect pour un model id réellement utilisé, par exemple
-`mimo-v2.5-pro`. Gardez-la petite ; tout ce que LiteLLM sait déjà correctement
+`mimo-v2.5-pro` : LiteLLM ne référence MiMo que sous les alias
+`openrouter/xiaomi/...` et `novita/xiaomimimo/...`, qui ne correspondent pas
+à l’identifiant canonique de l’API directe de Xiaomi. Gardez-la petite ; tout ce que LiteLLM sait déjà correctement
 doit rester upstream.
 
 [litellm]: https://github.com/BerriAI/litellm
@@ -304,17 +296,11 @@ doit rester upstream.
 
 ## Maintenance des localisations
 
-Les PR de locale doivent traduire le chrome UI, la documentation cœur et les
-métadonnées display-only de galerie dans `apps/web/src/i18n/content*.ts`, mais
-ne doivent pas traduire `skills/`, `design-systems/` ni les prompt bodies que
-les agents exécutent. Ces prompts source sont des entrées de workflow ; garder
-une langue source commune évite de multiplier la QA de prompts sur toutes les
-locales. Lorsqu'un Skill, un Design System ou un prompt template est ajouté ou
-renommé, mettez à jour les métadonnées display de la locale concernée et lancez
-`pnpm --filter @open-design/web test` ; `content.test.ts` échoue si la coverage
-couverture des métadonnées d'affichage d'une locale déclarée dérive. Les erreurs daemon, noms de fichiers
-d'export et textes d'artifact générés par agent restent des limites connues,
-sauf si une PR les inclut explicitement.
+L'allemand utilise le vouvoiement formel `Sie`, car OD s'adresse à des créateurs indépendants, des agences et des équipes d'ingénierie. Tant que les retours du projet ne justifient pas le tutoiement `du`, ce registre reste le choix par défaut le moins surprenant.
+
+Les PR de localisation doivent traduire les éléments d'interface, la documentation principale et les métadonnées de galerie destinées uniquement à l'affichage dans `apps/web/src/i18n/content.ts`. Elles ne doivent pas traduire `skills/`, `design-systems/` ni les corps de prompts exécutés par les agents. Ces prompts sont des entrées de workflow ; conserver une langue source commune évite de multiplier leur validation par langue.
+
+Lors de l'ajout ou du renommage d'un skill, d'un système de design ou d'un modèle de prompt, mettez à jour les métadonnées d'affichage allemandes et lancez `pnpm --filter @open-design/web test` : `content.test.ts` détecte les écarts de couverture en allemand. Les erreurs du daemon, les noms de fichiers exportés et les textes d'artefacts générés par les agents restent des limites connues, sauf si une PR les inclut explicitement.
 
 Pour les étapes détaillées d'ajout d'une locale (dictionnaire UI, README,
 language switcher, terminologie régionale), voir [`TRANSLATIONS.md`](../../TRANSLATIONS.md).
@@ -339,10 +325,12 @@ Au-delà de ça :
   `// loop through items`. Si le code se lit déjà, le commentaire est du bruit.
   Gardez les commentaires pour l'intention non évidente ou les contraintes que
   le code ne peut pas exprimer.
-- **TypeScript** pour le code source de `apps/web/src/` et `apps/daemon/src/`.
-  Le JavaScript généré appartient aux dossiers `dist/`; les nouveaux fichiers
-  `.js`, `.mjs` ou `.cjs` doivent avoir une raison générée, vendored ou
-  compatibility explicite.
+- **TypeScript-first.** Conservez en TypeScript les points d'entrée, modules,
+  scripts, tests, reporters et configurations propres au projet, y compris le
+  code de `apps/web/src/` et `apps/daemon/src/`. Tout nouveau fichier `.js`,
+  `.mjs` ou `.cjs` n'est autorisé que s'il est généré, intègre du code tiers ou
+  répond à un besoin de compatibilité explicitement documenté, et doit passer
+  `pnpm guard`.
 - **Pas de nouvelle dépendance top-level** sans paragraphe dans la description
   de la PR expliquant ce qu'elle apporte et combien d'octets elle coûte. La liste
   des dépendances dans [`package.json`](../../package.json) est petite volontairement.
@@ -417,9 +405,12 @@ Pour garder le projet focalisé, merci de ne pas ouvrir de PR qui :
 - **Remplace le daemon par une fonction serverless.** Le rôle du daemon est de
   posséder un vrai `cwd` et de spawn une vraie CLI. Déployer la SPA sur Vercel
   est très bien ; le daemon reste un daemon.
-- **Ajoute de la télémétrie / analytics / phone-home.** OD est local-first.
-  Les seuls appels sortants vont vers des providers explicitement configurés
-  par l'utilisateur.
+- **Ajoute de la télémétrie ou une collecte externe hors du contrat de
+  confidentialité.** Les analytics produit et le replay de session masqué sont
+  soumis au consentement ; la télémétrie nettoyée de sécurité/fiabilité reste
+  active dans les builds configurés. Tout nouvel événement, champ ou
+  destinataire doit respecter les limites de consentement, minimisation et
+  nettoyage décrites dans [`PRIVACY.md`](../../PRIVACY.md).
 - **Bundle un binaire** sans fichier de licence ni attribution d'auteur à côté.
 
 Si vous n'êtes pas sûr que votre idée rentre dans le projet, ouvrez une
@@ -442,7 +433,7 @@ ressemble le chemin pour devenir Mainteneur, les règles se trouvent dans
   Core Team sur la qualité des contributions. Il n'y a pas de formulaire
   de candidature ; la Core Team identifie les candidats en interne et
   prend contact.
-- Il n'y a **aucun quota, aucun SLAs, et aucun mandat fixe.** Se retirer
+- Il n'y a **aucun quota, aucun SLA, et aucun mandat fixe.** Se retirer
   est facile et réversible (Emeritus → retour quand la vie se calme).
 - Tous les seuils, le flux de nomination, les règles de retrait et la
   dérogation pour les projets en phase initiale se trouvent dans
@@ -454,16 +445,13 @@ dans les [Discussions][discussions] / sur [Discord][discord], et le reste
 se fait tout seul.
 
 [discussions]: https://github.com/nexu-io/open-design/discussions
-[discord]: https://discord.gg/9ptkbbqRu
+[discord]: https://discord.gg/mHAjSMV6gz
 
 ---
 
 ## Licence
 
-En contribuant, vous acceptez que votre contribution soit licenciée sous la
-[licence Apache-2.0](../../LICENSE) de ce repo, à l'exception des fichiers dans
-[`skills/guizang-ppt/`](../../skills/guizang-ppt/), qui conservent leur licence MIT
-originale et l'attribution d'auteur à [op7418](https://github.com/op7418).
+En contribuant, vous acceptez que votre contribution soit placée sous la [licence Apache-2.0](../../LICENSE) de ce dépôt, sauf lorsqu'un skill ou un modèle intégré possède son propre fichier `LICENSE`. Les exceptions connues sous licence MIT comprennent [`design-templates/guizang-ppt/`](../../design-templates/guizang-ppt/), qui conserve l'attribution à [op7418](https://github.com/op7418), et [`skills/web-clone/`](../../skills/web-clone/), qui conserve l'attribution à [Jane Xiaoer](https://github.com/Jane-xiaoer).
 
 [skill]: https://docs.anthropic.com/en/docs/claude-code/skills
 [guizang]: https://github.com/op7418/guizang-ppt-skill

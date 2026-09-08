@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   byokAgentProviderId,
+  byokSessionModeForTracking,
   buildByokRunCreatedProps,
   buildByokRunFinishedProps,
   type ByokRunBaseInput,
@@ -21,6 +22,11 @@ const BASE: ByokRunBaseInput = {
   apiProtocol: 'anthropic',
   skillId: null,
   sessionMode: 'design',
+  taskAnalytics: {
+    taskExecutionId: 'task_1',
+    initialRunId: 'run_1',
+    taskRunIndex: 0,
+  },
 };
 
 describe('byokAgentProviderId', () => {
@@ -33,8 +39,8 @@ describe('byokAgentProviderId', () => {
     expect(byokAgentProviderId('senseaudio')).toBe('senseaudio');
   });
 
-  it('folds the aggregator and unknown protocols into other', () => {
-    expect(byokAgentProviderId('aihubmix')).toBe('other');
+  it('tracks the aggregator separately and folds unknown protocols into other', () => {
+    expect(byokAgentProviderId('aihubmix')).toBe('aihubmix');
     expect(byokAgentProviderId(undefined)).toBe('other');
   });
 });
@@ -54,6 +60,15 @@ describe('buildByokRunCreatedProps', () => {
       mcp_id: null,
       token_count_source: 'unknown',
       session_mode: 'design',
+      task_execution_id: 'task_1',
+      initial_run_id: 'run_1',
+      task_run_index: 0,
+      interaction_mode: 'design',
+      has_attachments: false,
+      tokens: {
+        usage_count_source: 'unknown',
+        user_query_tokens: 12,
+      },
     });
     // runtime_type is stamped on the event itself (not left to the mutable
     // super-property) so a mid-stream mode switch can't split the run.
@@ -63,6 +78,14 @@ describe('buildByokRunCreatedProps', () => {
   it('buckets a missing model into "default"', () => {
     expect(buildByokRunCreatedProps({ ...BASE, model: null }).model_id).toBe('default');
     expect(buildByokRunCreatedProps({ ...BASE, model: '   ' }).model_id).toBe('default');
+  });
+
+  it('preserves Plan mode from BYOK run props', () => {
+    const props = buildByokRunCreatedProps({
+      ...BASE,
+      sessionMode: byokSessionModeForTracking('plan'),
+    });
+    expect(props.session_mode).toBe('plan');
   });
 });
 
@@ -85,6 +108,26 @@ describe('buildByokRunFinishedProps', () => {
       total_duration_ms: 8421,
       agent_provider_id: 'anthropic',
       runtime_type: 'byok',
+      clarification_requested: false,
+      primary_artifact_change: 'created',
+      timing: { total_duration_ms: 8421 },
+      run_activity: {
+        artifacts: {
+          changed_file_count: 1,
+        },
+      },
     });
+  });
+
+  it('preserves Plan mode on finished BYOK run props', () => {
+    const props = buildByokRunFinishedProps({
+      ...BASE,
+      sessionMode: byokSessionModeForTracking('plan'),
+      result: 'success',
+      artifactCount: 0,
+      askedUserQuestion: false,
+      totalDurationMs: 42,
+    });
+    expect(props.session_mode).toBe('plan');
   });
 });

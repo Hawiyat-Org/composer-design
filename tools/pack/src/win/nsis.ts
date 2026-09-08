@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
 import { appendFile, cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, win32 } from "node:path";
 import { promisify } from "node:util";
 
-import type { ToolPackConfig } from "../config.js";
+import type { ToolPackConfig } from "../config/index.js";
 import { pathExists } from "./fs.js";
 import { resolveWinUninstallLocalDataRoot } from "./paths.js";
 import type { WinPaths } from "./types.js";
@@ -16,6 +16,15 @@ function escapeNsisString(value: string): string {
 
 export async function writeNsisInclude(config: ToolPackConfig, paths: WinPaths): Promise<void> {
   const localDataRoot = escapeNsisString(resolveWinUninstallLocalDataRoot(config));
+  // Portable releases rely on Electron's normal userData root, which adds the
+  // `namespaces/<namespace>` segment. Non-portable tools-pack installs already
+  // receive a namespace root from their generated config.
+  const runtimeNamespaceRoot = config.portable
+    ? win32.join(resolveWinUninstallLocalDataRoot(config), "namespaces", config.namespace)
+    : resolveWinUninstallLocalDataRoot(config);
+  const installerObservationRoot = escapeNsisString(
+    win32.join(runtimeNamespaceRoot, "data", "observations", "installer"),
+  );
   await mkdir(dirname(paths.nsisIncludePath), { recursive: true });
   await writeFile(
     paths.nsisIncludePath,
@@ -25,6 +34,7 @@ export async function writeNsisInclude(config: ToolPackConfig, paths: WinPaths):
 Var /GLOBAL odRemoveLocalData
 Var /GLOBAL odRemoveLocalDataCheckbox
 Var /GLOBAL odLocalDataRoot
+Var /GLOBAL odDownloadAttributionUrl
 
 LangString OD_REMOVE_LOCAL_DATA_TITLE 1033 "Remove local data"
 LangString OD_REMOVE_LOCAL_DATA_TITLE 2052 "删除本地数据"
@@ -48,10 +58,45 @@ LangString OD_REMOVE_LOCAL_DATA_CHECKBOX 1065 "حذف داده‌های محلی
 
 !macro customUnWelcomePage
   !insertmacro MUI_UNPAGE_WELCOME
-  UninstPage custom un.OpenDesignLocalDataPage un.OpenDesignLocalDataPageLeave
+  UninstPage custom un.ComposerDesignLocalDataPage un.ComposerDesignLocalDataPageLeave
 !macroend
 
-Function un.OpenDesignLocalDataPage
+Function ComposerDesignReadDownloadAttribution
+  ClearErrors
+  StrCpy $odDownloadAttributionUrl ""
+  FileOpen $0 "$EXEPATH:Zone.Identifier" r
+  \${If} \${Errors}
+    Return
+  \${EndIf}
+  \${Do}
+    FileRead $0 $1
+    \${If} \${Errors}
+      \${ExitDo}
+    \${EndIf}
+    StrCpy $2 $1 8
+    \${If} $2 == "HostUrl="
+      StrCpy $odDownloadAttributionUrl $1 "" 8
+      \${ExitDo}
+    \${EndIf}
+  \${Loop}
+  FileClose $0
+  \${If} $odDownloadAttributionUrl == ""
+    Return
+  \${EndIf}
+  StrCpy $odDownloadAttributionUrl $odDownloadAttributionUrl -2
+  CreateDirectory "${installerObservationRoot}"
+  FileOpen $3 "${installerObservationRoot}\\download-attribution.json" w
+  \${IfNot} \${Errors}
+    FileWrite $3 "{$\\"rawUrl$\\":$\\"$odDownloadAttributionUrl$\\",$\\"source$\\":$\\"windows_zone_identifier$\\"}$\\r$\\n"
+    FileClose $3
+  \${EndIf}
+FunctionEnd
+
+!macro customInstall
+  Call ComposerDesignReadDownloadAttribution
+!macroend
+
+Function un.ComposerDesignLocalDataPage
   StrCpy $odRemoveLocalData "1"
   StrCpy $odLocalDataRoot "${localDataRoot}"
   nsDialogs::Create 1018
@@ -68,7 +113,7 @@ Function un.OpenDesignLocalDataPage
   nsDialogs::Show
 FunctionEnd
 
-Function un.OpenDesignLocalDataPageLeave
+Function un.ComposerDesignLocalDataPageLeave
   \${NSD_GetState} $odRemoveLocalDataCheckbox $0
   \${If} $0 == \${BST_CHECKED}
     StrCpy $odRemoveLocalData "1"

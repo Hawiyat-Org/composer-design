@@ -165,7 +165,7 @@ describe('ExamplesTab', () => {
           }),
           skill({
             id: 'composer-design-landing',
-            name: 'Composer Design landing',
+            name: 'ComposerDesign landing',
             examplePrompt: 'Unique prompt',
           }),
         ]}

@@ -7,14 +7,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DesignSystemSummary } from '../../src/types';
 
 vi.mock('../../src/providers/registry', () => ({
-  fetchDesignSystemPreview: vi.fn(),
+  designSystemStaticUrl: (id: string, filePath: string) => `/design-systems/${id}/${filePath}`,
+  fetchDesignSystem: vi.fn(),
+  fetchProjectFileText: vi.fn(),
+  openExternalUrl: vi.fn(),
+  projectRawUrl: (projectId: string, filePath: string) => `/raw/${projectId}/${filePath}`,
 }));
 
 import { DesignSystemPicker } from '../../src/components/DesignSystemPicker';
 import { I18nProvider, type Locale } from '../../src/i18n';
-import { fetchDesignSystemPreview } from '../../src/providers/registry';
+import {
+  fetchDesignSystem,
+  fetchProjectFileText,
+} from '../../src/providers/registry';
 
-const fetchDesignSystemPreviewMock = vi.mocked(fetchDesignSystemPreview);
+const fetchDesignSystemMock = vi.mocked(fetchDesignSystem);
+const fetchProjectFileTextMock = vi.mocked(fetchProjectFileText);
 
 const designSystems: DesignSystemSummary[] = [
   {
@@ -34,7 +42,27 @@ const designSystems: DesignSystemSummary[] = [
 ];
 
 beforeEach(() => {
-  fetchDesignSystemPreviewMock.mockResolvedValue('<html><body><h1>Preview</h1></body></html>');
+  fetchDesignSystemMock.mockImplementation(async (id) => ({
+    id,
+    title: id === 'clay' ? 'Clay' : 'Editorial Noir',
+    summary: id === 'clay' ? 'Friendly tactile product UI.' : 'High-contrast editorial system.',
+    category: id === 'clay' ? 'Product' : 'Editorial',
+    body: [
+      `# ${id === 'clay' ? 'Clay' : 'Editorial Noir'}`,
+      '',
+      id === 'clay' ? 'Friendly tactile product UI.' : 'High-contrast editorial system.',
+      '',
+      '## Typography',
+      id === 'clay' ? '- Display: Fraunces' : '- Display: Playfair Display',
+      '- Body: Inter',
+      '',
+      '## Color Palette',
+      id === 'clay' ? '- Warm Paper #f4efe7' : '- Ink #111111',
+      id === 'clay' ? '- Charcoal #25211d' : '- Bone #f7f0e8',
+    ].join('\n'),
+    swatches: id === 'clay' ? ['#f4efe7', '#25211d'] : ['#111111', '#f7f0e8'],
+  }));
+  fetchProjectFileTextMock.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -69,27 +97,30 @@ describe('DesignSystemPicker', () => {
     expect(screen.getByTestId('project-ds-picker-option-noir-check')).toBeTruthy();
 
     await waitFor(() => {
-      expect(fetchDesignSystemPreviewMock).toHaveBeenCalledWith('noir');
+      expect(fetchDesignSystemMock).toHaveBeenCalledWith('noir', null);
     });
-    expect(await screen.findByTestId('project-ds-picker-preview-frame')).toBeTruthy();
+    expect(await screen.findByTestId('project-ds-picker-preview-kit-view')).toBeTruthy();
+    expect(screen.getByText('High-contrast editorial system.')).toBeTruthy();
+    expect(screen.queryByTestId('project-ds-picker-preview-frame')).toBeNull();
   });
 
-  it('updates the preview target on hover and opens the fullscreen preview', async () => {
+  it('updates the preview target on hover and opens the expanded kit preview', async () => {
     renderPicker();
 
     fireEvent.click(screen.getByTestId('project-ds-picker-trigger'));
-    await screen.findByTestId('project-ds-picker-preview-frame');
+    await screen.findByTestId('project-ds-picker-preview-kit-view');
 
     fireEvent.mouseEnter(screen.getByTestId('project-ds-picker-option-clay'));
     await waitFor(() => {
-      expect(fetchDesignSystemPreviewMock).toHaveBeenCalledWith('clay');
+      expect(fetchDesignSystemMock).toHaveBeenCalledWith('clay', null);
     });
+    expect(screen.getByText('Friendly tactile product UI.')).toBeTruthy();
 
     fireEvent.click(await screen.findByTestId('project-ds-picker-preview-expand'));
     expect(screen.getByRole('dialog')).toBeTruthy();
     expect(screen.getAllByText('Clay').length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByLabelText('关闭全屏预览'));
+    fireEvent.click(screen.getByRole('button', { name: '关闭' }));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
@@ -129,5 +160,87 @@ describe('DesignSystemPicker', () => {
     // surrounding picker copy needs to localize.
     expect(screen.getByPlaceholderText('Rechercher des systèmes de design')).toBeTruthy();
     expect(screen.getByText('Aucun système de design')).toBeTruthy();
+  });
+
+  it('places team systems between personal systems and official presets', async () => {
+    const personalSystem: DesignSystemSummary = {
+      id: 'user:personal-brand',
+      title: 'Personal Brand',
+      summary: 'Owned by the current member.',
+      category: 'Custom',
+      swatches: [],
+      source: 'user',
+      isEditable: true,
+    };
+    const teamSystem: DesignSystemSummary = {
+      id: 'user:team-brand',
+      title: 'Team Brand',
+      summary: 'Shared by the current member.',
+      category: 'Custom',
+      swatches: [],
+      source: 'user',
+      isEditable: true,
+      teamShared: true,
+    };
+    const teammateSystem: DesignSystemSummary = {
+      id: 'user:teammate-brand',
+      title: 'Teammate Brand',
+      summary: 'Pulled from a teammate.',
+      category: 'Custom',
+      swatches: [],
+      source: 'user',
+      isEditable: false,
+      teamSynced: true,
+    };
+    const officialSystem: DesignSystemSummary = {
+      id: 'official-brand',
+      title: 'Official Brand',
+      summary: 'Bundled preset.',
+      category: 'Product',
+      swatches: [],
+      source: 'built-in',
+      isEditable: false,
+    };
+    renderPicker({
+      designSystems: [officialSystem, teamSystem, teammateSystem, personalSystem],
+      selectedId: null,
+    });
+
+    fireEvent.click(screen.getByTestId('project-ds-picker-trigger'));
+
+    const listText = [...screen.getByRole('listbox').children]
+      .map((element) => element.textContent?.trim())
+      .filter(Boolean);
+    expect(listText).toEqual([
+      '不指定设计系统',
+      '你的体系',
+      'Personal Brand',
+      '团队',
+      'Team Brand',
+      'Teammate Brand',
+      '官方预设',
+      'Official Brand',
+    ]);
+  });
+
+  it('omits empty personal and team group headings', async () => {
+    renderPicker({
+      designSystems: [{
+        id: 'official-only',
+        title: 'Official Only',
+        summary: 'Bundled preset.',
+        category: 'Product',
+        swatches: [],
+        source: 'built-in',
+        isEditable: false,
+      }],
+      selectedId: null,
+    });
+
+    fireEvent.click(screen.getByTestId('project-ds-picker-trigger'));
+
+    expect(screen.queryByTestId('project-ds-picker-group-mine')).toBeNull();
+    expect(screen.queryByTestId('project-ds-picker-group-team')).toBeNull();
+    expect(screen.getByTestId('project-ds-picker-group-official')).toBeTruthy();
   });
 });

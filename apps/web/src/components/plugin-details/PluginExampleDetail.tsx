@@ -6,8 +6,12 @@
 // "Use plugin" action that routes through the home applyPlugin flow.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { InstalledPluginRecord } from '@open-design/contracts';
+import type {
+  InstalledPluginRecord,
+  WorkspaceCollabContext,
+} from '@open-design/contracts';
 import { useI18n } from '../../i18n';
+import { localizePluginChrome } from '../../i18n/plugin-content';
 import { localizePluginDescription, localizePluginTitle } from '../plugins-home/localization';
 import {
   fetchPluginExampleHtml,
@@ -26,8 +30,10 @@ interface Props {
   exampleStem?: string | null;
   onClose: () => void;
   onUse: (record: InstalledPluginRecord, action: PluginUseAction) => void;
+  onDuplicate?: (record: InstalledPluginRecord) => void;
   isApplying?: boolean;
   hideUseAction?: boolean;
+  workspaceContext?: WorkspaceCollabContext | null;
   // Analytics — forwarded to PreviewModal's share popover.
   onSharePopoverItemClick?: (item: PreviewSharePopoverItem) => void;
 }
@@ -37,12 +43,15 @@ export function PluginExampleDetail({
   exampleStem,
   onClose,
   onUse,
+  onDuplicate,
   isApplying,
   hideUseAction,
+  workspaceContext = null,
   onSharePopoverItemClick,
 }: Props) {
   const { t, locale } = useI18n();
   const localizedTitle = localizePluginTitle(locale, record);
+  const pluginInfoLabel = localizePluginChrome(locale, 'pluginInfo');
   const [html, setHtml] = useState<string | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [unavailableKind, setUnavailableKind] = useState<string | null>(null);
@@ -56,8 +65,8 @@ export function PluginExampleDetail({
       setError(null);
       setUnavailableKind(null);
       const result: SkillExampleResult = exampleStem
-        ? await fetchPluginExampleHtml(record.id, exampleStem)
-        : await fetchPluginPreviewHtml(record.id);
+        ? await fetchPluginExampleHtml(record.id, exampleStem, workspaceContext)
+        : await fetchPluginPreviewHtml(record.id, workspaceContext);
       if ('html' in result) {
         setHtml(result.html);
       } else if ('error' in result) {
@@ -79,7 +88,7 @@ export function PluginExampleDetail({
     } finally {
       inFlightRef.current = false;
     }
-  }, [record.id, exampleStem]);
+  }, [record.id, exampleStem, workspaceContext]);
 
   useEffect(() => {
     void load();
@@ -131,7 +140,7 @@ export function PluginExampleDetail({
         // developer manifest detail tucked behind a "Developer details"
         // disclosure (variant="minimal"). Fullscreen still gives an
         // immersive view when needed.
-        label: 'Plugin info',
+        label: pluginInfoLabel,
         defaultOpen: false,
         contentKey: record.id,
         content: (
@@ -140,7 +149,7 @@ export function PluginExampleDetail({
               record={record}
               omit={{ description: true }}
               compact
-              heading="Plugin info"
+              heading={pluginInfoLabel}
               variant="minimal"
             />
           </div>
@@ -152,11 +161,10 @@ export function PluginExampleDetail({
             label: pluginUsePrimaryAction(record, t).label,
             onClick: () => onUse(record, pluginUsePrimaryAction(record, t).action),
             busy: !!isApplying,
-            busyLabel: 'Applying…',
+            busyLabel: localizePluginChrome(locale, 'applying'),
             testId: `plugin-details-use-${record.id}`,
-            menu: buildPluginUseMenu(record, onUse, t),
+            menu: buildPluginUseMenu(record, onUse, t, onDuplicate),
           }}
-      hideSidebarToggle
       onSharePopoverItemClick={onSharePopoverItemClick}
     />
   );

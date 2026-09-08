@@ -63,6 +63,7 @@ export function migratePlugins(db: SqliteDb): void {
       plugin_spec_version      TEXT NOT NULL DEFAULT '1.0.0',
       plugin_version           TEXT NOT NULL,
       manifest_source_digest   TEXT NOT NULL,
+      strategy_json            TEXT,
       source_marketplace_id    TEXT,
       source_marketplace_entry_name TEXT,
       source_marketplace_entry_version TEXT,
@@ -187,6 +188,12 @@ export function migratePlugins(db: SqliteDb): void {
     ['resolved_ref', `ALTER TABLE installed_plugins ADD COLUMN resolved_ref TEXT`],
     ['manifest_digest', `ALTER TABLE installed_plugins ADD COLUMN manifest_digest TEXT`],
     ['archive_integrity', `ALTER TABLE installed_plugins ADD COLUMN archive_integrity TEXT`],
+    // Internal bookkeeping for the bundled-plugin boot walker only (bundled.ts)
+    // — a hash of the on-disk files (open-design.json, SKILL.md, …) a bundled
+    // plugin was last registered from, so a no-op reboot can tell "nothing
+    // changed" from "SKILL.md was edited" without touching the parsed
+    // manifest/version fields other InstalledPluginRecord consumers rely on.
+    ['bundled_content_digest', `ALTER TABLE installed_plugins ADD COLUMN bundled_content_digest TEXT`],
   ] as const) {
     if (!installedCols.some((c) => c['name'] === name)) db.exec(ddl);
   }
@@ -196,6 +203,7 @@ export function migratePlugins(db: SqliteDb): void {
     db.exec(`ALTER TABLE applied_plugin_snapshots ADD COLUMN plugin_spec_version TEXT NOT NULL DEFAULT '1.0.0'`);
   }
   for (const [name, ddl] of [
+    ['strategy_json', `ALTER TABLE applied_plugin_snapshots ADD COLUMN strategy_json TEXT`],
     ['source_marketplace_entry_name', `ALTER TABLE applied_plugin_snapshots ADD COLUMN source_marketplace_entry_name TEXT`],
     ['source_marketplace_entry_version', `ALTER TABLE applied_plugin_snapshots ADD COLUMN source_marketplace_entry_version TEXT`],
     ['marketplace_trust', `ALTER TABLE applied_plugin_snapshots ADD COLUMN marketplace_trust TEXT`],

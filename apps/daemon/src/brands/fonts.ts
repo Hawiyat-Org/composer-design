@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import type { Brand } from "./schema.js";
+import { fetchExternalBrandAsset } from "./safe-fetch.js";
+import { findRealTagEnd, HTML_TAG_PATTERNS } from '@open-design/contracts/runtime/html-injection-points';
 
 /**
  * Webfont self-hosting for a brand workspace.
@@ -138,7 +140,7 @@ async function fetchFont(url: string, referer?: string): Promise<Buffer | null> 
     }
   }
   try {
-    const res = await fetch(url, {
+    const res = await fetchExternalBrandAsset(url, {
       headers: {
         "User-Agent": UA,
         Accept: "*/*",
@@ -147,7 +149,6 @@ async function fetchFont(url: string, referer?: string): Promise<Buffer | null> 
         "Sec-Fetch-Site": "cross-site",
         ...(referer ? { Referer: referer } : {}),
       },
-      redirect: "follow",
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return null;
@@ -207,7 +208,11 @@ export function injectFontFaces(html: string, files: FontFile[], urlPrefix: stri
   if (files.length === 0) return html;
   const css = fontFaceCss(files, urlPrefix);
   const tag = `<style data-brand-fonts>\n${css}\n</style>`;
-  if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, (m) => `${m}\n${tag}`);
+  // Structural lookup, not a text match: a `<head>` an author wrote into a
+  // script string is not this document's head, and a bare `/<head[^>]*>/` also
+  // matches `<header>` (nexu-io/open-design#7410).
+  const headEnd = findRealTagEnd(html, HTML_TAG_PATTERNS.headOpen);
+  if (headEnd >= 0) return `${html.slice(0, headEnd)}\n${tag}${html.slice(headEnd)}`;
   return tag + html;
 }
 
@@ -306,9 +311,8 @@ export async function selfHostGoogleFonts(brand: Brand, brandDir: string): Promi
   const chunks: string[] = [];
   for (const url of urls) {
     try {
-      const res = await fetch(url, {
+      const res = await fetchExternalBrandAsset(url, {
         headers: { "User-Agent": UA, Accept: "text/css,*/*;q=0.1" },
-        redirect: "follow",
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (res.ok) chunks.push(await res.text());

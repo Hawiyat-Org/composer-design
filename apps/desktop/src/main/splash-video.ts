@@ -9,10 +9,10 @@
 // null there). Inlining is the only thing that renders identically in dev and in
 // packaged builds, before anything else is up.
 //
-// Provenance: re-cut from the designer's Hawiyat-brand startup animation master.
-// Source is H.264/MP4 720x720 → transcoded to VP8/WebM for Electron compatibility.
-// The clip has a baked-in dark background (#040306) — the splash window CSS matches
-// this tone to avoid a flash on first paint. There is no alpha channel.
+// Provenance: the designer's startup-animation master, re-cut with the wordmark
+// capitalised as "ComposerDesign" (was "Open design"). Source is VP9/WebM 1920x1132,
+// inlined verbatim (no transcode) so the brand intro keeps its authored quality.
+// Electron's bundled Chromium plays VP9 from a data: URL natively.
 //
 // To replace: re-cut the master MP4, convert to VP8/WebM with ffmpeg, base64-encode
 // the stream, and paste below. Keep the data: MIME in sync with the container/codec,

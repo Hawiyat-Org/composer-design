@@ -9,7 +9,7 @@ import {
   collectBrowserUseDiscoveryFacts,
   isBrowserUseRequested,
   renderBrowserUseUnavailablePrompt,
-} from '../src/browser-use-diagnostics.js';
+} from '../src/browser/index.js';
 
 let tempDir: string;
 
@@ -22,10 +22,10 @@ afterEach(async () => {
 });
 
 describe('browser use diagnostics', () => {
-  it('detects Browser Use prompts from the Composer Design Browser menu', () => {
+  it('detects Browser Use prompts from the ComposerDesign Browser menu', () => {
     expect(isBrowserUseRequested('hello')).toBe(false);
     expect(isBrowserUseRequested('@agent-browser\n\nBrowser tab context:')).toBe(true);
-    expect(isBrowserUseRequested('Use the selected Composer Design Browser tab as the bound target.')).toBe(true);
+    expect(isBrowserUseRequested('Use the selected ComposerDesign Browser tab as the bound target.')).toBe(true);
   });
 
   it('returns a missing-registry snapshot without reading socket contents', () => {
