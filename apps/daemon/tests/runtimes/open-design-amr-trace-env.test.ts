@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import {
-  openDesignAmrRunAttempt,
-  openDesignAmrTraceEnv,
+  composerDesignAmrRunAttempt,
+  composerDesignAmrTraceEnv,
 } from '../../src/runtimes/env.js';
 
-test('openDesignAmrRunAttempt counts cumulative retries and manual recharge resumes', () => {
+test('composerDesignAmrRunAttempt counts cumulative retries and manual recharge resumes', () => {
   assert.equal(
-    openDesignAmrRunAttempt({
+    composerDesignAmrRunAttempt({
       cumulativeRetryAttemptCount: 1,
       retryAttemptCount: 2,
       manualResumeAttemptCount: 1,
@@ -15,15 +15,15 @@ test('openDesignAmrRunAttempt counts cumulative retries and manual recharge resu
     4,
   );
   assert.equal(
-    openDesignAmrRunAttempt({
+    composerDesignAmrRunAttempt({
       manualResumeAttemptCount: 1,
     }),
     1,
   );
 });
 
-test('openDesignAmrTraceEnv builds OpenDesign trace identity env for AMR only', () => {
-  const amrEnv = openDesignAmrTraceEnv({
+test('composerDesignAmrTraceEnv builds ComposerDesign trace identity env for AMR only', () => {
+  const amrEnv = composerDesignAmrTraceEnv({
     agentId: 'amr',
     runId: ' run_trace_123 ',
     runAttempt: 2,
@@ -34,7 +34,7 @@ test('openDesignAmrTraceEnv builds OpenDesign trace identity env for AMR only', 
   assert.equal(amrEnv.OPEN_DESIGN_RUN_ATTEMPT, '2');
   assert.equal(amrEnv.OPEN_DESIGN_SESSION_ID, 'conversation_trace_456');
 
-  const claudeEnv = openDesignAmrTraceEnv({
+  const claudeEnv = composerDesignAmrTraceEnv({
     agentId: 'claude',
     runId: 'run_trace_123',
     runAttempt: 2,
@@ -44,8 +44,8 @@ test('openDesignAmrTraceEnv builds OpenDesign trace identity env for AMR only', 
   assert.deepEqual(claudeEnv, {});
 });
 
-test('openDesignAmrTraceEnv omits optional AMR session trace env when no conversation exists', () => {
-  const env = openDesignAmrTraceEnv({
+test('composerDesignAmrTraceEnv omits optional AMR session trace env when no conversation exists', () => {
+  const env = composerDesignAmrTraceEnv({
     agentId: 'amr',
     runId: 'run_trace_no_session',
     runAttempt: 0,
@@ -56,13 +56,13 @@ test('openDesignAmrTraceEnv omits optional AMR session trace env when no convers
   assert.equal(env.OPEN_DESIGN_SESSION_ID, undefined);
 });
 
-test('openDesignAmrTraceEnv fails fast on invalid AMR trace inputs', () => {
+test('composerDesignAmrTraceEnv fails fast on invalid AMR trace inputs', () => {
   assert.throws(
-    () => openDesignAmrTraceEnv({ agentId: 'amr', runId: ' ', runAttempt: 0 }),
+    () => composerDesignAmrTraceEnv({ agentId: 'amr', runId: ' ', runAttempt: 0 }),
     /OPEN_DESIGN_RUN_ID/,
   );
   assert.throws(
-    () => openDesignAmrTraceEnv({ agentId: 'amr', runId: 'run_trace', runAttempt: -1 }),
+    () => composerDesignAmrTraceEnv({ agentId: 'amr', runId: 'run_trace', runAttempt: -1 }),
     /OPEN_DESIGN_RUN_ATTEMPT/,
   );
 });
@@ -71,8 +71,8 @@ test('openDesignAmrTraceEnv fails fast on invalid AMR trace inputs', () => {
 // credit isolation) attributes an AMR spend by the OPEN_DESIGN_WORKSPACE_ID
 // env the daemon forwards to the vela CLI, which the CLI turns into
 // `X-Open-Design-Workspace-Id` + `x-vela-workspace-id` request headers.
-test('openDesignAmrTraceEnv forwards an exact persisted workspace id for AMR runs', () => {
-  const env = openDesignAmrTraceEnv({
+test('composerDesignAmrTraceEnv forwards an exact persisted workspace id for AMR runs', () => {
+  const env = composerDesignAmrTraceEnv({
     agentId: 'amr',
     runId: 'run_trace_team',
     runAttempt: 0,
@@ -82,8 +82,8 @@ test('openDesignAmrTraceEnv forwards an exact persisted workspace id for AMR run
   assert.equal(env.OPEN_DESIGN_WORKSPACE_ID, 'workspace_team_123');
 });
 
-test('openDesignAmrTraceEnv forwards a persisted Personal workspace id too', () => {
-  const env = openDesignAmrTraceEnv({
+test('composerDesignAmrTraceEnv forwards a persisted Personal workspace id too', () => {
+  const env = composerDesignAmrTraceEnv({
     agentId: 'amr',
     runId: 'run_trace_personal',
     runAttempt: 0,
@@ -94,8 +94,8 @@ test('openDesignAmrTraceEnv forwards a persisted Personal workspace id too', () 
 
 // Null/undefined/blank means the caller found no persisted binding at all.
 // Only that genuinely unbound historical-project case omits the env var.
-test('openDesignAmrTraceEnv omits OPEN_DESIGN_WORKSPACE_ID only without a persisted binding', () => {
-  const withNull = openDesignAmrTraceEnv({
+test('composerDesignAmrTraceEnv omits OPEN_DESIGN_WORKSPACE_ID only without a persisted binding', () => {
+  const withNull = composerDesignAmrTraceEnv({
     agentId: 'amr',
     runId: 'run_trace_unbound',
     runAttempt: 0,
@@ -103,14 +103,14 @@ test('openDesignAmrTraceEnv omits OPEN_DESIGN_WORKSPACE_ID only without a persis
   });
   assert.equal('OPEN_DESIGN_WORKSPACE_ID' in withNull, false);
 
-  const withUndefined = openDesignAmrTraceEnv({
+  const withUndefined = composerDesignAmrTraceEnv({
     agentId: 'amr',
     runId: 'run_trace_unbound_2',
     runAttempt: 0,
   });
   assert.equal('OPEN_DESIGN_WORKSPACE_ID' in withUndefined, false);
 
-  const withBlank = openDesignAmrTraceEnv({
+  const withBlank = composerDesignAmrTraceEnv({
     agentId: 'amr',
     runId: 'run_trace_unbound_3',
     runAttempt: 0,
@@ -119,8 +119,8 @@ test('openDesignAmrTraceEnv omits OPEN_DESIGN_WORKSPACE_ID only without a persis
   assert.equal('OPEN_DESIGN_WORKSPACE_ID' in withBlank, false);
 });
 
-test('openDesignAmrTraceEnv never forwards workspaceId for non-AMR agents', () => {
-  const env = openDesignAmrTraceEnv({
+test('composerDesignAmrTraceEnv never forwards workspaceId for non-AMR agents', () => {
+  const env = composerDesignAmrTraceEnv({
     agentId: 'claude',
     runId: 'run_trace_123',
     runAttempt: 0,
@@ -129,8 +129,8 @@ test('openDesignAmrTraceEnv never forwards workspaceId for non-AMR agents', () =
   assert.deepEqual(env, {});
 });
 
-test('openDesignAmrTraceEnv forwards only bounded plugin correlation to Vela', () => {
-  const env = openDesignAmrTraceEnv({
+test('composerDesignAmrTraceEnv forwards only bounded plugin correlation to Vela', () => {
+  const env = composerDesignAmrTraceEnv({
     agentId: 'amr',
     runId: 'run_trace_plugin',
     runAttempt: 0,
@@ -141,7 +141,7 @@ test('openDesignAmrTraceEnv forwards only bounded plugin correlation to Vela', (
       externalPluginId: 'open-design',
       externalPluginVersion: '0.4.0',
       distributionMechanism: 'git_marketplace',
-      publisherClass: 'open_design_first_party',
+      publisherClass: 'composer_design_first_party',
       apiKey: 'must-not-forward',
       accountId: 'must-not-forward',
     },
@@ -158,7 +158,7 @@ test('openDesignAmrTraceEnv forwards only bounded plugin correlation to Vela', (
   assert.equal(env.OPEN_DESIGN_DISTRIBUTION_MECHANISM, 'git_marketplace');
   assert.equal(
     env.OPEN_DESIGN_PUBLISHER_CLASS,
-    'open_design_first_party',
+    'composer_design_first_party',
   );
   assert.equal(env.OPEN_DESIGN_API_KEY, undefined);
   assert.equal(env.OPEN_DESIGN_ACCOUNT_ID, undefined);

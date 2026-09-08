@@ -8,7 +8,7 @@ const homeHeroSource = read('../../src/components/HomeHero.tsx');
 const entryNavRailSource = read('../../src/components/EntryNavRail.tsx');
 const logoSvg = read('../../public/logo.svg');
 const brandIconSvg = read('../../public/brand-icon.svg');
-// #5517: the home hero header shows the full OpenDesign logotype instead of
+// #5517: the home hero header shows the full ComposerDesign logotype instead of
 // the small glyph + name pair; the asset must ship with the app.
 const heroLogotypeSvg = read('../../public/logo-03.svg');
 // Round 7: the static logotype is now driven by the WebGL pixel-scan wordmark
@@ -16,7 +16,7 @@ const heroLogotypeSvg = read('../../public/logo-03.svg');
 // channel as the glyph mask it assembles out of coloured blocks.
 const heroPixelScanSvg = read('../../public/logo-scan.svg');
 
-// The current OpenDesign brand glyph is the ink superellipse tile introduced
+// The current ComposerDesign brand glyph is the ink superellipse tile introduced
 // with the landing-page rebrand (landing PR #3444): its outline starts with
 // this path command in every export of the mark.
 const CURRENT_GLYPH_PATH_PREFIX = 'M41 0.726562';

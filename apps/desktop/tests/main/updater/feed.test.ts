@@ -17,7 +17,7 @@ describe("desktop updater feed", () => {
   it("resolves the installed outer version from the platform bundle layout", async () => {
     const root = makeRoot();
     try {
-      const appRoot = join(root, "Open Design.app");
+      const appRoot = join(root, "Composer Design.app");
       await mkdir(join(appRoot, "Contents", "Resources"), { recursive: true });
       await writeFile(join(appRoot, "Contents", "Resources", "open-design-config.json"), '{"appVersion":"0.7.0"}\n');
       const macConfig = resolveDesktopUpdaterConfig({
@@ -28,7 +28,7 @@ describe("desktop updater feed", () => {
       });
       expect(await resolveInstalledOuterVersion(macConfig)).toBe("0.7.0");
 
-      const winExe = join(root, "win-install", "Open Design Beta.exe");
+      const winExe = join(root, "win-install", "Composer Design Beta.exe");
       await mkdir(join(root, "win-install", "resources"), { recursive: true });
       await writeFile(winExe, "");
       await writeFile(join(root, "win-install", "resources", "open-design-config.json"), '{"appVersion":"0.8.0-beta.2"}\n');
@@ -40,7 +40,7 @@ describe("desktop updater feed", () => {
       });
       expect(await resolveInstalledOuterVersion(winConfig)).toBe("0.8.0-beta.2");
 
-      const malformedExe = join(root, "broken-install", "Open Design.exe");
+      const malformedExe = join(root, "broken-install", "Composer Design.exe");
       await mkdir(join(root, "broken-install", "resources"), { recursive: true });
       await writeFile(malformedExe, "");
       await writeFile(join(root, "broken-install", "resources", "open-design-config.json"), "not json\n");

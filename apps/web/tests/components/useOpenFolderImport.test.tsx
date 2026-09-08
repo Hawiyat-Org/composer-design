@@ -4,7 +4,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@open-design/host', () => ({
-  isOpenDesignHostAvailable: () => true,
+  isComposerDesignHostAvailable: () => true,
   pickAndImportHostProject: vi.fn(),
 }));
 

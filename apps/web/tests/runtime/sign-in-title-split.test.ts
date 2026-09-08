@@ -2,7 +2,7 @@
  * 「尚未登录」这句话有**两个**主语,所以不能是一个键。
  *
  * S02(本地 agent 没登录)说的是「{智能体} 尚未登录」——「哪一个 agent」是这句话
- * 的全部信息量;S04(Open Design 智能体没授权)说的是「Open Design 尚未登录」,
+ * 的全部信息量;S04(Composer Design 智能体没授权)说的是「Composer Design 尚未登录」,
  * 主语固定,而且它的出路是卡内一键授权,不是去终端。两句话不同、两颗按钮不同,
  * 却共用 `chat.runError.title.signInRequired` 一个键 —— 一个键装不下两句话。
  *
@@ -21,7 +21,7 @@ const CLOUD = 'chat.runError.title.signInRequired.amr';
 const LOCAL_AGENT = 'chat.runError.title.signInRequired.other';
 
 describe('title.signInRequired 拆成 S02 / S04 两边', () => {
-  // S04 · Open Design 智能体没登录 / 授权过期。三个 code 都归它 ——
+  // S04 · Composer Design 智能体没登录 / 授权过期。三个 code 都归它 ——
   // daemon 的分类器早就把这三个当成同一类(category `auth`)。
   it.each(['AMR_AUTH_REQUIRED', 'AGENT_AUTH_REQUIRED', 'UNAUTHORIZED'])(
     'AMR 的 %s 落在 Cloud 那一边',

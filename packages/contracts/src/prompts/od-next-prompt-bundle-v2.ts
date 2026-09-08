@@ -13,7 +13,7 @@ export const OD_NEXT_PROMPT_BUNDLE_SCHEMA_V2 =
   'open-design.od-next-prompt-bundle/v2' as const;
 
 /**
- * The cache-stable head of the Bundle: `open_design_core_system_prompt`,
+ * The cache-stable head of the Bundle: `composer_design_core_system_prompt`,
  * `session_skills`, and `active_stages`.
  *
  * Every byte here is identical across tasks that share a strategy version, task
@@ -142,7 +142,7 @@ const CONTEXT_SLOTS = [
   'prior_transcript',
 ] as const;
 const BUNDLE_SLOTS = [
-  'open_design_core_system_prompt',
+  'composer_design_core_system_prompt',
   'session_skills',
   'active_stages',
   'task_metadata',
@@ -241,12 +241,12 @@ function buildTree(input: OdNextPromptBundleV2): CanonicalXmlNode {
   }
   return {
     kind: 'element',
-    tag: 'open_design_prompt_bundle',
+    tag: 'composer_design_prompt_bundle',
     attributes: [['schema', OD_NEXT_PROMPT_BUNDLE_SCHEMA_V2]],
     children: [
       {
         kind: 'element',
-        tag: 'open_design_core_system_prompt',
+        tag: 'composer_design_core_system_prompt',
         children: [
           textNode('execution_boundary', core.executionBoundary, 'executionBoundary'),
           {
@@ -390,21 +390,21 @@ function readStages(node: CanonicalXmlElementNode): OdNextPromptBundleStageV2[] 
  */
 export function parseOdNextPromptBundleV2(source: string): OdNextPromptBundleV2 {
   const root = requireCanonicalXmlElement(parseCanonicalXml(source), 'bundle');
-  if (root.tag !== 'open_design_prompt_bundle') {
-    throw new TypeError('Prompt Bundle root must be open_design_prompt_bundle.');
+  if (root.tag !== 'composer_design_prompt_bundle') {
+    throw new TypeError('Prompt Bundle root must be composer_design_prompt_bundle.');
   }
   if (requireCanonicalXmlAttribute(root, 'schema', 'bundle') !== OD_NEXT_PROMPT_BUNDLE_SCHEMA_V2) {
     throw new TypeError('Prompt Bundle schema is not ' + OD_NEXT_PROMPT_BUNDLE_SCHEMA_V2 + '.');
   }
   const top = indexCanonicalXmlChildren(root, BUNDLE_SLOTS, 'bundle');
   const coreNode = requireCanonicalXmlElement(
-    top.get('open_design_core_system_prompt'),
-    'open_design_core_system_prompt',
+    top.get('composer_design_core_system_prompt'),
+    'composer_design_core_system_prompt',
   );
   const core = indexCanonicalXmlChildren(
     coreNode,
     CORE_SYSTEM_PROMPT_SLOTS,
-    'open_design_core_system_prompt',
+    'composer_design_core_system_prompt',
   );
   const nativeExecution = requireCanonicalXmlText(
     core.get('native_execution'),

@@ -189,7 +189,7 @@ function configuredAmrEnv(
 }
 
 /**
- * Run the same resolved Vela binary and environment used by OpenDesign login
+ * Run the same resolved Vela binary and environment used by ComposerDesign login
  * and AMR agent launches. Resource/team/collab adapters must use this instead
  * of spawning a PATH-only `vela` process, otherwise a packaged login can
  * succeed while the collaboration command uses a different or missing CLI.

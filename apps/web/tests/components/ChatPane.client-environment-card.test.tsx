@@ -125,7 +125,7 @@ describe('S30 · 环境类报错卡的按钮', () => {
     expect(ids[0]).toBe('chat-error-open-settings');
   });
 
-  it('不推「切到 Open Design 智能体」—— 公司网络在那条路上一样在', () => {
+  it('不推「切到 Composer Design 智能体」—— 公司网络在那条路上一样在', () => {
     const { container } = renderPane({ onOpenSettings: vi.fn(), onRetry: vi.fn() });
     expect(container.querySelector('.amr-guidance')).toBeNull();
   });

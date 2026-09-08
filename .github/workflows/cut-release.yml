@@ -9,8 +9,6 @@ name: cut-release
 # -> builds a nightly package and posts the Feishu card.
 
 on:
-  schedule:
-    - cron: '0 1 * * 2'        # 01:00 UTC = 09:00 Asia/Shanghai, Tuesday
   workflow_dispatch:
     inputs:
       version:

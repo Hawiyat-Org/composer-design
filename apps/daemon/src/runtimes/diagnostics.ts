@@ -91,7 +91,7 @@ export function buildVersionDiagnostic(
     return {
       reason: 'version-probe-failed',
       severity: 'error',
-      message: `${def.name} was found, but OpenDesign could not verify its version.`,
+      message: `${def.name} was found, but ComposerDesign could not verify its version.`,
       detail: `Expected ${expected}.`,
       fixActions: [
         { kind: 'openDocs' },
@@ -103,7 +103,7 @@ export function buildVersionDiagnostic(
   return {
     reason: 'untested-version',
     severity: 'warning',
-    message: `${def.name} ${version} has not been tested with this OpenDesign build.`,
+    message: `${def.name} ${version} has not been tested with this ComposerDesign build.`,
     detail: `Tested versions: ${expected}.`,
     fixActions: [
       { kind: 'openDocs' },
@@ -119,8 +119,8 @@ export function buildCompatibilityDiagnostic(
   return {
     reason: 'runtime-profile-incompatible',
     severity: 'error',
-    message: `${def.name} is installed, but its OpenDesign profile is missing or incompatible.`,
-    detail: 'Install the pinned OpenDesign profile bundle in Harness profile `open-design`, then rescan.',
+    message: `${def.name} is installed, but its ComposerDesign profile is missing or incompatible.`,
+    detail: 'Install the pinned ComposerDesign profile bundle in Harness profile `open-design`, then rescan.',
     fixActions: [
       { kind: 'openDocs' },
       { kind: 'rescan' },

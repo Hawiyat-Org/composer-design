@@ -5,10 +5,10 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
-  OpenDesignHostUpdaterOpenDialogListener,
-  OpenDesignHostUpdaterStatusSnapshot,
+  ComposerDesignHostUpdaterOpenDialogListener,
+  ComposerDesignHostUpdaterStatusSnapshot,
 } from '@open-design/host';
-import { installMockOpenDesignHost } from '@open-design/host/testing';
+import { installMockComposerDesignHost } from '@open-design/host/testing';
 
 import { App } from '../../src/App';
 import { fetchAmrModels, fetchVelaLoginStatus } from '../../src/providers/daemon';
@@ -155,8 +155,8 @@ const baseConfig: AppConfig = {
 };
 
 function idleStatus(
-  overrides: Partial<OpenDesignHostUpdaterStatusSnapshot> = {},
-): OpenDesignHostUpdaterStatusSnapshot {
+  overrides: Partial<ComposerDesignHostUpdaterStatusSnapshot> = {},
+): ComposerDesignHostUpdaterStatusSnapshot {
   return {
     arch: 'arm64',
     capabilities: {
@@ -219,7 +219,7 @@ describe('App updater dialog integration', () => {
   });
 
   it('exposes the desktop host platform on the workspace shell', () => {
-    restoreHost = installMockOpenDesignHost({
+    restoreHost = installMockComposerDesignHost({
       host: {
         client: {
           platform: 'win32',
@@ -236,14 +236,14 @@ describe('App updater dialog integration', () => {
   });
 
   it('mounts the updater open-dialog subscription and handles the mac app menu request', async () => {
-    let openDialogListener: OpenDesignHostUpdaterOpenDialogListener | null = null;
+    let openDialogListener: ComposerDesignHostUpdaterOpenDialogListener | null = null;
     const check = vi.fn(async () => idleStatus({ state: 'not-available' }));
     const unsubscribeOpenDialog = vi.fn();
-    const subscribeOpenDialog = vi.fn((listener: OpenDesignHostUpdaterOpenDialogListener) => {
+    const subscribeOpenDialog = vi.fn((listener: ComposerDesignHostUpdaterOpenDialogListener) => {
       openDialogListener = listener;
       return unsubscribeOpenDialog;
     });
-    restoreHost = installMockOpenDesignHost({
+    restoreHost = installMockComposerDesignHost({
       host: {
         updater: {
           check,
@@ -273,12 +273,12 @@ describe('App updater dialog integration', () => {
 
   it('shows the update-ready rocket in the project-detail account cluster', async () => {
     routeState.current = { kind: 'project', projectId: 'project-1' };
-    restoreHost = installMockOpenDesignHost({
+    restoreHost = installMockComposerDesignHost({
       host: {
         updater: {
           status: vi.fn(async () => idleStatus({
             availableVersion: '1.2.4',
-            downloadPath: '/tmp/open-design-updater/Open Design Beta.dmg',
+            downloadPath: '/tmp/open-design-updater/Composer Design Beta.dmg',
             state: 'downloaded',
           })),
         },

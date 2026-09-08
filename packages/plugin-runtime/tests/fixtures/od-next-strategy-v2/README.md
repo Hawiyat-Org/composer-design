@@ -10,13 +10,13 @@ demo harness, or companion service.
 - Reviewed source assets: `strategy/assets/general-orchestration.md`,
   `strategy/assets/core-system-prompt.md`, `strategy/assets/prototype.md`, and
   `strategy/assets/hyperframes.md`.
-- Open Design target contract: OD Next Strategy V2, sections 1, 4, 6, and 18.
+- Composer Design target contract: OD Next Strategy V2, sections 1, 4, 6, and 18.
 
 The source material was not copied verbatim. `prebuild-cases.json` reduces it
 to route, stage, Task Profile, Preflight, clarification, Plan Contract,
 contract-serialization repair, and simple/complex Build expectations. The PPT
 and marketing Task Profiles are active alongside prototype and HyperFrames;
-the fixture freezes all four Open Design-owned production artifact lanes.
+the fixture freezes all four Composer Design-owned production artifact lanes.
 
 ## Deletion rule
 

@@ -29,14 +29,14 @@ describe('amrRechargeUrlForProfile', () => {
   // entry this module builds therefore targets `/dashboard`, not `/wallet`.
   it('targets the console dashboard on every AMR profile', () => {
     expect(DEFAULT_AMR_RECHARGE_URL).toBe(
-      'https://open-design.ai/amr/dashboard?source=open_design',
+      'https://open-design.ai/amr/dashboard?source=composer_design',
     );
     expect(amrRechargeUrlForProfile('prod')).toBe(DEFAULT_AMR_RECHARGE_URL);
     expect(amrRechargeUrlForProfile('test')).toBe(
-      'https://open-design.powerformer.net/cloud/dashboard?source=open_design',
+      'https://open-design.powerformer.net/cloud/dashboard?source=composer_design',
     );
     expect(amrRechargeUrlForProfile('local')).toBe(
-      'http://localhost:5173/dashboard?source=open_design',
+      'http://localhost:5173/dashboard?source=composer_design',
     );
     expect(amrRechargeUrlForProfile(' unknown ')).toBe(DEFAULT_AMR_RECHARGE_URL);
     expect(amrRechargeUrlForProfile(null)).toBe(DEFAULT_AMR_RECHARGE_URL);
@@ -56,14 +56,14 @@ describe('amrRechargeUrlForProfile', () => {
   it('uses the runtime console origin the daemon reported for a non-prod profile', () => {
     setRuntimeAmrConsoleOrigin(RUNTIME_CONSOLE_ORIGIN);
     expect(amrRechargeUrlForProfile('feature-test')).toBe(
-      `${RUNTIME_CONSOLE_ORIGIN}/dashboard?source=open_design`,
+      `${RUNTIME_CONSOLE_ORIGIN}/dashboard?source=composer_design`,
     );
   });
 
   it('tolerates a trailing slash and blank runtime origins', () => {
     setRuntimeAmrConsoleOrigin(`${RUNTIME_CONSOLE_ORIGIN}/`);
     expect(amrRechargeUrlForProfile('feature-test')).toBe(
-      `${RUNTIME_CONSOLE_ORIGIN}/dashboard?source=open_design`,
+      `${RUNTIME_CONSOLE_ORIGIN}/dashboard?source=composer_design`,
     );
     setRuntimeAmrConsoleOrigin('   ');
     expect(amrRechargeUrlForProfile('feature-test')).toBe(DEFAULT_AMR_RECHARGE_URL);
@@ -105,10 +105,10 @@ describe('workspace-scoped AMR URLs', () => {
   it('pins both console links to the workspace', () => {
     setRuntimeAmrConsoleOrigin(RUNTIME_CONSOLE_ORIGIN);
     expect(amrConsoleUrlForWorkspace('feature-test', ' workspace-a ')).toBe(
-      `${RUNTIME_CONSOLE_ORIGIN}/dashboard?source=open_design&workspaceId=workspace-a`,
+      `${RUNTIME_CONSOLE_ORIGIN}/dashboard?source=composer_design&workspaceId=workspace-a`,
     );
     expect(amrPlansUrlForWorkspace('feature-test', ' workspace-a ')).toBe(
-      `${RUNTIME_CONSOLE_ORIGIN}/dashboard?source=open_design&workspaceId=workspace-a&billing=plan`,
+      `${RUNTIME_CONSOLE_ORIGIN}/dashboard?source=composer_design&workspaceId=workspace-a&billing=plan`,
     );
   });
 
@@ -493,7 +493,7 @@ describe('resolveRunFailureUi', () => {
     });
   });
 
-  // PRD "需要登录" — non-AMR agents. OpenDesign can't sign in for them (their
+  // PRD "需要登录" — non-AMR agents. ComposerDesign can't sign in for them (their
   // login lives in the user's own terminal), so the card shows the {agent}
   // sign-in copy, a plain Retry primary, and promotes AMR via the switch card.
   it('shows sign-in copy + retry + AMR promotion for non-AMR AGENT_AUTH_REQUIRED / UNAUTHORIZED', () => {

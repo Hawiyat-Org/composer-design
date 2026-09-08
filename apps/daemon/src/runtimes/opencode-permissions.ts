@@ -25,7 +25,7 @@ export function appendOpenCodePermissionBypass(args: string[], agentId: string):
  * `opencode debug scrap`, whose every registered project is a git root). A
  * managed project directory is not a git repository, and a development install
  * keeps the daemon data directory under the repository root — so OpenCode walks
- * past the project and adopts the whole Open Design checkout.
+ * past the project and adopts the whole Composer Design checkout.
  *
  * The consequences are all silent: the agent names the repository root as its
  * workspace and writes the deliverable there, the project directory stays

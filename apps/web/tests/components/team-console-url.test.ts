@@ -14,7 +14,7 @@ const RUNTIME_CONSOLE_ORIGIN = 'https://vela.example.invalid';
  * the ruling put the upgrade entries back on the console.
  */
 const PROD_CONSOLE_PLAN_URL =
-  'https://open-design.ai/amr/dashboard?source=open_design&billing=plan';
+  'https://open-design.ai/amr/dashboard?source=composer_design&billing=plan';
 
 afterEach(() => {
   setRuntimeAmrConsoleOrigin(null);
@@ -192,7 +192,7 @@ describe('workspaceUpgradeUrl', () => {
   it('follows the caller profile for CTA callers that must always link somewhere', () => {
     setRuntimeAmrConsoleOrigin(RUNTIME_CONSOLE_ORIGIN);
     expect(workspaceUpgradeUrl(null, null, { fallbackProfile: 'feature-test' })).toBe(
-      `${RUNTIME_CONSOLE_ORIGIN}/dashboard?source=open_design&billing=plan`,
+      `${RUNTIME_CONSOLE_ORIGIN}/dashboard?source=composer_design&billing=plan`,
     );
     expect(workspaceUpgradeUrl(null, null, { fallbackProfile: 'prod' })).toBe(
       PROD_CONSOLE_PLAN_URL,

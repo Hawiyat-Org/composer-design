@@ -105,7 +105,7 @@ interface DaemonSystemPromptResult {
   prompt: string;
   /**
    * Structured cache-stable head of the canonical Bundle
-   * (`open_design_core_system_prompt`, `session_skills`, `active_stages`). Null
+   * (`composer_design_core_system_prompt`, `session_skills`, `active_stages`). Null
    * when the run has no verified OD Next recipe, which the Bundle path treats
    * as fatal rather than falling back to an untyped Markdown payload.
    */

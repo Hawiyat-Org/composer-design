@@ -119,7 +119,7 @@ export async function runElectronBuilder(
       version: packageVersion,
     },
     extraResources: [
-      { from: paths.resourceRoot, to: "open-design" },
+      { from: paths.resourceRoot, to: "composer-design" },
       { from: paths.packagedConfigPath, to: "open-design-config.json" },
       // Vendored dom-to-pptx browser bundle for editable PPTX export. The desktop
       // main reads it from process.resourcesPath at runtime.

@@ -30,7 +30,7 @@ import { SocialShareGrid } from './SocialShareGrid';
 import { enterpriseUrl } from './enterpriseUrl';
 
 const DISCORD_URL = 'https://discord.gg/mHAjSMV6gz';
-const X_URL = 'https://x.com/OpenDesignHQ';
+const X_URL = 'https://x.com/ComposerDesignHQ';
 const THREADS_URL = 'https://www.threads.com/@opendesign.ai';
 const YOUTUBE_URL = 'https://www.youtube.com/@Open-Design-ai';
 const INSTAGRAM_URL = 'https://www.instagram.com/opendesign.ai/';
@@ -83,7 +83,7 @@ export function EntrySettingsMenu({
   const discordPresence = useDiscordPresence();
   const [open, setOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
-  const [openDesignShare, setOpenDesignShare] = useState<SocialShareResponse | null>(null);
+  const [composerDesignShare, setComposerDesignShare] = useState<SocialShareResponse | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const langListRef = useRef<HTMLDivElement | null>(null);
@@ -92,22 +92,22 @@ export function EntrySettingsMenu({
         count: formatDiscordPresenceCount(discordPresence.onlineCount),
       })
     : null;
-  const openDesignShareRequest = useMemo<SocialShareRequest>(() => {
-    const text = t('socialShare.openDesignText');
+  const composerDesignShareRequest = useMemo<SocialShareRequest>(() => {
+    const text = t('socialShare.composerDesignText');
     return {
       kind: 'open-design-repo',
       locale,
-      title: t('socialShare.openDesignTitle'),
+      title: t('socialShare.composerDesignTitle'),
       text,
-      copyText: t('socialShare.openDesignCopyText', {
+      copyText: t('socialShare.composerDesignCopyText', {
         text,
         url: OPEN_DESIGN_GITHUB_REPO_URL,
       }),
     };
   }, [locale, t]);
-  const fallbackOpenDesignShare = useMemo(
-    () => buildSocialSharePayload(openDesignShareRequest),
-    [openDesignShareRequest],
+  const fallbackComposerDesignShare = useMemo(
+    () => buildSocialSharePayload(composerDesignShareRequest),
+    [composerDesignShareRequest],
   );
 
   useEffect(() => {
@@ -157,18 +157,18 @@ export function EntrySettingsMenu({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    setOpenDesignShare(null);
-    void createSocialSharePayload(openDesignShareRequest)
+    setComposerDesignShare(null);
+    void createSocialSharePayload(composerDesignShareRequest)
       .then((payload) => {
-        if (!cancelled) setOpenDesignShare(payload);
+        if (!cancelled) setComposerDesignShare(payload);
       })
       .catch(() => {
-        if (!cancelled) setOpenDesignShare(null);
+        if (!cancelled) setComposerDesignShare(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [open, openDesignShareRequest]);
+  }, [open, composerDesignShareRequest]);
 
   return (
     <div className="entry-settings-menu" ref={wrapRef}>
@@ -278,10 +278,10 @@ export function EntrySettingsMenu({
           <section className="entry-settings-menu__section">
             <div className="entry-settings-menu__section-title">
               <Icon name="external-link" size={14} />
-              <span>{t('socialShare.openDesignSection')}</span>
+              <span>{t('socialShare.composerDesignSection')}</span>
             </div>
             <SocialShareGrid
-              share={openDesignShare ?? fallbackOpenDesignShare}
+              share={composerDesignShare ?? fallbackComposerDesignShare}
               className="entry-settings-social-share"
               onShare={(platform) => {
                 trackSettingsPopoverClick(analytics.track, {

@@ -1,14 +1,14 @@
-export function orderAgentsWithOpenDesignFirst<T extends { id: string }>(
+export function orderAgentsWithComposerDesignFirst<T extends { id: string }>(
   agents: readonly T[],
 ): T[] {
-  const openDesignAgents: T[] = [];
+  const composerDesignAgents: T[] = [];
   const otherAgents: T[] = [];
   for (const agent of agents) {
     if (agent.id === 'amr') {
-      openDesignAgents.push(agent);
+      composerDesignAgents.push(agent);
     } else {
       otherAgents.push(agent);
     }
   }
-  return [...openDesignAgents, ...otherAgents];
+  return [...composerDesignAgents, ...otherAgents];
 }

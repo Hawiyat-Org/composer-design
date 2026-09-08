@@ -5,20 +5,20 @@ import {
   downloadHostUpdater,
   getHostUpdaterStatus,
   installHostUpdater,
-  isOpenDesignHostAvailable,
+  isComposerDesignHostAvailable,
   quitHostAfterUpdaterInstallerOpen,
   setHostUpdaterMenuLabels,
   subscribeHostUpdater,
   subscribeHostUpdaterOpenDialog,
-  type OpenDesignHostActionResult,
-  type OpenDesignHostFailure,
-  type OpenDesignHostUpdaterActionOptions,
-  type OpenDesignHostUpdaterMenuLabels,
-  type OpenDesignHostUpdaterOpenDialogListener,
-  type OpenDesignHostUpdaterReinstallSnapshot,
-  type OpenDesignHostUpdaterResult,
-  type OpenDesignHostUpdaterStatusListener,
-  type OpenDesignHostUpdaterStatusSnapshot,
+  type ComposerDesignHostActionResult,
+  type ComposerDesignHostFailure,
+  type ComposerDesignHostUpdaterActionOptions,
+  type ComposerDesignHostUpdaterMenuLabels,
+  type ComposerDesignHostUpdaterOpenDialogListener,
+  type ComposerDesignHostUpdaterReinstallSnapshot,
+  type ComposerDesignHostUpdaterResult,
+  type ComposerDesignHostUpdaterStatusListener,
+  type ComposerDesignHostUpdaterStatusSnapshot,
 } from '@open-design/host';
 
 export type UpdaterEnvironment = 'desktop' | 'web';
@@ -30,8 +30,8 @@ export type UpdaterDownloadProgress = {
 };
 
 export type UpdaterActionResult =
-  | { ok: true; model: UpdaterModel; status: OpenDesignHostUpdaterStatusSnapshot }
-  | OpenDesignHostFailure;
+  | { ok: true; model: UpdaterModel; status: ComposerDesignHostUpdaterStatusSnapshot }
+  | ComposerDesignHostFailure;
 
 export type UpdaterRestartSafety =
   | { activeRunCount: number; state: 'blocked' }
@@ -59,16 +59,16 @@ export type UpdaterModel = {
    * outdated installed outer package). UI copy priority: `reinstall.url`
    * jump link > default i18n reinstall copy.
    */
-  reinstall: OpenDesignHostUpdaterReinstallSnapshot | null;
+  reinstall: ComposerDesignHostUpdaterReinstallSnapshot | null;
   requiresManualInstall: boolean;
   upToDate: boolean;
   shouldShowControl: boolean;
   shouldPrompt: boolean;
-  status: OpenDesignHostUpdaterStatusSnapshot | null;
+  status: ComposerDesignHostUpdaterStatusSnapshot | null;
   supported: boolean;
 };
 
-function modelFromHostResult(result: OpenDesignHostUpdaterResult): UpdaterActionResult {
+function modelFromHostResult(result: ComposerDesignHostUpdaterResult): UpdaterActionResult {
   if (!result.ok) return result;
   return {
     ok: true,
@@ -83,7 +83,7 @@ function clampPercent(value: number): number {
 }
 
 function downloadProgressFromStatus(
-  status: OpenDesignHostUpdaterStatusSnapshot | null,
+  status: ComposerDesignHostUpdaterStatusSnapshot | null,
 ): UpdaterDownloadProgress | null {
   if (status == null) return null;
   if (status.state !== OPEN_DESIGN_HOST_UPDATER_STATES.DOWNLOADING) return null;
@@ -103,10 +103,10 @@ function downloadProgressFromStatus(
 }
 
 export function deriveUpdaterModel(
-  status: OpenDesignHostUpdaterStatusSnapshot | null,
+  status: ComposerDesignHostUpdaterStatusSnapshot | null,
   options: { hostAvailable?: boolean } = {},
 ): UpdaterModel {
-  const hostAvailable = options.hostAvailable ?? isOpenDesignHostAvailable();
+  const hostAvailable = options.hostAvailable ?? isComposerDesignHostAvailable();
   const environment: UpdaterEnvironment = hostAvailable ? 'desktop' : 'web';
   const state = status?.state;
   const busy =
@@ -175,48 +175,48 @@ export function deriveUpdaterModel(
   };
 }
 
-export async function readUpdaterStatus(options?: OpenDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
+export async function readUpdaterStatus(options?: ComposerDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
   return modelFromHostResult(await getHostUpdaterStatus(options));
 }
 
-export async function checkForUpdaterUpdate(options?: OpenDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
+export async function checkForUpdaterUpdate(options?: ComposerDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
   return modelFromHostResult(await checkHostUpdater(options));
 }
 
-export async function downloadUpdaterUpdate(options?: OpenDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
+export async function downloadUpdaterUpdate(options?: ComposerDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
   return modelFromHostResult(await downloadHostUpdater(options));
 }
 
-export async function openUpdaterInstaller(options?: OpenDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
+export async function openUpdaterInstaller(options?: ComposerDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
   return modelFromHostResult(await installHostUpdater(options));
 }
 
-export async function clearUpdaterCache(options?: OpenDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
+export async function clearUpdaterCache(options?: ComposerDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
   return modelFromHostResult(await clearHostUpdaterCache(options));
 }
 
 export async function quitAfterUpdaterInstallerOpen(
-  options?: OpenDesignHostUpdaterActionOptions,
-): Promise<OpenDesignHostActionResult> {
+  options?: ComposerDesignHostUpdaterActionOptions,
+): Promise<ComposerDesignHostActionResult> {
   return await quitHostAfterUpdaterInstallerOpen(options);
 }
 
-export function subscribeToUpdaterStatus(listener: OpenDesignHostUpdaterStatusListener): () => void {
+export function subscribeToUpdaterStatus(listener: ComposerDesignHostUpdaterStatusListener): () => void {
   return subscribeHostUpdater(listener);
 }
 
-export function subscribeToUpdaterOpenDialog(listener: OpenDesignHostUpdaterOpenDialogListener): () => void {
+export function subscribeToUpdaterOpenDialog(listener: ComposerDesignHostUpdaterOpenDialogListener): () => void {
   return subscribeHostUpdaterOpenDialog(listener);
 }
 
 export async function syncUpdaterMenuLabels(
-  labels: OpenDesignHostUpdaterMenuLabels,
-): Promise<OpenDesignHostActionResult> {
+  labels: ComposerDesignHostUpdaterMenuLabels,
+): Promise<ComposerDesignHostActionResult> {
   return await setHostUpdaterMenuLabels(labels);
 }
 
 export function restartSafetyFromUpdaterStatus(
-  status: OpenDesignHostUpdaterStatusSnapshot | null,
+  status: ComposerDesignHostUpdaterStatusSnapshot | null,
 ): UpdaterRestartSafety | null {
   const code = status?.error?.code;
   if (code !== 'active-runs-blocked' && code !== 'active-runs-unknown') return null;
@@ -231,7 +231,7 @@ export function restartSafetyFromUpdaterStatus(
   return { activeRunCount: null, state: 'unknown' };
 }
 
-export function restartSafetyFromActionResult(result: OpenDesignHostActionResult): UpdaterRestartSafety | null {
+export function restartSafetyFromActionResult(result: ComposerDesignHostActionResult): UpdaterRestartSafety | null {
   if (result.ok || (result.reason !== 'active-runs-blocked' && result.reason !== 'active-runs-unknown')) {
     return null;
   }

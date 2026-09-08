@@ -5,7 +5,7 @@ import { stripInternalControlMarkers } from '../../src/artifacts/internal-marker
 describe('stripInternalControlMarkers', () => {
   it('removes a leaked conversation-title marker from settled prose', () => {
     const text = [
-      '我会使用 Open Design 技能把已确认的电商流程整理为可执行的原型计划。',
+      '我会使用 Composer Design 技能把已确认的电商流程整理为可执行的原型计划。',
       '<od-title>LV奢侈品电商原型</od-title>',
       '目标已锁定为响应式 LV 奢侈品电商概念原型。',
     ].join('\n');
@@ -13,7 +13,7 @@ describe('stripInternalControlMarkers', () => {
     const out = stripInternalControlMarkers(text);
 
     expect(out).not.toContain('od-title');
-    expect(out).toContain('我会使用 Open Design 技能');
+    expect(out).toContain('我会使用 Composer Design 技能');
     expect(out).toContain('目标已锁定为响应式');
   });
 

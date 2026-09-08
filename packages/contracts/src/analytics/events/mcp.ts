@@ -33,7 +33,7 @@ export type McpFailureStage =
 export type McpFailureSource =
   | 'codex_host'
   | 'local_mcp'
-  | 'open_design_daemon'
+  | 'composer_design_daemon'
   | 'runtime_cli'
   | 'vela_api'
   | 'model_provider'

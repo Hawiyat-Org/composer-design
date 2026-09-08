@@ -107,7 +107,7 @@ export type BundledDshRuntimeManifest = {
  * Materializes the OD-owned DSH profile as a fixed, integrity-addressed
  * package inside the application resources. The user's official `dsh`
  * installation remains external; this tarball is only the thin bridge that
- * teaches it Open Design's versioned JSONL stdio protocol.
+ * teaches it Composer Design's versioned JSONL stdio protocol.
  */
 export async function packBundledDshRuntime({
   workspaceRoot,

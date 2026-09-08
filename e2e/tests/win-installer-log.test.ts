@@ -6,13 +6,13 @@ describe('working Windows installer overwrite log contract', () => {
   it('accepts the current remove, extract, and launcher-runtime sync lifecycle', () => {
     const lines = [
       'existing installation found; silent install will overwrite it',
-      'event=install_dir_before_remove target=C:\\Open Design exists=1',
+      'event=install_dir_before_remove target=C:\\Composer Design exists=1',
       'install dir remove exit=0',
-      'event=install_dir_after_remove target=C:\\Open Design exists=0',
+      'event=install_dir_after_remove target=C:\\Composer Design exists=0',
       'payload base extraction exit=0',
       'payload overlay extraction exit=0',
-      'event=install_dir_after_extract target=C:\\Open Design exists=1',
-      'event=installed_exe_after_extract target=C:\\Open Design\\Open Design.exe exists=1',
+      'event=install_dir_after_extract target=C:\\Composer Design exists=1',
+      'event=installed_exe_after_extract target=C:\\Composer Design\\Composer Design.exe exists=1',
       'launcher runtime sync exit=0',
       'event=launcher_runtime_after_write path=C:\\launcher\\runtime.json',
       'install section done',
@@ -24,8 +24,8 @@ describe('working Windows installer overwrite log contract', () => {
   it('reports lifecycle gaps without requiring the reverted transactional markers', () => {
     const lines = [
       'existing installation found; silent install will overwrite it',
-      'event=install_dir_after_quarantine target=C:\\Open Design.back exists=1',
-      'event=install_dir_after_commit target=C:\\Open Design exists=1',
+      'event=install_dir_after_quarantine target=C:\\Composer Design.back exists=1',
+      'event=install_dir_after_commit target=C:\\Composer Design exists=1',
       'install transaction cleanup exit=0',
     ];
 

@@ -207,7 +207,7 @@ describe('PUT /api/workspace/active announces a confirmed switch for cache warmi
     const result = await api.switchTo(TEAM);
 
     expect((result.body.context as { workspaceSettingsUrl?: string }).workspaceSettingsUrl).toBe(
-      'https://feature.example/settings?workspaceId=ws-team&source=open_design',
+      'https://feature.example/settings?workspaceId=ws-team&source=composer_design',
     );
   });
 

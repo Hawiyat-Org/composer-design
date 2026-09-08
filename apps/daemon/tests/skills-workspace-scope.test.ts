@@ -29,7 +29,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createOpenDesignToolEnv, startServer } from '../src/server.js';
+import { createComposerDesignToolEnv, startServer } from '../src/server.js';
 import {
   ensureWorkspaceResource,
   getWorkspaceResourceByResourceId,
@@ -140,7 +140,7 @@ describe('GET /api/skills — workspace visibility scope', () => {
     for (const memberId of ['member-owner', 'member-other', null]) {
       const env = {
         ...process.env,
-        ...createOpenDesignToolEnv({
+        ...createComposerDesignToolEnv({
           daemonUrl: baseUrl,
           projectId: 'project-media',
           workspaceScope: memberId ? {

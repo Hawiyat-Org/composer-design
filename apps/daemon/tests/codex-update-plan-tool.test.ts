@@ -10,7 +10,7 @@ import {
  * OPEND-2410 — codex writes its plan into the reply body instead of calling
  * `update_plan`, so no Todos card ever appears.
  *
- * This is a REGRESSION caused by the codex CLI, not by an OpenDesign prompt.
+ * This is a REGRESSION caused by the codex CLI, not by an ComposerDesign prompt.
  * codex ships a `[tools]` config table (`ToolsToml { web_search,
  * experimental_request_user_input, update_plan }`, with
  * `UpdatePlanToolConfig { enabled }` — both readable in the 0.153.0 binary),

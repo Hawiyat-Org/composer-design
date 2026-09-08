@@ -4,7 +4,7 @@
 // inlines TOP-LEVEL relative `<link rel=stylesheet>` and
 // `<script src=...>` tags into the response HTML — the viewer itself
 // stays URL-load by default since PR #384 (Part 1 of
-// nexu-io/open-design#368).
+// hawiyat/composer-design#368).
 //
 // Scope: this helper handles two tag families only. The following are
 // NOT rewritten and remain external in the response:
@@ -27,7 +27,7 @@
 // Memory profile: the helper holds one Buffer-as-string copy of the
 // owner HTML plus one string copy of each sibling asset body, plus the
 // concatenated output. The daemon is local-first (single-user, on the
-// developer's machine — see open_design_architecture.md), so the
+// developer's machine — see composer_design_architecture.md), so the
 // effective ceiling is the size of the user's own project; no hard
 // cap is enforced. If you're surfacing this endpoint to non-trusted
 // callers later, you'll want a bounded-concurrency reader and an

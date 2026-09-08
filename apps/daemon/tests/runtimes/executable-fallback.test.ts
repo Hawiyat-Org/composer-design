@@ -148,7 +148,7 @@ describe('agent executable resolution falls back past unusable candidates', () =
   }
 
   // The production report behind this suite: a stale `npm i -g` wrapper sat in
-  // a directory that OpenDesign searches *before* the one the official
+  // a directory that ComposerDesign searches *before* the one the official
   // installer writes to, so the working CLI was never reached and the agent
   // vanished from the picker entirely.
   it('reaches a working binary that sits behind a broken one on PATH', async () => {

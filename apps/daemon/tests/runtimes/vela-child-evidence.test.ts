@@ -140,7 +140,7 @@ describe('Vela OpenCode child evidence adapter', () => {
     );
     expect(seed).toMatchObject({
       fixtureKind: 'sanitized_real_best_effort',
-      evidenceReview: 'open_design_best_effort',
+      evidenceReview: 'composer_design_best_effort',
       velaVersion: '0.0.1-od-next-local',
       velaCommit: VELA_CHILD_EVIDENCE_CANDIDATE.commit,
       openCodeVersion: '1.18.18',

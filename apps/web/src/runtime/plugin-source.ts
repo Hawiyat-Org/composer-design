@@ -49,8 +49,8 @@ export interface PluginSourceLinks {
   contributeOnGithub: boolean;
 }
 
-const OPEN_DESIGN_REPO_URL = 'https://github.com/nexu-io/open-design';
-const OPEN_DESIGN_REPO_LABEL = 'nexu-io/open-design';
+const OPEN_DESIGN_REPO_URL = 'https://github.com/hawiyat/composer-design';
+const OPEN_DESIGN_REPO_LABEL = 'hawiyat/composer-design';
 
 const GITHUB_SOURCE_RE = /^github:([A-Za-z0-9._-]+)\/([A-Za-z0-9._-]+)(?:@([A-Za-z0-9._/-]+))?(?:\/(.+))?$/;
 const GITHUB_PROFILE_RE = /^https?:\/\/(?:www\.)?github\.com\/([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}[A-Za-z0-9])?)(?:[\/?#].*)?$/;
@@ -226,7 +226,7 @@ export function derivePluginSourceLinks(
 /**
  * Deterministic two-letter monogram for the avatar fallback. CamelCase
  * boundaries count as word breaks so single-token brand names like
- * "OpenDesign" still yield a two-letter monogram ("OD").
+ * "ComposerDesign" still yield a two-letter monogram ("OD").
  */
 export function authorInitials(name: string | null): string {
   if (!name) return '??';

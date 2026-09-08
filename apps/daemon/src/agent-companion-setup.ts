@@ -17,8 +17,8 @@ import { execAgentFile } from './runtimes/invocation.js';
 import { applyAgentLaunchEnv, resolveAgentLaunch } from './runtimes/launch.js';
 import { getAgentDef } from './runtimes/registry.js';
 import {
-  hasOpenDesignProfile,
-  resolveOpenDesignProfileDir,
+  hasComposerDesignProfile,
+  resolveComposerDesignProfileDir,
 } from './runtimes/defs/deepseek-harness.js';
 
 const execFileAsync = promisify(execFile);
@@ -75,7 +75,7 @@ async function materializeDevelopmentBundle(
   if (!(await fileExists(packageJsonPath))) {
     throw new AgentCompanionSetupError(
       'BUNDLED_COMPANION_INVALID',
-      'This OpenDesign build does not contain the DeepSeek Harness connection component.',
+      'This ComposerDesign build does not contain the DeepSeek Harness connection component.',
     );
   }
   const destination = path.join(runtimeDataDir, 'runtime-packages', DSH_AGENT_ID);
@@ -153,13 +153,13 @@ async function stageVerifiedBundleInProfile(
 ): Promise<string> {
   const relativeDirectory = '.open-design';
   const file = `${manifest.sha256}.tgz`;
-  const profileDirectory = resolveOpenDesignProfileDir(env);
+  const profileDirectory = resolveComposerDesignProfileDir(env);
   const bundleDirectory = path.join(profileDirectory, relativeDirectory);
   await mkdir(bundleDirectory, { recursive: true });
   await writeFile(path.join(bundleDirectory, file), bytes);
   // dsh runs pnpm with the profile directory as cwd. Keeping this spec
   // relative avoids rc.6's Windows shell forwarder splitting an absolute
-  // packaged-app path such as "OpenDesign" at its spaces.
+  // packaged-app path such as "ComposerDesign" at its spaces.
   return `${relativeDirectory}/${file}`;
 }
 
@@ -224,7 +224,7 @@ async function installDeepSeekHarnessCompanionOnce(options: {
     spawnEnvForAgent(DSH_AGENT_ID, process.env, configuredEnv),
     launch,
   );
-  const profileWasPresent = hasOpenDesignProfile(childEnv);
+  const profileWasPresent = hasComposerDesignProfile(childEnv);
   const packageSpec = await stageVerifiedBundleInProfile(childEnv, manifest, bytes);
   try {
     await execAgentFile(
@@ -239,7 +239,7 @@ async function installDeepSeekHarnessCompanionOnce(options: {
     );
     throw new AgentCompanionSetupError(
       'COMPANION_INSTALL_FAILED',
-      'DeepSeek Harness could not install the OpenDesign connection component. No agent selection was changed.',
+      'DeepSeek Harness could not install the ComposerDesign connection component. No agent selection was changed.',
     );
   }
 

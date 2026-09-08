@@ -3964,7 +3964,7 @@ button.filter-pill:hover:not(:disabled) .filter-pill-count,
 }
 .example-preview:hover {
   border-color: var(--accent);
-  box-shadow: 0 6px 18px rgba(201, 100, 66, 0.10);
+  box-shadow: 0 6px 18px rgba(120, 120, 120, 0.10);
 }
 .example-preview:focus-visible {
   outline: none;

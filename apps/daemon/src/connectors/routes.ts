@@ -319,21 +319,21 @@ function renderConnectorConnectedHtml(connectorId: string): string {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${connectorLabelHtml} connected · OpenDesign</title>
+    <title>${connectorLabelHtml} connected · ComposerDesign</title>
     <style>
       :root {
-        --bg: #faf9f7;
+        --bg: #f7f7f7;
         --bg-panel: #ffffff;
-        --bg-subtle: #f4f2ed;
-        --border: #ebe8e1;
-        --border-strong: #d8d4cb;
+        --bg-subtle: #f2f2f2;
+        --border: #e5e5e5;
+        --border-strong: #d0d0d0;
         --text: #1a1916;
         --text-strong: #0d0c0a;
         --text-muted: #74716b;
         --text-soft: #989590;
-        --accent: #c96442;
-        --accent-hover: #b45a3b;
-        --accent-tint: #fbeee5;
+        --accent: #787878;
+        --accent-hover: #5e5e5e;
+        --accent-tint: #f2f2f2;
         --green: #1f7a3a;
         --green-bg: #e8f7ee;
         --green-border: #c6ead2;
@@ -353,7 +353,7 @@ function renderConnectorConnectedHtml(connectorId: string): string {
         padding: 32px;
         color: var(--text);
         background:
-          radial-gradient(circle at 50% 0%, rgba(201, 100, 66, 0.11), transparent 34rem),
+          radial-gradient(circle at 50% 0%, rgba(120, 120, 120, 0.11), transparent 34rem),
           linear-gradient(180deg, #ffffff 0%, var(--bg) 42%, var(--bg) 100%);
         font: 13.5px/1.5 var(--sans);
         -webkit-font-smoothing: antialiased;
@@ -383,7 +383,7 @@ function renderConnectorConnectedHtml(connectorId: string): string {
         height: 24px;
         border-radius: 50%;
         color: var(--accent);
-        background: linear-gradient(135deg, #fbeee5 0%, #f5d8cb 100%);
+        background: linear-gradient(135deg, #f2f2f2 0%, #e8e8e8 100%);
         font-family: var(--serif);
         font-size: 11px;
         font-weight: 700;
@@ -455,7 +455,7 @@ function renderConnectorConnectedHtml(connectorId: string): string {
         padding: 8px 14px;
         color: white;
         background: var(--accent);
-        box-shadow: 0 1px 0 rgba(180, 90, 59, 0.18) inset, var(--shadow-xs);
+        box-shadow: 0 1px 0 rgba(120, 120, 120, 0.18) inset, var(--shadow-xs);
         font: 500 13px/1.4 var(--sans);
         cursor: pointer;
         transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
@@ -472,9 +472,9 @@ function renderConnectorConnectedHtml(connectorId: string): string {
   </head>
   <body>
     <main aria-labelledby="callback-title">
-      <div class="chrome" aria-label="OpenDesign">
+      <div class="chrome" aria-label="ComposerDesign">
         <span class="brand-mark" aria-hidden="true">OD</span>
-        <span class="brand-title">OpenDesign</span>
+        <span class="brand-title">ComposerDesign</span>
       </div>
       <section class="content">
         <div class="status-icon" aria-hidden="true">
@@ -484,7 +484,7 @@ function renderConnectorConnectedHtml(connectorId: string): string {
         </div>
         <div>
           <h1 id="callback-title">${connectorLabelHtml} connected</h1>
-          <p>Your connector is ready to use in OpenDesign.</p>
+          <p>Your connector is ready to use in ComposerDesign.</p>
         </div>
         <div class="summary" role="status">
           <span class="summary-label">
@@ -506,7 +506,7 @@ function renderConnectorConnectedHtml(connectorId: string): string {
         const hint = document.getElementById('auto-close-hint');
         function showManualCloseHint() {
           closeButton.textContent = 'Close this tab manually';
-          hint.textContent = 'Your browser blocked automatic closing. You can close this tab and return to OpenDesign.';
+          hint.textContent = 'Your browser blocked automatic closing. You can close this tab and return to ComposerDesign.';
         }
         function hasLiveOpener() {
           try {
@@ -539,10 +539,10 @@ function renderConnectorConnectedHtml(connectorId: string): string {
             window.opener.postMessage(message, '*');
             window.setTimeout(requestClose, 900);
           } else {
-            hint.textContent = 'You can close this tab and return to OpenDesign.';
+            hint.textContent = 'You can close this tab and return to ComposerDesign.';
           }
         } catch {
-          hint.textContent = 'You can close this tab and return to OpenDesign.';
+          hint.textContent = 'You can close this tab and return to ComposerDesign.';
         }
         closeButton.addEventListener('click', requestClose);
       })();

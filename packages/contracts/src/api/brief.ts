@@ -9,17 +9,17 @@ export const OPEN_DESIGN_BRIEF_ARTIFACT_TYPES = [
   'design-system',
 ] as const;
 
-export type OpenDesignBriefArtifactType =
+export type ComposerDesignBriefArtifactType =
   (typeof OPEN_DESIGN_BRIEF_ARTIFACT_TYPES)[number];
 
-export interface OpenDesignBriefOption {
+export interface ComposerDesignBriefOption {
   /** Stable, unlocalized value submitted by Desktop and CLI hosts. */
   id: string;
   label: string;
   description: string;
 }
 
-export interface OpenDesignBriefQuestion {
+export interface ComposerDesignBriefQuestion {
   /** Stable, artifact-qualified decision id. */
   id: string;
   label: string;
@@ -28,23 +28,23 @@ export interface OpenDesignBriefQuestion {
   required: true;
   allowCustom: false;
   defaultOptionId: string;
-  options: readonly OpenDesignBriefOption[];
+  options: readonly ComposerDesignBriefOption[];
 }
 
-export type OpenDesignBriefAnswers = Readonly<Record<string, readonly string[]>>;
+export type ComposerDesignBriefAnswers = Readonly<Record<string, readonly string[]>>;
 
-export interface OpenDesignBriefDecision {
-  artifactType: OpenDesignBriefArtifactType;
+export interface ComposerDesignBriefDecision {
+  artifactType: ComposerDesignBriefArtifactType;
   decisionSource: 'open-design-shared-brief-v1';
-  questions: readonly OpenDesignBriefQuestion[];
-  answers: OpenDesignBriefAnswers;
+  questions: readonly ComposerDesignBriefQuestion[];
+  answers: ComposerDesignBriefAnswers;
   summary: string;
   complete: boolean;
 }
 
-export interface CollectOpenDesignBriefInput {
-  artifactType: OpenDesignBriefArtifactType;
-  previousArtifactType?: OpenDesignBriefArtifactType;
+export interface CollectComposerDesignBriefInput {
+  artifactType: ComposerDesignBriefArtifactType;
+  previousArtifactType?: ComposerDesignBriefArtifactType;
   knownAnswers?: Readonly<Record<string, unknown>>;
   /**
    * Explicit "use recommended defaults" path. This is the deterministic
@@ -53,11 +53,11 @@ export interface CollectOpenDesignBriefInput {
   skip?: boolean;
 }
 
-export type OpenDesignBriefCatalog = Readonly<
-  Record<OpenDesignBriefArtifactType, readonly OpenDesignBriefQuestion[]>
+export type ComposerDesignBriefCatalog = Readonly<
+  Record<ComposerDesignBriefArtifactType, readonly ComposerDesignBriefQuestion[]>
 >;
 
-function option(id: string, label: string, description: string): OpenDesignBriefOption {
+function option(id: string, label: string, description: string): ComposerDesignBriefOption {
   return { id, label, description };
 }
 
@@ -66,8 +66,8 @@ function question(
   label: string,
   description: string,
   defaultOptionId: string,
-  options: readonly OpenDesignBriefOption[],
-): OpenDesignBriefQuestion {
+  options: readonly ComposerDesignBriefOption[],
+): ComposerDesignBriefQuestion {
   return {
     id,
     label,
@@ -81,7 +81,7 @@ function question(
 }
 
 function freezeBriefCatalog<
-  T extends Record<string, readonly OpenDesignBriefQuestion[]>,
+  T extends Record<string, readonly ComposerDesignBriefQuestion[]>,
 >(catalog: T): T {
   for (const questions of Object.values(catalog)) {
     for (const item of questions) {
@@ -95,12 +95,12 @@ function freezeBriefCatalog<
 }
 
 /**
- * Canonical V1 decision catalog shared by the local OpenDesign MCP, Codex
+ * Canonical V1 decision catalog shared by the local ComposerDesign MCP, Codex
  * Desktop widget, and structured CLI representation. Visible copy may be
  * localized later, but ids, ordering, defaults, and skip behavior are product
  * protocol.
  */
-export const openDesignBriefCatalog: OpenDesignBriefCatalog = freezeBriefCatalog({
+export const composerDesignBriefCatalog: ComposerDesignBriefCatalog = freezeBriefCatalog({
   website: [
     question(
       'website.goal',
@@ -383,8 +383,8 @@ export const openDesignBriefCatalog: OpenDesignBriefCatalog = freezeBriefCatalog
   ],
 });
 
-export function validateOpenDesignBriefCatalog(
-  catalog: OpenDesignBriefCatalog,
+export function validateComposerDesignBriefCatalog(
+  catalog: ComposerDesignBriefCatalog,
 ): void {
   for (const [artifactType, questions] of Object.entries(catalog)) {
     if (questions.length > 5) {
@@ -413,10 +413,10 @@ export function validateOpenDesignBriefCatalog(
   }
 }
 
-validateOpenDesignBriefCatalog(openDesignBriefCatalog);
+validateComposerDesignBriefCatalog(composerDesignBriefCatalog);
 
 function normalizedAnswer(
-  question: OpenDesignBriefQuestion,
+  question: ComposerDesignBriefQuestion,
   value: unknown,
 ): readonly string[] | null {
   const answer = typeof value === 'string'
@@ -431,10 +431,10 @@ function normalizedAnswer(
 }
 
 function answerSummary(
-  artifactType: OpenDesignBriefArtifactType,
-  answers: OpenDesignBriefAnswers,
+  artifactType: ComposerDesignBriefArtifactType,
+  answers: ComposerDesignBriefAnswers,
 ): string {
-  const lines = openDesignBriefCatalog[artifactType]
+  const lines = composerDesignBriefCatalog[artifactType]
     .map((item) => {
       const selected = answers[item.id]?.[0];
       const label = item.options.find((candidate) => candidate.id === selected)?.label;
@@ -444,10 +444,10 @@ function answerSummary(
   return lines.length > 0 ? lines.join('\n') : 'No Brief decisions have been confirmed yet.';
 }
 
-export function collectOpenDesignBrief(
-  input: CollectOpenDesignBriefInput,
-): OpenDesignBriefDecision {
-  const definitions = openDesignBriefCatalog[input.artifactType];
+export function collectComposerDesignBrief(
+  input: CollectComposerDesignBriefInput,
+): ComposerDesignBriefDecision {
+  const definitions = composerDesignBriefCatalog[input.artifactType];
   const source = input.knownAnswers ?? {};
   const answers: Record<string, readonly string[]> = {};
 
@@ -474,19 +474,19 @@ export function collectOpenDesignBrief(
   });
 }
 
-export function summarizeOpenDesignBrief(
-  artifactType: OpenDesignBriefArtifactType,
-  answers: OpenDesignBriefAnswers,
+export function summarizeComposerDesignBrief(
+  artifactType: ComposerDesignBriefArtifactType,
+  answers: ComposerDesignBriefAnswers,
 ): string {
   return answerSummary(artifactType, answers);
 }
 
-export function formatOpenDesignBriefForCli(
-  brief: OpenDesignBriefDecision,
+export function formatComposerDesignBriefForCli(
+  brief: ComposerDesignBriefDecision,
   displayArtifactType: string = brief.artifactType,
 ): string {
   const lines = [
-    'OpenDesign brief',
+    'ComposerDesign brief',
     `Artifact: ${displayArtifactType}`,
   ];
   if (brief.questions.length > 0) {

@@ -17,7 +17,7 @@ describe('AMR account failure classification', () => {
   // navigates to.
   it('points the recharge link at the console dashboard, not a wallet page', () => {
     expect(DEFAULT_AMR_RECHARGE_URL).toBe(
-      'https://open-design.ai/amr/dashboard?source=open_design',
+      'https://open-design.ai/amr/dashboard?source=composer_design',
     );
   });
 

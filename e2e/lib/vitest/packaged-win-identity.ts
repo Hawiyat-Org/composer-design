@@ -22,6 +22,6 @@ export function resolvePackagedWinInstallIdentity(options: {
   const namespaceToken = sanitizeNamespace(options.namespace);
   const channel = releaseChannelFromVersion(options.releaseVersion)
     ?? releaseChannelFromNamespace(options.namespace, "default");
-  const displayName = channel == null ? `Open Design ${namespaceToken}` : releaseInstallIdentity(channel).productName;
+  const displayName = channel == null ? `Composer Design ${namespaceToken}` : releaseInstallIdentity(channel).productName;
   return { displayName, namespaceToken };
 }

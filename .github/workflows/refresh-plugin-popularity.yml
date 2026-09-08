@@ -4,8 +4,6 @@ on:
   # Weekly refresh so the plugin/example grid + Home rail keep leading each
   # category with the templates users actually reach for (OPEND-449). Templates
   # rotate roughly monthly, so a weekly trailing-window rebuild stays fresh.
-  schedule:
-    - cron: '0 2 * * 1'
   # Manual trigger: force a rebuild outside the weekly schedule.
   workflow_dispatch:
     inputs:

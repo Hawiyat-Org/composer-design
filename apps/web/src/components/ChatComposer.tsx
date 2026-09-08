@@ -480,7 +480,7 @@ export interface ChatComposerHandle {
   /** Open the standalone toolbox popover (the 设计百宝箱 quick pill above the
    *  composer input; the "+" menu no longer carries a toolbox row). `opener` is
    *  the control focus returns to when the popover is dismissed. */
-  openDesignToolbox: (opener?: HTMLElement | null) => void;
+  composerDesignToolbox: (opener?: HTMLElement | null) => void;
   /** Open the standalone plugins popover (the 插件 quick pill above the
    *  composer input; the "+" menu no longer carries a plugins row). `opener` is
    *  the control focus returns to when the popover is dismissed. */
@@ -694,7 +694,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     const [stagedSkills, setStagedSkills] = useState<SkillSummary[]>([]);
     // Legacy standalone design-toolbox popover. The next-step card now renders
     // its own cascading skill menu, so nothing opens this anymore; kept compiling
-    // behind `openDesignToolbox` until the panel subsystem is removed wholesale.
+    // behind `composerDesignToolbox` until the panel subsystem is removed wholesale.
     const [designToolboxOpen, setDesignToolboxOpen] = useState(false);
     const [pluginsPanelOpen, setPluginsPanelOpen] = useState(false);
     // Shared close timer for the two legacy standalone popovers (插件 /
@@ -1491,7 +1491,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           pendingEntryFromRef.current = 'next_step';
           applyDesignToolboxSkillByIdRef.current(skillId);
         },
-        openDesignToolbox: (opener?: HTMLElement | null) => {
+        composerDesignToolbox: (opener?: HTMLElement | null) => {
           cancelComposerPanelClose();
           setComposerEngaged(true);
           panelOpenerRef.current = resolveStandalonePanelOpener(opener);
@@ -3298,7 +3298,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       onRemoveExternalPendingUpload?.(pendingId);
     };
 
-    const openDesignSystemPicker = () => {
+    const composerDesignSystemPicker = () => {
       const trigger = composerRootRef.current?.querySelector<HTMLButtonElement>(
         '[data-testid="project-ds-picker-trigger"]',
       );
@@ -3793,9 +3793,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 });
                 setFigmaHelpOpen(true);
               }}
-              onOpenDesignSystems={projectId && designSystemPicker ? () => {
+              onComposerDesignSystems={projectId && designSystemPicker ? () => {
                 trackComposerBar({ element: 'design_system_open' });
-                openDesignSystemPicker();
+                composerDesignSystemPicker();
               } : undefined}
               // 插件 and 设计百宝箱 live inside the "+" menu (right below
               // 工作目录) as hover-expand submenus. The toolbox flyout reuses

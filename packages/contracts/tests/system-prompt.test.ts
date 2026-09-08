@@ -36,7 +36,7 @@ describe('DISCOVERY_AND_PHILOSOPHY (contracts copy) — TodoWrite plan item coun
     const prompt = composeSystemPrompt({ sessionMode: 'chat' });
 
     expect(prompt).toContain('# Ask mode — bare conversation');
-    expect(prompt).toContain('https://github.com/nexu-io/open-design');
+    expect(prompt).toContain('https://github.com/nexu-io/composer-design');
     expect(prompt).toContain('https://open-design.ai/');
     expect(prompt).toContain('https://discord.gg/mHAjSMV6gz');
     expect(prompt).toContain('Do not emit a default discovery `<question-form>`');
@@ -75,7 +75,7 @@ describe('DISCOVERY_AND_PHILOSOPHY (contracts copy) — prompt routing parity', 
     expect(prompt).toContain('reply exactly `图片已生成`');
     expect(prompt).toContain('提示词没通过内容审核 —— 换个说法、去掉敏感内容再试。');
     expect(prompt).toContain(
-      '图片没生成出来,不是你的操作有误 —— 这次是 Open Design 自己的问题,我们已经记下了。重试一般能恢复;反复出现的话联系我们。',
+      '图片没生成出来,不是你的操作有误 —— 这次是 Composer Design 自己的问题,我们已经记下了。重试一般能恢复;反复出现的话联系我们。',
     );
     // OPEND-2577: an internal code is a support ticket, not a next step.
     expect(prompt).not.toContain('错误代码');

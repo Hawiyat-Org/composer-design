@@ -92,17 +92,17 @@ it; a sentence that only says "it failed" is not an acceptable substitute.
 - \`retry-later\` -- "Image generation is unsteady right now. It isn't anything
   you did; trying again shortly usually works." Simplified Chinese, exactly:
   图片生成这会儿不稳定 —— 不是你的问题,过一会儿再试通常就好。
-- \`update-app\` -- "Open Design needs an update before it can generate images."
+- \`update-app\` -- "Composer Design needs an update before it can generate images."
   Simplified Chinese, exactly:
-  需要更新 Open Design 才能生成图片。
+  需要更新 Composer Design 才能生成图片。
 - \`unsupported\` -- "This task doesn't generate images. Start an image project
   if you need one." Simplified Chinese, exactly:
   这次任务里不能生成图片 —— 需要图片的话,新建一个图片项目再试。
 - \`contact-support\` -- "The image didn't come out, and it isn't anything you
-  did. This one is on Open Design and we've logged it; trying again usually
+  did. This one is on Composer Design and we've logged it; trying again usually
   recovers, and if it keeps happening, contact us." Simplified Chinese,
   exactly:
-  图片没生成出来,不是你的操作有误 —— 这次是 Open Design 自己的问题,我们已经记下了。重试一般能恢复;反复出现的话联系我们。
+  图片没生成出来,不是你的操作有误 —— 这次是 Composer Design 自己的问题,我们已经记下了。重试一般能恢复;反复出现的话联系我们。
 - No \`nextStep\` at all -- an older daemon, or a failure that never reached the
   dispatcher: use the \`contact-support\` sentence. If image generation was
   expected and you never invoked the dispatcher, that is your own miss and it
@@ -130,7 +130,7 @@ export function renderMediaGenerationContract(
 
 ## Media generation policy (load-bearing — overrides softer wording above)
 
-OpenDesign-owned media execution is **disabled for this run**. Do not call
+ComposerDesign-owned media execution is **disabled for this run**. Do not call
 \`"$OD_NODE_BIN" "$OD_BIN" media generate\`, OD media provider APIs, local
 renderers, or ad-hoc scripts that create media bytes on
 OD's behalf.
@@ -279,7 +279,7 @@ A size or tier the user names IS that ask, in any language — "2K", "1k",
 "high quality", "高质量". Map it onto \`--resolution\` / \`--quality\`;
 restating it inside the prompt text does not reach the provider.
 
-OpenDesign Cloud image and video models use the \`vela/*\` catalogue prefix.
+ComposerDesign Cloud image and video models use the \`vela/*\` catalogue prefix.
 Always invoke those models through \`"$OD_NODE_BIN" "$OD_BIN" media generate\`.
 Never invoke the \`vela\` CLI directly and never call its remote media API.
 The daemon owns model routing, trusted Workspace attribution, task polling,
@@ -323,7 +323,7 @@ capture. The daemon process is unsandboxed and renders reliably AND
 streams per-line progress to your stderr (so the user sees frame
 counts in chat instead of a silent spinner).
 
-**Default recipe — use Open Design's scaffold, don't write from scratch.**
+**Default recipe — use Composer Design's scaffold, don't write from scratch.**
 For most OD requests ("test video", "5s product reveal", "demo clip"),
 authoring an HF composition from zero costs minutes of model output and
 silent chat-tool time. The init scaffold gives you a valid GSAP-ready
@@ -334,7 +334,7 @@ actually changes.
 COMP_REL=".hyperframes-cache/$(date +%s)-$(openssl rand -hex 2)"
 COMP="$OD_PROJECT_DIR/$COMP_REL"
 
-# Open Design writes the required files itself; HyperFrames init is never run.
+# Composer Design writes the required files itself; HyperFrames init is never run.
 "$OD_NODE_BIN" "$OD_BIN" media scaffold --project "$OD_PROJECT_ID" --composition-dir "$COMP_REL"
 
 # Edit ONLY $COMP/index.html: tweak data-duration on the root, swap

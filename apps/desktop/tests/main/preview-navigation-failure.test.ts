@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { previewNavigationFailureFromDidFailLoad } from "../../src/main/runtime.js";
 
 describe("preview navigation failure forwarding", () => {
-  it("forwards only aborted Open Design preview transport subframe navigations", () => {
+  it("forwards only aborted Composer Design preview transport subframe navigations", () => {
     expect(previewNavigationFailureFromDidFailLoad({
       errorCode: -3,
       eventId: 1,

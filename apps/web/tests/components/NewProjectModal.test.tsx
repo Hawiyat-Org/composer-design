@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@open-design/host', () => ({
-  isOpenDesignHostAvailable: () => true,
+  isComposerDesignHostAvailable: () => true,
   pickAndImportHostProject: vi.fn(),
 }));
 

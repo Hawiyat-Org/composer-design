@@ -1,5 +1,5 @@
 import { getWorkspaceProjectByProjectId } from '../db.js';
-import { openDesignAmrTraceEnv } from './env.js';
+import { composerDesignAmrTraceEnv } from './env.js';
 
 type SqliteDb = Parameters<typeof getWorkspaceProjectByProjectId>[0];
 
@@ -110,7 +110,7 @@ export function pinRunWorkspaceScopeForProject(
  * authority. A genuinely unbound local project stays account-scoped and omits
  * the Workspace env var on every attempt.
  */
-export async function openDesignAmrTraceEnvForRun(
+export async function composerDesignAmrTraceEnvForRun(
   input: {
     agentId: string;
     runId: string;
@@ -135,7 +135,7 @@ export async function openDesignAmrTraceEnvForRun(
       ? { externalPluginAnalytics: input.externalPluginAnalytics }
       : {}),
   };
-  if (input.agentId !== 'amr') return openDesignAmrTraceEnv(traceInput);
+  if (input.agentId !== 'amr') return composerDesignAmrTraceEnv(traceInput);
 
   const projectId = input.projectId?.trim();
   if (!projectId) throw new AmrWorkspaceScopeRequiredError(null);
@@ -161,11 +161,11 @@ export async function openDesignAmrTraceEnvForRun(
     workspaceId,
   });
   if (!workspaceId) {
-    if (accountScoped) return openDesignAmrTraceEnv(traceInput);
+    if (accountScoped) return composerDesignAmrTraceEnv(traceInput);
     throw new AmrWorkspaceScopeRequiredError(projectId);
   }
 
-  return openDesignAmrTraceEnv({
+  return composerDesignAmrTraceEnv({
     ...traceInput,
     workspaceId,
   });

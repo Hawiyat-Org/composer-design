@@ -16,7 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * `resolveSkillId`(`apps/daemon/src/skills.ts` 的 `SKILL_ID_ALIASES`)把它归一成
  * `open-design-landing-deck`,于是 `/api/metrics` 上出现:
  *
- *   open_design_critique_runs_total{status="shipped",adapter="qwen",skill="open-design-landing-deck"} 1
+ *   composer_design_critique_runs_total{status="shipped",adapter="qwen",skill="open-design-landing-deck"} 1
  *
  * 那条归一逻辑**没坏、也没改名**。把 `CRITIQUE_THEATER_RETIRED` 翻成 false,
  * 下面这套 fixture 原封不动,老的三条断言(SSE 上出现 `critique.run_started`、
@@ -155,6 +155,6 @@ setTimeout(() => process.exit(0), 250);
     const metrics = await metricsResponse.text();
     // 3) 编排器没启动 => 一条评审计数都不该落。既然没有序列,也就不存在
     //    把 skill 误标成 `unknown` / `editorial-collage-deck` 的机会。
-    expect(metrics).not.toContain('open_design_critique_runs_total{');
+    expect(metrics).not.toContain('composer_design_critique_runs_total{');
   });
 });

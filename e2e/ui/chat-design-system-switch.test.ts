@@ -105,7 +105,7 @@ test('[P1] chat composer switches the project design system mid-chat', async ({ 
     data: { designSystemId: null },
   });
 
-  await openDesignSystemPicker(page);
+  await composerDesignSystemPicker(page);
 
   await expect(page.getByTestId('project-ds-picker-popover')).toBeVisible();
   await page
@@ -142,7 +142,7 @@ test('[P1] chat composer switches the project design system mid-chat', async ({ 
   expect(runRequestBodies[0]?.designSystemId).toBe('editorial');
 });
 
-async function openDesignSystemPicker(page: Page) {
+async function composerDesignSystemPicker(page: Page) {
   const composer = page.getByTestId('chat-composer');
   await composer.getByTestId('composer-design-system-trigger').click();
 }

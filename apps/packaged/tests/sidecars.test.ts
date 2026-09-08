@@ -438,16 +438,16 @@ describe('resolvePackagedElectronNodeCommand', () => {
   it('uses the hidden Electron helper as the macOS Electron-as-Node command when available', async () => {
     const root = mkdtempSync(join(tmpdir(), 'od-packaged-electron-helper-'));
     try {
-      const appPath = posix.join(root.replaceAll('\\', '/'), 'Open Design.app');
-      const execPath = posix.join(appPath, 'Contents', 'MacOS', 'Open Design');
+      const appPath = posix.join(root.replaceAll('\\', '/'), 'Composer Design.app');
+      const execPath = posix.join(appPath, 'Contents', 'MacOS', 'Composer Design');
       const helperPath = posix.join(
         appPath,
         'Contents',
         'Frameworks',
-        'Open Design Helper.app',
+        'Composer Design Helper.app',
         'Contents',
         'MacOS',
-        'Open Design Helper',
+        'Composer Design Helper',
       );
 
       mkdirSync(posix.join(appPath, 'Contents', 'MacOS'), { recursive: true });
@@ -466,7 +466,7 @@ describe('resolvePackagedElectronNodeCommand', () => {
   it('falls back to the main executable when the macOS helper is unavailable', async () => {
     const root = mkdtempSync(join(tmpdir(), 'od-packaged-no-electron-helper-'));
     try {
-      const execPath = join(root, 'Open Design.app', 'Contents', 'MacOS', 'Open Design');
+      const execPath = join(root, 'Composer Design.app', 'Contents', 'MacOS', 'Composer Design');
       mkdirSync(dirname(execPath), { recursive: true });
       writeFileSync(execPath, '#!/bin/sh\n', 'utf8');
 
@@ -477,7 +477,7 @@ describe('resolvePackagedElectronNodeCommand', () => {
   });
 
   it('keeps the main executable on non-macOS platforms', async () => {
-    const execPath = '/opt/Open Design/open-design';
+    const execPath = '/opt/Composer Design/composer-design';
 
     await expect(resolvePackagedElectronNodeCommand(execPath, 'linux')).resolves.toBe(execPath);
   });
@@ -613,12 +613,12 @@ describe('buildPackagedDaemonSpawnEnv', () => {
   it('forwards the signed packaged launcher used to bootstrap MCP headlessly', () => {
     const env = buildPackagedDaemonSpawnEnv(fakePaths(), {
       appVersion: '1.2.3',
-      daemonCliEntry: '/Applications/Open Design.app/Contents/Resources/app/prebundled/daemon/daemon-cli.mjs',
+      daemonCliEntry: '/Applications/Composer Design.app/Contents/Resources/app/prebundled/daemon/daemon-cli.mjs',
       legacyDataDir: null,
       mcpBootstrapArgs: [
         '-g',
         '-j',
-        '/Applications/Open Design.app',
+        '/Applications/Composer Design.app',
         '--args',
         '--headless',
       ],
@@ -633,7 +633,7 @@ describe('buildPackagedDaemonSpawnEnv', () => {
     expect(JSON.parse(env.OD_MCP_BOOTSTRAP_ARGS ?? 'null')).toEqual([
       '-g',
       '-j',
-      '/Applications/Open Design.app',
+      '/Applications/Composer Design.app',
       '--args',
       '--headless',
     ]);
@@ -674,12 +674,12 @@ describe('buildPackagedDaemonSpawnEnv', () => {
       appVersion: null,
       daemonCliEntry: null,
       legacyDataDir: null,
-      nodeCommand: 'C:\\Users\\Ada\\AppData\\Local\\Programs\\Open Design\\resources\\open-design\\bin\\node.exe',
+      nodeCommand: 'C:\\Users\\Ada\\AppData\\Local\\Programs\\Composer Design\\resources\\open-design\\bin\\node.exe',
       requireDesktopAuth: true,
     });
 
     expect(env.OD_NODE_BIN).toBe(
-      'C:\\Users\\Ada\\AppData\\Local\\Programs\\Open Design\\resources\\open-design\\bin\\node.exe',
+      'C:\\Users\\Ada\\AppData\\Local\\Programs\\Composer Design\\resources\\open-design\\bin\\node.exe',
     );
   });
 

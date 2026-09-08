@@ -2,7 +2,7 @@
 //
 // This module is intentionally dependency-free (no `langfuse` SDK). It builds
 // Langfuse ingestion batches for completed runs and sends them either to the
-// official OpenDesign telemetry relay or, for local smoke tests, directly to
+// official ComposerDesign telemetry relay or, for local smoke tests, directly to
 // Langfuse. Without OPEN_DESIGN_TELEMETRY_RELAY_URL or LANGFUSE_PUBLIC_KEY /
 // LANGFUSE_SECRET_KEY in the env, every entry point becomes a no-op so that
 // dev runs and forks of this open-source repo do not accidentally report.
@@ -31,7 +31,7 @@ import {
 } from '@open-design/contracts';
 
 import type { TelemetryPrefs } from './app-config.js';
-import { normalizeOpenDesignTelemetryRelayUrl } from './integrations/telemetry-relay.js';
+import { normalizeComposerDesignTelemetryRelayUrl } from './integrations/telemetry-relay.js';
 import { readVelaControlApiContext } from './integrations/vela.js';
 import {
   deriveRunTelemetryExportExpectation,
@@ -230,16 +230,16 @@ export interface TraceSafeObjectManifestBase {
   extension?: string;
   redacted: boolean;
   truncated: boolean;
-  stored_in_open_design: boolean;
+  stored_in_composer_design: boolean;
   retention_policy: ObjectManifestRetentionPolicy;
   access_scope: ObjectManifestAccessScope;
   sensitivity: ObjectManifestSensitivity;
   source: 'user_upload' | 'agent_generated' | 'user_prompt';
   expires_at: string | null;
   approved_by: string | null;
-  open_in_open_design_url?: null;
+  open_in_composer_design_url?: null;
   preview_status?: string;
-  access_policy?: 'open_design_auth_required';
+  access_policy?: 'composer_design_auth_required';
 }
 
 export interface AttachmentManifestEntry extends TraceSafeObjectManifestBase {
@@ -311,7 +311,7 @@ export interface RuntimeInfo {
   osRelease?: string;
   /** CPU architecture (`os.arch()`, e.g. 'arm64' | 'x64'). */
   arch?: string;
-  /** OpenDesign app version reported by the daemon. */
+  /** ComposerDesign app version reported by the daemon. */
   appVersion?: string;
   /** Build channel (development / prerelease / beta / stable). */
   appChannel?: string;
@@ -461,7 +461,7 @@ export function readTelemetrySinkConfig(
   if (relayUrl) {
     return {
       kind: 'relay',
-      relayUrl: normalizeOpenDesignTelemetryRelayUrl(relayUrl),
+      relayUrl: normalizeComposerDesignTelemetryRelayUrl(relayUrl),
       timeoutMs: parsePositiveInt(
         env.OPEN_DESIGN_TELEMETRY_TIMEOUT_MS ?? env.LANGFUSE_TIMEOUT_MS,
         DEFAULT_FETCH_TIMEOUT_MS,
@@ -1565,7 +1565,7 @@ const SAFE_QUALITY_MANIFEST_KEYS = new Set([
   'extension',
   'redacted',
   'truncated',
-  'stored_in_open_design',
+  'stored_in_composer_design',
   'retention_policy',
   'access_scope',
   'sensitivity',
@@ -1580,7 +1580,7 @@ const SAFE_QUALITY_MANIFEST_KEYS = new Set([
   'build_status',
   'preview_status',
   'export_status',
-  'open_in_open_design_url',
+  'open_in_composer_design_url',
   'access_policy',
 ]);
 

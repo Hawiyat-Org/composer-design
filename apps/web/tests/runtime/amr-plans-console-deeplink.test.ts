@@ -35,13 +35,13 @@ describe('升级按钮的落点:console 的套餐页', () => {
 
   it('test profile 落在 test console,不再落在生产 Pricing', () => {
     expect(amrPlansUrlForProfile('test')).toBe(
-      'https://open-design.powerformer.net/cloud/dashboard?source=open_design&billing=plan',
+      'https://open-design.powerformer.net/cloud/dashboard?source=composer_design&billing=plan',
     );
   });
 
   it('local profile 落在本地 console', () => {
     expect(amrPlansUrlForProfile('local')).toBe(
-      'http://localhost:5173/dashboard?source=open_design&billing=plan',
+      'http://localhost:5173/dashboard?source=composer_design&billing=plan',
     );
   });
 
@@ -68,7 +68,7 @@ describe('升级按钮的落点:console 的套餐页', () => {
     );
     setRuntimeAmrConsoleOrigin(RUNTIME_CONSOLE_ORIGIN);
     expect(amrPlansUrlForProfile('feature-test')).toBe(
-      `${RUNTIME_CONSOLE_ORIGIN}/dashboard?source=open_design&billing=plan`,
+      `${RUNTIME_CONSOLE_ORIGIN}/dashboard?source=composer_design&billing=plan`,
     );
   });
 

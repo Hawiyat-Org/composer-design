@@ -1,6 +1,6 @@
 import {
   OdNextRuntimeCapabilitySnapshotV1Schema,
-  type OpenDesignPlanContractV2,
+  type ComposerDesignPlanContractV2,
   type StrategyInputStageV2,
 } from '@open-design/contracts';
 
@@ -20,7 +20,7 @@ interface ComplexRunEvidenceInput {
   stage: StrategyInputStageV2;
   agentId: string;
   capabilitySnapshot: unknown;
-  plan: OpenDesignPlanContractV2;
+  plan: ComposerDesignPlanContractV2;
   run: {
     status: string;
     createdAt: number;

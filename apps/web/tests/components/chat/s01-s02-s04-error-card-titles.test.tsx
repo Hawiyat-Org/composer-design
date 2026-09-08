@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * 报错卡**标题**那一行的三格:S01 / S02 / S04(《Open Design 报错文案｜精简版》)。
+ * 报错卡**标题**那一行的三格:S01 / S02 / S04(《Composer Design 报错文案｜精简版》)。
  *
  * 第一批文案只落了正文,标题跳过了这三格 —— 因为它们不是纯文案改动:
  *
@@ -10,7 +10,7 @@
  *      **字面的 `{agent}`**。
  *
  *   ② **一个键装两句话。** S02(本地 agent 没登录,新稿「{智能体} 尚未登录」)和
- *      S04(Open Design 智能体没授权,新稿「Open Design 尚未登录」)今天共用
+ *      S04(Composer Design 智能体没授权,新稿「Composer Design 尚未登录」)今天共用
  *      `chat.runError.title.signInRequired`,渲染出来一模一样。Antigravity 那条
  *      终端登录的分流也挂在同一个键上,是 S02 那一边的第三个调用点。
  *
@@ -143,11 +143,11 @@ describe('报错卡标题 · S01 / S02 / S04', () => {
     expect(title).toBe('Claude 尚未登录');
   });
 
-  it('S04:Open Design 智能体没授权 —— 标题说的是 Open Design 自己', () => {
+  it('S04:Composer Design 智能体没授权 —— 标题说的是 Composer Design 自己', () => {
     const title = errorCardTitle({ agentId: 'amr', code: 'AMR_AUTH_REQUIRED' });
 
     expect(title).not.toMatch(/\{agent\}/);
-    expect(title).toBe('Open Design 尚未登录');
+    expect(title).toBe('Composer Design 尚未登录');
   });
 
   it('S02 和 S04 不是同一句话 —— 一个键装不下两格', () => {
@@ -158,12 +158,12 @@ describe('报错卡标题 · S01 / S02 / S04', () => {
     expect(s02).not.toBe(s04);
     /*
      * 「两句不一样」单独一条**照不出合并回去**:S02 那句带 `{agent}` 插值,
-     * AMR 的 agent 名恰好是 `OpenDesign`,所以哪怕两格共用一个键,渲染出来
-     * 也是「Claude 尚未登录」对「OpenDesign 尚未登录」—— 仍然不相等。
-     * 判据要钉在 S04 说的**是不是产品那句**:`OpenDesign`(无空格)是 agent
-     * 标签,`Open Design`(有空格)才是产品名。
+     * AMR 的 agent 名恰好是 `ComposerDesign`,所以哪怕两格共用一个键,渲染出来
+     * 也是「Claude 尚未登录」对「ComposerDesign 尚未登录」—— 仍然不相等。
+     * 判据要钉在 S04 说的**是不是产品那句**:`ComposerDesign`(无空格)是 agent
+     * 标签,`Composer Design`(有空格)才是产品名。
      */
-    expect(s04).not.toContain('OpenDesign');
+    expect(s04).not.toContain('ComposerDesign');
   });
 
   /*
@@ -181,7 +181,7 @@ describe('报错卡标题 · S01 / S02 / S04', () => {
   it('AMR 的通用 401(UNAUTHORIZED)仍然是 S04 那句,不会掉到 S02', () => {
     const title = errorCardTitle({ agentId: 'amr', code: 'UNAUTHORIZED' });
 
-    expect(title).toBe('Open Design 尚未登录');
+    expect(title).toBe('Composer Design 尚未登录');
   });
 
   it('非 AMR 的通用 401(UNAUTHORIZED)是 S02 那句', () => {

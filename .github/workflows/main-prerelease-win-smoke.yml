@@ -4,8 +4,6 @@ name: main-prerelease-win-smoke
 # This intentionally does not prepare, reserve, or publish release metadata: a
 # stale workspace version must not prevent the product smoke from starting.
 on:
-  schedule:
-    - cron: "0 23 * * *" # 07:00 Asia/Shanghai, before the 09:00 release cuts
   workflow_dispatch:
   workflow_call:
     outputs:

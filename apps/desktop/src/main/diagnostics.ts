@@ -73,7 +73,7 @@ export async function exportDiagnosticsToFile(
   // same slow folder. ponytail: mitigates the trigger; a fully wedged OneDrive
   // shell is an OS-side stall no app option can unblock.
   const dialogOptions = {
-    title: "Export OpenDesign diagnostics",
+    title: "Export ComposerDesign diagnostics",
     defaultPath: filename,
     filters: [{ name: "Zip archive", extensions: ["zip"] }],
     properties: ["dontAddToRecent" as const],

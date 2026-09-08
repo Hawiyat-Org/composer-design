@@ -27,14 +27,14 @@ describe('UseEverywhereGuidePanel copy guide', () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        command: 'C:\\Program Files\\Open Design\\Open Design.exe',
+        command: 'C:\\Program Files\\Composer Design\\Composer Design.exe',
         args: [
-          'C:\\Program Files\\Open Design\\resources\\app\\apps\\daemon\\dist\\cli.js',
+          'C:\\Program Files\\Composer Design\\resources\\app\\apps\\daemon\\dist\\cli.js',
           'mcp',
         ],
         env: {
           ELECTRON_RUN_AS_NODE: '1',
-          OD_DATA_DIR: 'C:\\Users\\Ada\\AppData\\Roaming\\Open Design',
+          OD_DATA_DIR: 'C:\\Users\\Ada\\AppData\\Roaming\\Composer Design',
         },
         daemonUrl: 'http://127.0.0.1:7456',
         platform: 'win32',
@@ -53,9 +53,9 @@ describe('UseEverywhereGuidePanel copy guide', () => {
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     const copied = writeText.mock.calls[0]?.[0] as string;
-    expect(copied).toContain('"command": "C:\\\\Program Files\\\\Open Design\\\\Open Design.exe"');
+    expect(copied).toContain('"command": "C:\\\\Program Files\\\\Composer Design\\\\Composer Design.exe"');
     expect(copied).toContain(
-      '"C:\\\\Program Files\\\\Open Design\\\\resources\\\\app\\\\apps\\\\daemon\\\\dist\\\\cli.js"',
+      '"C:\\\\Program Files\\\\Composer Design\\\\resources\\\\app\\\\apps\\\\daemon\\\\dist\\\\cli.js"',
     );
     expect(copied).toContain('"ELECTRON_RUN_AS_NODE": "1"');
     expect(copied).not.toContain('"command": "od"');
@@ -89,21 +89,21 @@ describe('UseEverywhereGuidePanel copy guide', () => {
     resolveFetch({
       ok: true,
       json: async () => ({
-        command: 'C:\\Program Files\\Open Design\\Open Design.exe',
+        command: 'C:\\Program Files\\Composer Design\\Composer Design.exe',
         args: [
-          'C:\\Program Files\\Open Design\\resources\\app\\apps\\daemon\\dist\\cli.js',
+          'C:\\Program Files\\Composer Design\\resources\\app\\apps\\daemon\\dist\\cli.js',
           'mcp',
         ],
         env: {
           ELECTRON_RUN_AS_NODE: '1',
-          OD_DATA_DIR: 'C:\\Users\\Ada\\AppData\\Roaming\\Open Design',
+          OD_DATA_DIR: 'C:\\Users\\Ada\\AppData\\Roaming\\Composer Design',
         },
       }),
     } satisfies Partial<Response>);
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     const copied = writeText.mock.calls[0]?.[0] as string;
-    expect(copied).toContain('"command": "C:\\\\Program Files\\\\Open Design\\\\Open Design.exe"');
+    expect(copied).toContain('"command": "C:\\\\Program Files\\\\Composer Design\\\\Composer Design.exe"');
     expect(copied).not.toContain('"command": "od"');
   });
 
@@ -138,23 +138,23 @@ describe('UseEverywhereGuidePanel copy guide', () => {
     resolveFetch({
       ok: true,
       json: async () => ({
-        command: 'C:\\Program Files\\Open Design\\Open Design.exe',
+        command: 'C:\\Program Files\\Composer Design\\Composer Design.exe',
         args: [
-          'C:\\Program Files\\Open Design\\resources\\app\\apps\\daemon\\dist\\cli.js',
+          'C:\\Program Files\\Composer Design\\resources\\app\\apps\\daemon\\dist\\cli.js',
           'mcp',
         ],
         env: {
           ELECTRON_RUN_AS_NODE: '1',
-          OD_DATA_DIR: 'C:\\Users\\Ada\\AppData\\Roaming\\Open Design',
+          OD_DATA_DIR: 'C:\\Users\\Ada\\AppData\\Roaming\\Composer Design',
         },
       }),
     } satisfies Partial<Response>);
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     const copied = writeText.mock.calls[0]?.[0] as string;
-    expect(copied).toContain('"command": "C:\\\\Program Files\\\\Open Design\\\\Open Design.exe"');
+    expect(copied).toContain('"command": "C:\\\\Program Files\\\\Composer Design\\\\Composer Design.exe"');
     expect(copied).toContain(
-      '"C:\\\\Program Files\\\\Open Design\\\\resources\\\\app\\\\apps\\\\daemon\\\\dist\\\\cli.js"',
+      '"C:\\\\Program Files\\\\Composer Design\\\\resources\\\\app\\\\apps\\\\daemon\\\\dist\\\\cli.js"',
     );
     expect(copied).toContain('"ELECTRON_RUN_AS_NODE": "1"');
     expect(copied).not.toContain('"command": "od"');
@@ -162,7 +162,7 @@ describe('UseEverywhereGuidePanel copy guide', () => {
     await waitFor(() => {
       const mcpSection = screen.getByTestId('use-everywhere-section-mcp');
       expect(mcpSection.textContent).toContain(
-        '"command": "C:\\\\Program Files\\\\Open Design\\\\Open Design.exe"',
+        '"command": "C:\\\\Program Files\\\\Composer Design\\\\Composer Design.exe"',
       );
       expect(mcpSection.textContent).not.toContain('"command": "od"');
     });

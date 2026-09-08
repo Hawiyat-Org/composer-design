@@ -492,7 +492,7 @@ describe('buildOpenCodeMcpConfigContent', () => {
         extraConfig: {
           provider: {
             'open-design-byok': {
-              name: 'OpenDesign BYOK',
+              name: 'ComposerDesign BYOK',
               npm: '@ai-sdk/openai-compatible',
               options: { apiKey: '{env:OPEN_DESIGN_BYOK_API_KEY}' },
               models: { 'gpt-4o-mini': { name: 'gpt-4o-mini' } },
@@ -510,7 +510,7 @@ describe('buildOpenCodeMcpConfigContent', () => {
     };
 
     expect(parsed.provider?.['open-design-byok']).toMatchObject({
-      name: 'OpenDesign BYOK',
+      name: 'ComposerDesign BYOK',
       npm: '@ai-sdk/openai-compatible',
     });
     expect(parsed.mcp?.['basic-memory']).toBeTruthy();

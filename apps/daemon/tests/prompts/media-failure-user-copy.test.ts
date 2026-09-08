@@ -35,10 +35,10 @@ const USER_SENTENCES: Record<string, string> = {
   'sign-in': '登录已过期,图片没生成 —— 重新登录后再试一次。',
   'add-credit': '图片模型的额度用完了 —— 重试不会恢复,去充值或换一个图片模型。',
   'retry-later': '图片生成这会儿不稳定 —— 不是你的问题,过一会儿再试通常就好。',
-  'update-app': '需要更新 Open Design 才能生成图片。',
+  'update-app': '需要更新 Composer Design 才能生成图片。',
   'unsupported': '这次任务里不能生成图片 —— 需要图片的话,新建一个图片项目再试。',
   'contact-support':
-    '图片没生成出来,不是你的操作有误 —— 这次是 Open Design 自己的问题,我们已经记下了。重试一般能恢复;反复出现的话联系我们。',
+    '图片没生成出来,不是你的操作有误 —— 这次是 Composer Design 自己的问题,我们已经记下了。重试一般能恢复;反复出现的话联系我们。',
 };
 
 /**

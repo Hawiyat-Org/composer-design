@@ -100,7 +100,7 @@ const D_QA_HEIGHT = 67.98;
 
 /** 稿子的文案,逐字。body-components.html:50-51 */
 const D_TITLE = 'Creating design system workspace';
-const D_DETAIL = 'Open Design is using the setup sources to generate this project.';
+const D_DETAIL = 'Composer Design is using the setup sources to generate this project.';
 
 /* ══ 量尺 ══════════════════════════════════════════════════════════════ */
 

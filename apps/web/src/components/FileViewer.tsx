@@ -6,7 +6,7 @@ import { Button, Input, Select } from '@open-design/components';
 import {
   getLatestHostPreviewNavigationFailure,
   subscribeHostPreviewNavigationFailure,
-  type OpenDesignHostPreviewNavigationFailure,
+  type ComposerDesignHostPreviewNavigationFailure,
 } from '@open-design/host';
 import { CenteredLoader } from './Loading';
 import { APP_CHROME_FILE_ACTIONS_ID, APP_CHROME_FILE_ACTIONS_SELECTOR } from './AppChromeHeader';
@@ -170,7 +170,7 @@ import {
   exportReactComponentAsZip,
   captureHostIframeSnapshot,
   imageDataUrlToBlob,
-  isOpenDesignHostAvailable,
+  isComposerDesignHostAvailable,
   openSandboxedPreviewInNewTab,
   prepareImageExportTarget,
   planDeckImageCapture,
@@ -7442,7 +7442,7 @@ function HtmlViewer({
   const unknownExportOrigin = (
     status: ArtifactExportOriginProps['artifact_origin_status'] = 'missing_version',
   ): ArtifactExportOriginProps => ({
-    entry_surface: 'open_design_ui',
+    entry_surface: 'composer_design_ui',
     artifact_origin_status: status,
     origin_entry_surface: 'unknown',
   });
@@ -11213,7 +11213,7 @@ function HtmlViewer({
     scheduleSrcDocTransportTimeout,
   ]);
   const handleHostPreviewNavigationFailure = useCallback((
-    failure: OpenDesignHostPreviewNavigationFailure,
+    failure: ComposerDesignHostPreviewNavigationFailure,
   ) => {
     const aboutSrcDocFailure = failure.validatedUrl === 'about:srcdoc';
     const localBlobFailure = failure.validatedUrl.startsWith('blob:od://app/');
@@ -11254,7 +11254,7 @@ function HtmlViewer({
       && frame.getAttribute('src') === failure.validatedUrl
     ) {
       // Unlike an eager about:srcdoc acknowledgement, an exact failure for
-      // the active Open Design Blob URL identifies the navigation that owns
+      // the active Composer Design Blob URL identifies the navigation that owns
       // this frame. Recover immediately instead of adding the fixed 1.5s
       // probe timeout to every affected file-tab activation.
       recoverUnacknowledgedSrcDocTransport(generation, 'host_navigation_abort');
@@ -15036,7 +15036,7 @@ function HtmlViewer({
     const pdfTitle = context?.title ?? exportTitle;
     const pdfSource = context?.content ?? source ?? '';
     const pdfDeck = deckExportSignalForContext(context);
-    if (isOpenDesignHostAvailable()) {
+    if (isComposerDesignHostAvailable()) {
       const res = await exportProjectScreenshotPdf({
         projectId,
         fileName: file.name,
@@ -15255,14 +15255,14 @@ function HtmlViewer({
     await waitForAnimationFrame();
     // Prefer the daemon's off-screen render (desktop only): isolated from the
     // preview pane and, rendering the artifact alone in a hidden window, it can
-    // never capture OpenDesign's own UI. Page exports use the selected preview
+    // never capture ComposerDesign's own UI. Page exports use the selected preview
     // preset; desktop pages and decks retain the renderer defaults. `wholeDeck`
     // (Export as image) stitches every slide
     // top-to-bottom into one long image — matching the slide count the viewer
     // reports; otherwise (Copy screenshot, Mark/Draw capture) it grabs the
     // CURRENT slide, mirroring what's on screen. An ordinary page is its
     // full-page capture either way.
-    if (isOpenDesignHostAvailable() && projectId && file.name) {
+    if (isComposerDesignHostAvailable() && projectId && file.name) {
       // Deck-vs-page uses the same signal as PDF export — broader than the viewer's nav
       // signal — so runtime-managed decks (`<deck-stage>` / `data-screen-label`,
       // no literal `.slide`) export as a deck instead of a single page-mode shot
@@ -15509,7 +15509,7 @@ function HtmlViewer({
     // unacceptable for a Chinese-first product. Falls back to the
     // vector/browser print path on web or on failure.
     fireShareExport('pdf', async () => {
-      if (isOpenDesignHostAvailable()) {
+      if (isComposerDesignHostAvailable()) {
         const res = await exportProjectScreenshotPdf({
           projectId,
           fileName: file.name,

@@ -113,7 +113,7 @@ async function stubEmptyProjectsNewProjectData(page: Page): Promise<void> {
 
 async function openNewProjectFromEmptyProjects(page: Page): Promise<void> {
   await page.goto('/projects', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Loading OpenDesign…')).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByText('Loading ComposerDesign…')).toHaveCount(0, { timeout: 15_000 });
   await expect(page.locator('.designs-empty-state')).toBeVisible();
   await page.getByTestId('designs-empty-new-project').click();
 
@@ -403,13 +403,13 @@ test('[P0] UI-created Personal project recovers preview and write authority afte
     // not that ephemeral witness — must reconnect the already-ready artifact.
     //
     // Reload only reaches `domcontentloaded` while the dynamic App boot shell
-    // (`Loading OpenDesign…`) and the project-route workspace-context gate
+    // (`Loading ComposerDesign…`) and the project-route workspace-context gate
     // (`Loading workspace…`) may still own the page. Wait those out with the
     // suite's long budget before asserting the fail-closed workspace chrome —
     // the default expect timeout is 10s and is too short under CI contention.
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page
-      .getByText('Loading OpenDesign…')
+      .getByText('Loading ComposerDesign…')
       .waitFor({ state: 'hidden', timeout: T.long })
       .catch(() => {});
     await expect(page.getByText('Loading workspace…')).toHaveCount(0, { timeout: T.long });
@@ -1352,7 +1352,7 @@ async function wireTeamRunBalanceFixtures(
     ...AGENTS,
     {
       id: 'amr',
-      name: 'OpenDesign Cloud',
+      name: 'ComposerDesign Cloud',
       bin: 'amr',
       available: true,
       version: 'cloud',
@@ -2905,7 +2905,7 @@ test('[P1] read-only project viewers do not see conversation fork actions', asyn
 
   await page.goto(`/projects/${projectId}/conversations/${conversationId}`);
   await page
-    .getByText('Loading OpenDesign…')
+    .getByText('Loading ComposerDesign…')
     .waitFor({ state: 'hidden', timeout: T.long })
     .catch(() => {});
   const showChat = page.getByTestId('workspace-focus-toggle');
@@ -4253,7 +4253,7 @@ async function routeComposerPlusFixtures(page: Page) {
 
 async function expectWorkspaceReady(page: Page) {
   await expect(page).toHaveURL(/\/projects\//);
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long }).catch(() => {});
+  await page.getByText('Loading ComposerDesign…').waitFor({ state: 'hidden', timeout: T.long }).catch(() => {});
   await dismissPrivacyDialog(page);
   await expect(page.getByTestId('project-title')).toBeVisible();
   await expect(page.getByTestId('chat-composer')).toBeVisible();
@@ -4301,7 +4301,7 @@ async function openHandoffCliTab(page: Page): Promise<Locator> {
 }
 
 async function dismissPrivacyDialog(page: Page) {
-  const privacyRegion = page.getByRole('region', { name: /Help us improve OpenDesign/i });
+  const privacyRegion = page.getByRole('region', { name: /Help us improve ComposerDesign/i });
   if (await privacyRegion.isVisible().catch(() => false)) {
     await privacyRegion.getByRole('button', { name: /I get it|not now|got it/i }).click();
     await expect(privacyRegion).toBeHidden();

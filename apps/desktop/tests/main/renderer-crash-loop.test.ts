@@ -135,7 +135,7 @@ describe("renderer crash-loop breaker wiring", () => {
     expect(runtimeSource).toContain("issues/new");
     expect(runtimeSource).toContain("window.__od__");
     expect(runtimeSource).toContain("openExternal");
-    expect(runtimeSource).toContain("window.openDesignDesktop");
+    expect(runtimeSource).toContain("window.composerDesignDesktop");
     expect(runtimeSource).toContain("exportDiagnostics");
     expect(runtimeSource).toContain("support@open-design.ai");
     expect(runtimeSource).toContain("buildCrashMailtoUrl");

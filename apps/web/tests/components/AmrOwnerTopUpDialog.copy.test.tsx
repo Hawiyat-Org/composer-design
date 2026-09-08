@@ -107,6 +107,6 @@ describe('AmrOwnerTopUpDialog 只有一颗按钮', () => {
       .filter((label) => label.length > 0);
     expect(actionLabels).toEqual(['知道了']);
     // 那句「可以直接发给所有者的话」是复制机制的载荷,一并撤掉。
-    expect(container.textContent).not.toContain('Open Design 控制台');
+    expect(container.textContent).not.toContain('Composer Design 控制台');
   });
 });

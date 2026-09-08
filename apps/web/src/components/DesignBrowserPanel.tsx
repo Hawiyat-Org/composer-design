@@ -12,7 +12,7 @@ import {
 import { createPortal, flushSync } from 'react-dom';
 import {
   clearHostBrowserData,
-  isOpenDesignHostAvailable,
+  isComposerDesignHostAvailable,
 } from '@open-design/host';
 import type { TrackingReferenceBoardCategory } from '@open-design/contracts/analytics';
 import { useAnalytics } from '../analytics/provider';
@@ -275,7 +275,7 @@ interface DesignBrowserPanelProps {
   projectId: string;
   resolvedDir?: string | null;
   onOpenFile: (name: string) => void;
-  onOpenDesignFiles?: () => void;
+  onComposerDesignFiles?: () => void;
   onRefreshFiles: () => Promise<void> | void;
   onPageInfoChange?: (info: BrowserPageInfo) => void;
   previewComments?: PreviewComment[];
@@ -727,7 +727,7 @@ export function browserUsePrompt(action: BrowserUseAction, context: BrowserUsePr
   return [
     '@agent-browser',
     '',
-    'Use the selected OpenDesign Browser tab as the bound target.',
+    'Use the selected ComposerDesign Browser tab as the bound target.',
     'Browser tab context:',
     `- tab: ${tabLabel}`,
     `- title: ${title}`,
@@ -750,10 +750,10 @@ export function browserUsePrompt(action: BrowserUseAction, context: BrowserUsePr
   ].join('\n');
 }
 
-const ADD_IMAGE_TO_CHAT_MESSAGE = '__open_design_add_image_to_chat__:';
+const ADD_IMAGE_TO_CHAT_MESSAGE = '__composer_design_add_image_to_chat__:';
 const browserImageHoverScript = (addToChatLabel: string) => String.raw`(() => {
-  const rootId = '__open_design_image_hover_layer__';
-  window.__openDesignImageHoverCleanup?.();
+  const rootId = '__composer_design_image_hover_layer__';
+  window.__composerDesignImageHoverCleanup?.();
   document.getElementById(rootId)?.remove();
   const controller = new AbortController();
 
@@ -862,10 +862,10 @@ const browserImageHoverScript = (addToChatLabel: string) => String.raw`(() => {
       console.info('${ADD_IMAGE_TO_CHAT_MESSAGE}' + JSON.stringify(payload));
     }));
   }, { signal: controller.signal });
-  window.__openDesignImageHoverCleanup = () => {
+  window.__composerDesignImageHoverCleanup = () => {
     controller.abort();
     layer.remove();
-    delete window.__openDesignImageHoverCleanup;
+    delete window.__composerDesignImageHoverCleanup;
   };
   return true;
 })()`;
@@ -918,7 +918,7 @@ export function DesignBrowserPanel({
   projectId,
   resolvedDir,
   onOpenFile,
-  onOpenDesignFiles,
+  onComposerDesignFiles,
   onPageInfoChange,
   onRefreshFiles,
   previewComments = EMPTY_PREVIEW_COMMENTS,
@@ -933,7 +933,7 @@ export function DesignBrowserPanel({
 }: DesignBrowserPanelProps) {
   const t = useT();
   const { workspaceContext } = useProjectCollabContext();
-  const desktopHostAvailable = isOpenDesignHostAvailable();
+  const desktopHostAvailable = isComposerDesignHostAvailable();
   const initialState = initialBrowserState(initialUrl, initialTitle);
   // `loadUrl` is the navigation target bound to the <webview>/<iframe> `src`.
   // It changes ONLY on user-initiated navigation. `currentUrl` is the committed
@@ -1947,13 +1947,13 @@ export function DesignBrowserPanel({
       if (options.openAfterSave !== false) onOpenFile(manifestFile);
       const message = t('designBrowser.status.pageSnapshotSaved');
       const elapsedSeconds = pageSnapshotRunElapsedSeconds(run);
-      const canOpenDesignFiles = Boolean(onOpenDesignFiles);
+      const canComposerDesignFiles = Boolean(onComposerDesignFiles);
       setStatusMessage({
         actionFileName: manifestFile,
-        actionLabel: canOpenDesignFiles
+        actionLabel: canComposerDesignFiles
           ? t('designBrowser.status.viewDesignFiles')
           : t('workspace.designFiles'),
-        actionTarget: canOpenDesignFiles ? 'design-files' : 'file',
+        actionTarget: canComposerDesignFiles ? 'design-files' : 'file',
         message,
         source: 'page-snapshot',
       });
@@ -2658,8 +2658,8 @@ export function DesignBrowserPanel({
               type="button"
               className="db-status-action"
               onClick={() => {
-                if (statusAction.actionTarget === 'design-files' && onOpenDesignFiles) {
-                  onOpenDesignFiles();
+                if (statusAction.actionTarget === 'design-files' && onComposerDesignFiles) {
+                  onComposerDesignFiles();
                 } else {
                   onOpenFile(statusAction.actionFileName ?? '');
                 }

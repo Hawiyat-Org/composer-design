@@ -1686,7 +1686,7 @@ const EDGE: Cell[] = [
     node: () => errCard('本地环境跑不动这一步', '当前运行在 CLI / BYOK 环境,这一步需要云端算力。切到 Cloud 可以接着跑,已完成的部分会带过去。', [['导出日志','secondary'],['切换到 Cloud','primary']]),
     notes: [
       '同一张卡的另一档:两颗动作,主动作是「切换到 Cloud」',
-      '**已合并**(OPEND-2772):产品原来在报错卡下面另起一张 `AmrGuidance`,两张卡同时出现;那张卡已删掉,〔切换到 OpenDesign Cloud 并重试〕收进报错卡的主按钮位。文案仍是产品自己那句 `chat.amrCard.switchCta`,没有换成稿子的「切换到 Cloud」'
+      '**已合并**(OPEND-2772):产品原来在报错卡下面另起一张 `AmrGuidance`,两张卡同时出现;那张卡已删掉,〔切换到 ComposerDesign Cloud 并重试〕收进报错卡的主按钮位。文案仍是产品自己那句 `chat.amrCard.switchCta`,没有换成稿子的「切换到 Cloud」'
     ],
   },
   {

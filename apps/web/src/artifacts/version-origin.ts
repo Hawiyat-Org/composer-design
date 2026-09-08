@@ -22,7 +22,7 @@ function safeOriginId(value: unknown): value is string {
 
 function isValidArtifactOrigin(origin: ArtifactOrigin): boolean {
   if (
-    origin.entrySurface !== 'open_design_ui'
+    origin.entrySurface !== 'composer_design_ui'
     && origin.entrySurface !== 'od_cli'
     && origin.entrySurface !== 'external_mcp'
     && origin.entrySurface !== 'unknown'
@@ -65,7 +65,7 @@ export async function artifactExportOriginProps(
   version: ProjectFileVersion | null | undefined,
 ): Promise<ArtifactExportOriginProps> {
   const unknownBase = {
-    entry_surface: 'open_design_ui' as const,
+    entry_surface: 'composer_design_ui' as const,
     origin_entry_surface: 'unknown' as const,
   };
   if (!version) {
@@ -94,7 +94,7 @@ export async function artifactExportOriginProps(
     };
   }
   return {
-    entry_surface: 'open_design_ui',
+    entry_surface: 'composer_design_ui',
     artifact_origin_status: version.origin.entrySurface === 'unknown' ? 'unknown' : 'matched',
     ...artifactVersion,
     origin_entry_surface: version.origin.entrySurface,

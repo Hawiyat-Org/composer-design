@@ -351,7 +351,7 @@ const MCP_FAILURE_STAGES = new Set([
 const MCP_FAILURE_SOURCES = new Set([
   'codex_host',
   'local_mcp',
-  'open_design_daemon',
+  'composer_design_daemon',
   'runtime_cli',
   'vela_api',
   'model_provider',
@@ -387,7 +387,7 @@ const MCP_DISTRIBUTION_MECHANISMS = new Set([
   'unknown',
 ]);
 const MCP_PUBLISHER_CLASSES = new Set([
-  'open_design_first_party',
+  'composer_design_first_party',
   'third_party',
   'unknown',
 ]);

@@ -75,7 +75,7 @@ describe('mediaFailureNextStep', () => {
       expect(mediaFailureNextStep({ code: 'STUB_PROVIDER_DISABLED' })).toBe('open-settings');
     });
 
-    it('separates an expired Open Design session from a wrong BYOK key', () => {
+    it('separates an expired Composer Design session from a wrong BYOK key', () => {
       expect(
         mediaFailureNextStep({ message: 'vela image 401: unauthorized', model: 'vela/gpt-image-2' }),
       ).toBe('sign-in');

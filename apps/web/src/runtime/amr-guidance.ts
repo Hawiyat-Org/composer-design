@@ -12,8 +12,8 @@ import type { RunFailureAction } from '@open-design/contracts';
 import { byokApiKeyIsEditableInSettings } from '../utils/byokProvider';
 
 // AMR model-gateway console (account, balance, top-up, plans).
-// `source=open_design` tags the landing page_view so vela analytics can
-// attribute the visit to OpenDesign (per-product revenue/traffic attribution).
+// `source=composer_design` tags the landing page_view so vela analytics can
+// attribute the visit to ComposerDesign (per-product revenue/traffic attribution).
 //
 // The console's dashboard — not a wallet page — is the account surface every
 // entry here targets. A wallet route still answers on B's side, but it is no
@@ -22,13 +22,13 @@ import { byokApiKeyIsEditableInSettings } from '../utils/byokProvider';
 // (vela #1055), so sending a user to /wallet would drop them on a surface the
 // product no longer navigates to.
 export const AMR_CONSOLE_URL =
-  'https://open-design.ai/amr/dashboard?source=open_design';
+  'https://open-design.ai/amr/dashboard?source=composer_design';
 export const DEFAULT_AMR_RECHARGE_URL = AMR_CONSOLE_URL;
 export const AMR_RECHARGE_URL = DEFAULT_AMR_RECHARGE_URL;
 
 // Path + attribution the console is always reached through, so a runtime
 // origin only has to carry the host.
-const AMR_CONSOLE_PATH = '/dashboard?source=open_design';
+const AMR_CONSOLE_PATH = '/dashboard?source=composer_design';
 
 /**
  * The console's `billing=<intent>` value that means "open the upgrade surface
@@ -90,8 +90,8 @@ export const AMR_CONSOLE_AUTO_RECHARGE_INTENT = 'auto-recharge';
 // it arrives through the daemon's runtime console origin instead.
 const AMR_CONSOLE_URL_BY_PROFILE: Record<string, string> = {
   prod: DEFAULT_AMR_RECHARGE_URL,
-  test: 'https://open-design.powerformer.net/cloud/dashboard?source=open_design',
-  local: 'http://localhost:5173/dashboard?source=open_design',
+  test: 'https://open-design.powerformer.net/cloud/dashboard?source=composer_design',
+  local: 'http://localhost:5173/dashboard?source=composer_design',
 };
 
 // Every AMR profile the packaged runtime can be built with (mirrors the daemon's
@@ -457,7 +457,7 @@ export type RunFailureTitleKey =
   | 'chat.runError.title.connectionDropped'
   // 「尚未登录」有两个主语,所以是两个键 —— 一个键装不下两句话。
   // S02 本地 agent(点名是哪一个,`{agent}` 由报错卡渲染时填);
-  // S04 Open Design 智能体(主语固定,卡内一键授权)。
+  // S04 Composer Design 智能体(主语固定,卡内一键授权)。
   | 'chat.runError.title.signInRequired.other'
   | 'chat.runError.title.signInRequired.amr'
   | 'chat.runError.title.rateLimited'
@@ -820,7 +820,7 @@ export function daemonFailureVerdictFrom(
  * alongside.
  *
  * ⚠️ Reads the ladder ONLY. Since OPEND-2772 a BYOK / local-CLI card also
- * carries 〔switch to OpenDesign Cloud〕 in its primary slot (`cloudSwitchCta`),
+ * carries 〔switch to ComposerDesign Cloud〕 in its primary slot (`cloudSwitchCta`),
  * which IS a control that pushes the run forward — but that one is universal,
  * so folding it in here would make this predicate constantly true for every
  * non-Cloud run and destroy the distinction its callers are asking about.
@@ -938,7 +938,7 @@ function clientEnvironmentCard(causeKey: RunFailureCauseKey): RunFailureUi {
 }
 
 /**
- * Rung 3 — "switch to the Open Design agent" — is not an answer for a run that
+ * Rung 3 — "switch to the Composer Design agent" — is not an answer for a run that
  * is ALREADY on that agent: the card would recommend the very thing that just
  * failed, and the switch card underneath would advertise it a second time.
  *
@@ -1298,7 +1298,7 @@ const AGENT_AGNOSTIC_DETAIL_FAILURE_UI: Record<string, RunFailureUi> = {
   // The bundled agent binary needs a CPU instruction set (AVX2) this device
   // doesn't have, so it crashes on launch — retrying reproduces the crash and
   // switching hosted models doesn't help (the runtime binary is the problem).
-  // The fix is updating OpenDesign to a build that bundles a compatible
+  // The fix is updating ComposerDesign to a build that bundles a compatible
   // (baseline) runtime, so show guidance copy without a dead Retry button.
   // Ladder rung 4. §6.Z names this one explicitly under principle 4 ("quota
   // spent, account suspended, CPU unsupported — these three get no Retry").
@@ -1367,7 +1367,7 @@ const AGENT_AGNOSTIC_DETAIL_FAILURE_UI: Record<string, RunFailureUi> = {
   // (`run-retry-policy.ts`), so by the time a card renders the run has already
   // burned its automatic retry — which makes S10's "已自动重试过" literally true.
   //
-  // No switch card: 推荐 Open Design 智能体 is reserved for「本地 agent 没登录」
+  // No switch card: 推荐 Composer Design 智能体 is reserved for「本地 agent 没登录」
   // and「供应商额度用完」(design §3), and the agent that just failed here
   // usually IS the hosted one.
   fatal_rpc_error: retryWithGuidance(
@@ -1699,7 +1699,7 @@ function resolveRunFailureUiIgnoringSelfPromotion(
       code === 'UNAUTHORIZED'
     ) {
       // Rung 1: we can sign the user in from inside the card. 文案 S04
-      // 「Open Design 尚未登录」—— 主语固定,和 S02 那句**不是**同一句话:
+      // 「Composer Design 尚未登录」—— 主语固定,和 S02 那句**不是**同一句话:
       // 那边要点名是哪一个本地 agent,这边说的是我们自己。No AMR promotion (the
       // agent already IS AMR); the authorize action reuses the inline
       // AmrLoginPill (sign-in + auto-retry on success).

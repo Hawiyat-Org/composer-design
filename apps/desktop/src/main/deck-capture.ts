@@ -2201,7 +2201,7 @@ export async function runDomToPptx(
   }
 
   // dom-to-pptx's autoEmbedFonts scanner sees top-level CSSFontFaceRule entries,
-  // but many OpenDesign decks load Google Fonts through an inline `@import`.
+  // but many ComposerDesign decks load Google Fonts through an inline `@import`.
   // Expand those imports into a throwaway top-level style so the vendored engine
   // can discover and embed the actual font files instead of only writing their
   // family names into the PPTX. The render window is destroyed after export, so

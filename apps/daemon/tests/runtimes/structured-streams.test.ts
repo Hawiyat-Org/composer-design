@@ -159,7 +159,7 @@ describe('structured agent stream fixtures', () => {
   /*
    * Claude Code owns the task ids, and its task store OUTLIVES a single run.
    *
-   * Every OpenDesign turn spawns a fresh `claude -p --resume <session>`, so this
+   * Every ComposerDesign turn spawns a fresh `claude -p --resume <session>`, so this
    * stream handler starts empty while Claude Code carries #1, #2, … forward from
    * the previous turn. Recorded against claude 2.1.247 (`--resume`, turn 2):
    *

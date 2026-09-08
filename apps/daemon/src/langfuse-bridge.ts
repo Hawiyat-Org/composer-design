@@ -1086,7 +1086,7 @@ function buildTraceSafeManifests(args: {
         ...(extension ? { extension } : {}),
         redacted: false,
         truncated: false,
-        stored_in_open_design: true,
+        stored_in_composer_design: true,
         retention_policy: 'project_lifetime',
         access_scope: 'project',
         sensitivity: 'private',
@@ -1159,7 +1159,7 @@ function buildTraceSafeManifests(args: {
           : { export_status: 'unavailable' }),
         redacted: false,
         truncated: false,
-        stored_in_open_design: true,
+        stored_in_composer_design: true,
         retention_policy: 'project_lifetime',
         access_scope: 'project',
         sensitivity: 'private',
@@ -1196,7 +1196,7 @@ function buildTraceObjectSummary(args: {
   const skipReasons: Record<string, number> = {};
   let uploadedCount = 0;
   for (const entry of entries) {
-    if (entry.status === 'ok' && entry.stored_in_open_design === true) {
+    if (entry.status === 'ok' && entry.stored_in_composer_design === true) {
       uploadedCount += 1;
       continue;
     }

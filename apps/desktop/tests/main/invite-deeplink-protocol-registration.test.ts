@@ -62,7 +62,7 @@ describe("registerInviteDeeplink protocol-client registration", () => {
   });
 
   it("does not claim the scheme from a Windows source/dev run", async () => {
-    await registerOn("win32", false, "C:\\Users\\qa\\AppData\\Local\\OpenDesign\\OpenDesign.exe");
+    await registerOn("win32", false, "C:\\Users\\qa\\AppData\\Local\\ComposerDesign\\ComposerDesign.exe");
     expect(electron.setAsDefaultProtocolClient).not.toHaveBeenCalled();
   });
 
@@ -77,7 +77,7 @@ describe("registerInviteDeeplink protocol-client registration", () => {
   });
 
   it("claims the scheme for a packaged Windows app via the stable launcher path", async () => {
-    const launcher = "C:\\Users\\qa\\AppData\\Local\\OpenDesign\\OpenDesign.exe";
+    const launcher = "C:\\Users\\qa\\AppData\\Local\\ComposerDesign\\ComposerDesign.exe";
     await registerOn("win32", true, launcher);
     expect(electron.setAsDefaultProtocolClient).toHaveBeenCalledWith("opendesign", launcher);
   });

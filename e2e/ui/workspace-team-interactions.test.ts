@@ -566,7 +566,7 @@ test('[P0] account replacement never paints the previous account workspace or pr
   await expect(page.getByText(accountA.project.name, { exact: true })).toHaveCount(0);
 
   releaseAccountBProjects();
-  await page.getByText('Loading OpenDesign…').waitFor({
+  await page.getByText('Loading ComposerDesign…').waitFor({
     state: 'hidden',
     timeout: T.long,
   });
@@ -2003,7 +2003,7 @@ async function wireMultiWindowWorkspaceAuthority(
 
 async function gotoHome(page: Page): Promise<void> {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({
+  await page.getByText('Loading ComposerDesign…').waitFor({
     state: 'hidden',
     timeout: T.long,
   });

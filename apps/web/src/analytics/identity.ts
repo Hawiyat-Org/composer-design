@@ -5,7 +5,7 @@
 // headers (see @open-design/contracts/analytics).
 
 import type { AnalyticsClientType } from '@open-design/contracts/analytics';
-import { detectOpenDesignHostClientType } from '@open-design/host';
+import { detectComposerDesignHostClientType } from '@open-design/host';
 
 const ANONYMOUS_ID_KEY = 'open-design:analytics.anonymous_id';
 const SESSION_ID_KEY = 'open-design:analytics.session_id';
@@ -147,12 +147,12 @@ export function claimProjectTurnIndex(
   }
 }
 
-// Desktop packaged builds install the OpenDesign host bridge so the
+// Desktop packaged builds install the ComposerDesign host bridge so the
 // same web bundle can distinguish desktop runs from browser visits.
 // Falls back to 'web' when the host bridge isn't present.
 export function detectClientType(): AnalyticsClientType {
   if (typeof window === 'undefined') return 'web';
-  return detectOpenDesignHostClientType();
+  return detectComposerDesignHostClientType();
 }
 
 // Read the launch_source for app_launch. Best-effort: PerformanceNavigation

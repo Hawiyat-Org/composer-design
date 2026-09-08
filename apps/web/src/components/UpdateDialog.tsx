@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { OpenDesignHostUpdaterStatusSnapshot } from '@open-design/host';
+import type { ComposerDesignHostUpdaterStatusSnapshot } from '@open-design/host';
 
 import { Icon } from './Icon';
 import { useAnalytics } from '../analytics/provider';
@@ -34,7 +34,7 @@ function withEllipsis(value: string): string {
   return `${value.replace(/[.\u2026]+$/u, '')}…`;
 }
 
-function shouldRunManualCheck(status: OpenDesignHostUpdaterStatusSnapshot): boolean {
+function shouldRunManualCheck(status: ComposerDesignHostUpdaterStatusSnapshot): boolean {
   return status.state === 'idle' || status.state === 'not-available' || status.state === 'error';
 }
 
@@ -43,12 +43,12 @@ export function UpdateDialog() {
   const analytics = useAnalytics();
   const analyticsTrackRef = useRef(analytics.track);
   analyticsTrackRef.current = analytics.track;
-  const statusRef = useRef<OpenDesignHostUpdaterStatusSnapshot | null>(null);
+  const statusRef = useRef<ComposerDesignHostUpdaterStatusSnapshot | null>(null);
   const statusRevisionRef = useRef(0);
   const laterRef = useRef<HTMLButtonElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const primaryRef = useRef<HTMLButtonElement | null>(null);
-  const [status, setStatus] = useState<OpenDesignHostUpdaterStatusSnapshot | null>(null);
+  const [status, setStatus] = useState<ComposerDesignHostUpdaterStatusSnapshot | null>(null);
   const [open, setOpen] = useState(false);
   const [source, setSource] = useState(MENU_SOURCE);
   const [actionBusy, setActionBusy] = useState(false);
@@ -60,7 +60,7 @@ export function UpdateDialog() {
     ...(model.availableVersion ? { app_version_after: model.availableVersion } : {}),
   }), [model.availableVersion, model.currentVersion]);
 
-  const applyStatus = useCallback((next: OpenDesignHostUpdaterStatusSnapshot) => {
+  const applyStatus = useCallback((next: ComposerDesignHostUpdaterStatusSnapshot) => {
     statusRevisionRef.current += 1;
     statusRef.current = next;
     setStatus(next);

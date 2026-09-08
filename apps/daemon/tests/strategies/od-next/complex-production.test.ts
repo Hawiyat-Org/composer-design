@@ -4,11 +4,11 @@ import path from 'node:path';
 
 import {
   normalizeAgentObservationV1,
-  OpenDesignPlanContractV2Schema,
+  ComposerDesignPlanContractV2Schema,
   type AppliedPluginSnapshot,
   type NormalizedAgentObservationV1,
   type OdNextRuntimeCapabilitySnapshotV1,
-  type OpenDesignPlanContractV2,
+  type ComposerDesignPlanContractV2,
 } from '@open-design/contracts';
 import { strategyPackageHashFromDigests } from '@open-design/plugin-runtime';
 import type Database from 'better-sqlite3';
@@ -137,7 +137,7 @@ function planContract(
   snapshot: AppliedPluginSnapshot,
   capability = capabilitySnapshot(),
   dependent = true,
-): OpenDesignPlanContractV2 {
+): ComposerDesignPlanContractV2 {
   const strategy = snapshot.strategy!;
   return {
     schema: 'open-design.plan-contract/v2',
@@ -266,8 +266,8 @@ function block(tag: string, value: unknown): string {
   return `<${tag}>\n${JSON.stringify(value)}\n</${tag}>`;
 }
 
-function parsedPlanning(plan: OpenDesignPlanContractV2) {
-  OpenDesignPlanContractV2Schema.parse(plan);
+function parsedPlanning(plan: ComposerDesignPlanContractV2) {
+  ComposerDesignPlanContractV2Schema.parse(plan);
   const protocol = new OdNextMachineProtocolStream();
   protocol.push([
     block('open-design-plan-contract', plan),
@@ -485,7 +485,7 @@ describe('OD Next complex production enforcement', () => {
       agentCliVersion: '2.1.233 (Claude Code)',
       capturedAt: 1,
     }).snapshot!;
-    const plan = OpenDesignPlanContractV2Schema.parse({
+    const plan = ComposerDesignPlanContractV2Schema.parse({
       ...planContract(snapshot, capability),
       runManifest: {
         ...planContract(snapshot, capability).runManifest,

@@ -698,7 +698,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
         extension: 'pdf',
         redacted: false,
         truncated: false,
-        stored_in_open_design: true,
+        stored_in_composer_design: true,
         retention_policy: 'project_lifetime',
         access_scope: 'project',
         sensitivity: 'private',
@@ -728,7 +728,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
         export_status: 'available',
         redacted: false,
         truncated: false,
-        stored_in_open_design: true,
+        stored_in_composer_design: true,
         retention_policy: 'project_lifetime',
         access_scope: 'project',
         sensitivity: 'private',
@@ -1279,13 +1279,13 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
     expect(trace.metadata.attachment_manifest[0]).toMatchObject({
       object_class: 'attachment',
       status: 'ok',
-      stored_in_open_design: true,
+      stored_in_composer_design: true,
       size_bytes: 'private attachment body'.length,
     });
     expect(trace.metadata.artifact_manifest[0]).toMatchObject({
       object_class: 'artifact',
       status: 'ok',
-      stored_in_open_design: true,
+      stored_in_composer_design: true,
       size_bytes: '<!doctype html><h1>private artifact</h1>'.length,
     });
   });
@@ -1413,7 +1413,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
     expect(trace.metadata.attachment_manifest[0]).toMatchObject({
       object_class: 'attachment',
       status: 'ok',
-      stored_in_open_design: true,
+      stored_in_composer_design: true,
       source: 'user_upload',
       retention_policy: 'observability_90d',
       access_scope: 'project',
@@ -1423,7 +1423,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
     expect(trace.metadata.artifact_manifest[0]).toMatchObject({
       object_class: 'artifact',
       status: 'ok',
-      stored_in_open_design: true,
+      stored_in_composer_design: true,
       source: 'agent_generated',
       retention_policy: 'observability_90d',
     });
@@ -1431,7 +1431,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
     expect(trace.metadata.input_text_snapshot_manifest[0]).toMatchObject({
       object_class: 'input_text_snapshot',
       status: 'ok',
-      stored_in_open_design: true,
+      stored_in_composer_design: true,
       source: 'user_prompt',
     });
     expect(trace.metadata.input_text_snapshot_manifest[0]).not.toHaveProperty('reason');
@@ -1675,7 +1675,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
       run_id: 'run-id-1',
       storage_ref: expect.stringContaining('/runs/run-id-1/'),
       status: 'ok',
-      stored_in_open_design: true,
+      stored_in_composer_design: true,
     });
   });
 
@@ -1856,7 +1856,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
     expect(trace.metadata.artifact_manifest[0]).toMatchObject({
       object_class: 'artifact',
       status: 'ok',
-      stored_in_open_design: true,
+      stored_in_composer_design: true,
     });
   });
 
@@ -1917,7 +1917,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
     expect(trace.metadata.artifact_manifest[0]).toMatchObject({
       object_class: 'artifact',
       status: 'ok',
-      stored_in_open_design: true,
+      stored_in_composer_design: true,
       extension: 'html',
     });
   });

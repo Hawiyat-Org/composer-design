@@ -10,13 +10,13 @@ type DesktopExportResult =
   | { ok: false; cancelled: true }
   | { ok: false; cancelled: false; message: string };
 
-interface OpenDesignDesktopApi {
+interface ComposerDesignDesktopApi {
   exportDiagnostics(): Promise<DesktopExportResult>;
 }
 
 declare global {
   interface Window {
-    openDesignDesktop?: OpenDesignDesktopApi;
+    composerDesignDesktop?: ComposerDesignDesktopApi;
   }
 }
 
@@ -112,8 +112,8 @@ export function useDiagnosticsExport() {
     // is supposed to carry. It never throws and never fails the export.
     await captureAndUploadChatScrollForensics();
     try {
-      if (window.openDesignDesktop != null) {
-        const result = await window.openDesignDesktop.exportDiagnostics();
+      if (window.composerDesignDesktop != null) {
+        const result = await window.composerDesignDesktop.exportDiagnostics();
         if (result.ok) {
           setStatus({ kind: 'success', message: t('diagnostics.exportSuccess').replace('{path}', result.path) });
           scheduleClear();
@@ -143,7 +143,7 @@ export function useDiagnosticsExport() {
 /**
  * Designed for the Settings → About panel. Renders a labeled button with a
  * short status line below it. Works in both the Electron shell (uses native
- * save dialog via window.openDesignDesktop) and the browser (triggers a
+ * save dialog via window.composerDesignDesktop) and the browser (triggers a
  * browser download via the daemon HTTP endpoint).
  */
 export function ExportDiagnosticsRow() {

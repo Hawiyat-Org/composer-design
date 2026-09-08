@@ -103,9 +103,9 @@ export function serializeOdNextPromptBundleV1(
 ): string {
   requireNonBlank(input.systemPrompt, 'systemPrompt');
   return [
-    '<open_design_prompt_bundle schema="' + OD_NEXT_PROMPT_BUNDLE_SCHEMA_V1 + '">',
+    '<composer_design_prompt_bundle schema="' + OD_NEXT_PROMPT_BUNDLE_SCHEMA_V1 + '">',
     ...BUNDLE_BLOCKS.map(([tag, field]) => renderBlock(tag, input[field], field)),
-    '</open_design_prompt_bundle>',
+    '</composer_design_prompt_bundle>',
   ].join('\n');
 }
 
@@ -151,7 +151,7 @@ class CanonicalXmlCursor {
 export function parseOdNextPromptBundleV1(source: string): OdNextPromptBundleV1 {
   const cursor = new CanonicalXmlCursor(assertXmlText(source, 'bundle'));
   cursor.consume(
-    '<open_design_prompt_bundle schema="' + OD_NEXT_PROMPT_BUNDLE_SCHEMA_V1 + '">\n',
+    '<composer_design_prompt_bundle schema="' + OD_NEXT_PROMPT_BUNDLE_SCHEMA_V1 + '">\n',
   );
   const result = {} as Record<(typeof BUNDLE_BLOCKS)[number][1], string>;
   for (const [tag, field] of BUNDLE_BLOCKS) {
@@ -159,7 +159,7 @@ export function parseOdNextPromptBundleV1(source: string): OdNextPromptBundleV1 
     result[field] = cursor.cdata(field);
     cursor.consume('\n  </' + tag + '>\n');
   }
-  cursor.consume('</open_design_prompt_bundle>');
+  cursor.consume('</composer_design_prompt_bundle>');
   if (!cursor.done()) throw new TypeError('Prompt Bundle has bytes outside its root.');
   const parsed: OdNextPromptBundleV1 = result;
   if (serializeOdNextPromptBundleV1(parsed) !== source) {
@@ -179,18 +179,18 @@ export function serializeOdNextRequestTurnV1(
     throw new TypeError('taskRunIndex must be a positive safe integer.');
   }
   return [
-    '<open_design_request_turn schema="' + OD_NEXT_REQUEST_TURN_SCHEMA_V1
+    '<composer_design_request_turn schema="' + OD_NEXT_REQUEST_TURN_SCHEMA_V1
       + '" task_execution_id="' + escapeXmlAttribute(taskExecutionId, 'taskExecutionId')
       + '" stage="' + input.stage + '" task_run_index="' + input.taskRunIndex + '">',
     '  <payload>\n    ' + cdata(input.payload, 'payload') + '\n  </payload>',
-    '</open_design_request_turn>',
+    '</composer_design_request_turn>',
   ].join('\n');
 }
 
 export function parseOdNextRequestTurnV1(source: string): OdNextRequestTurnV1 {
   const cursor = new CanonicalXmlCursor(assertXmlText(source, 'turn'));
   cursor.consume(
-    '<open_design_request_turn schema="' + OD_NEXT_REQUEST_TURN_SCHEMA_V1
+    '<composer_design_request_turn schema="' + OD_NEXT_REQUEST_TURN_SCHEMA_V1
       + '" task_execution_id="',
   );
   const taskExecutionId = cursor.attributeUntil('" stage="', 'taskExecutionId');
@@ -204,7 +204,7 @@ export function parseOdNextRequestTurnV1(source: string): OdNextRequestTurnV1 {
   }
   cursor.consume('  <payload>\n    ');
   const payload = cursor.cdata('payload');
-  cursor.consume('\n  </payload>\n</open_design_request_turn>');
+  cursor.consume('\n  </payload>\n</composer_design_request_turn>');
   if (!cursor.done()) throw new TypeError('Request Turn has bytes outside its root.');
   const parsed: OdNextRequestTurnV1 = {
     taskExecutionId,

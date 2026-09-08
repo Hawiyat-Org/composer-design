@@ -10,7 +10,7 @@ describe('openFirstPartyExternalLinkFromClick', () => {
     anchor.href = 'https://open-design.ai/console';
     anchor.addEventListener('click', () => {
       const url = new URL(anchor.href);
-      url.searchParams.set('od_origin', 'open_design');
+      url.searchParams.set('od_origin', 'composer_design');
       url.searchParams.set('od_entry_id', 'settings');
       url.searchParams.set('od_device_id', 'install-123');
       anchor.href = url.toString();
@@ -24,7 +24,7 @@ describe('openFirstPartyExternalLinkFromClick', () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(opened).toHaveBeenCalledWith(
-      'https://open-design.ai/console?od_origin=open_design&od_entry_id=settings&od_device_id=install-123',
+      'https://open-design.ai/console?od_origin=composer_design&od_entry_id=settings&od_device_id=install-123',
     );
   });
 });

@@ -27,14 +27,14 @@ test('[P2] captures the onboarding cloud sign-in surface', async ({ page }) => {
   });
 
   await page.goto('/onboarding', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ComposerDesign…').waitFor({ state: 'hidden', timeout: T.long });
   // Cloud stays primary while identity-independent Local Agent and BYOK setup
   // remain available directly from the signed-out landing.
   await expect(
-    page.getByRole('heading', { name: /Sign in to OpenDesign|登录 OpenDesign/i }),
+    page.getByRole('heading', { name: /Sign in to ComposerDesign|登录 ComposerDesign/i }),
   ).toBeVisible({ timeout: T.medium });
   await expect(
-    page.getByRole('button', { name: /Sign in to OpenDesign|登录 OpenDesign/i }),
+    page.getByRole('button', { name: /Sign in to ComposerDesign|登录 ComposerDesign/i }),
   ).toBeVisible();
   await expect(
     page.getByRole('button', { name: /Local (coding )?agent|本地 (Coding )?Agent/i }),
@@ -65,7 +65,7 @@ test('[P2] captures the onboarding Local Agent CLI list surface', async ({ page 
   await mockSignedInVelaAccount(page);
 
   await page.goto('/onboarding', { waitUntil: 'domcontentloaded' });
-  await page.getByText('Loading OpenDesign…').waitFor({ state: 'hidden', timeout: T.long });
+  await page.getByText('Loading ComposerDesign…').waitFor({ state: 'hidden', timeout: T.long });
 
   await page
     .getByRole('button', { name: /Continue \(signed in\)|继续（已登录）/i })

@@ -146,7 +146,7 @@ describe('codex transport switch', () => {
       expect(args).not.toContain('-C');
     });
 
-    it('keeps the OpenDesign shell-environment overrides on argv', () => {
+    it('keeps the ComposerDesign shell-environment overrides on argv', () => {
       const overridden = withCodexTransport(codexAgentDef, 'app-server');
       const args = overridden.buildArgs('prompt', [], [], {}, { cwd: '/workspace' });
       const execArgs = codexAgentDef.buildArgs('prompt', [], [], {}, { cwd: '/workspace' });

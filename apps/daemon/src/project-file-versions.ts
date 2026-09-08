@@ -214,7 +214,7 @@ function normalizeArtifactOrigin(value: unknown): ArtifactOrigin | undefined {
   const raw = value as Record<string, unknown>;
   const entrySurface = raw.entrySurface;
   if (
-    entrySurface !== 'open_design_ui'
+    entrySurface !== 'composer_design_ui'
     && entrySurface !== 'od_cli'
     && entrySurface !== 'external_mcp'
     && entrySurface !== 'unknown'

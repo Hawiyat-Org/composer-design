@@ -112,12 +112,12 @@ function assetOf(metadata: VersionMetadata, target: ReleaseTarget): { name: stri
 function artifactDestination(target: ReleaseTarget, toolsPackDir: string, namespace: string): string {
   const token = sanitizeNamespace(namespace);
   if (target === "win_x64") {
-    return join(toolsPackDir, "out", "win", "namespaces", namespace, "builder", `Open Design-${token}-setup.exe`);
+    return join(toolsPackDir, "out", "win", "namespaces", namespace, "builder", `Composer Design-${token}-setup.exe`);
   }
   if (target === "linux_x64") {
-    return join(toolsPackDir, "out", "linux", "namespaces", namespace, "builder", `Open Design-${token}.AppImage`);
+    return join(toolsPackDir, "out", "linux", "namespaces", namespace, "builder", `Composer Design-${token}.AppImage`);
   }
-  return join(toolsPackDir, "out", "mac", "namespaces", namespace, "dmg", `Open Design-${token}.dmg`);
+  return join(toolsPackDir, "out", "mac", "namespaces", namespace, "dmg", `Composer Design-${token}.dmg`);
 }
 
 async function download(url: string, destination: string): Promise<{ bytes: number; sha256: string }> {

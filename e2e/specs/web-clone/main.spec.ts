@@ -297,7 +297,7 @@ async function startFixtureSite(): Promise<{ server: Server; url: string }> {
     </style>
   </head>
   <body>
-    <header><nav><a href="#proof">Open Design</a></nav></header>
+    <header><nav><a href="#proof">Composer Design</a></nav></header>
     <main><h1>Deterministic browser-broker proof</h1><section id="proof"><h2>Scrolled and captured</h2><button>Primary action</button></section></main>
     <footer>Website Clone fixture footer</footer>
   </body>

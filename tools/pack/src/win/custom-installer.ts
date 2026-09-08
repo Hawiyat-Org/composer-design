@@ -995,7 +995,7 @@ skip_silent_desktop_shortcut:
   WriteRegStr HKCU "${registryKey}" "QuietUninstallString" '"$INSTDIR\\${uninstallerName}" /currentuser /S'
   WriteRegStr HKCU "${registryKey}" "DisplayIcon" "$INSTDIR\\${exeName},0"
   WriteRegStr HKCU "${appPathsKey}" "" "$INSTDIR\\${exeName}"
-  WriteRegStr HKCU "${inviteProtocolKey}" "" "URL:Open Design Invite Protocol"
+  WriteRegStr HKCU "${inviteProtocolKey}" "" "URL:Composer Design Invite Protocol"
   WriteRegStr HKCU "${inviteProtocolKey}" "URL Protocol" ""
   WriteRegStr HKCU "${inviteProtocolKey}\\DefaultIcon" "" "$INSTDIR\\${exeName},0"
   WriteRegStr HKCU "${inviteProtocolKey}\\shell\\open\\command" "" ${inviteProtocolCommand}

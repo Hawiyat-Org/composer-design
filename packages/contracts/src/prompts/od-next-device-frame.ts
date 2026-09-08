@@ -2,7 +2,7 @@
  * OD Next handheld device shell ("phone frame") resolution.
  *
  * The prototype task profile ships three presentation shells as package
- * resources (iPhone, Android, platform-neutral). Open Design resolves which
+ * resources (iPhone, Android, platform-neutral). Composer Design resolves which
  * one a task wants from two sources only — the project's platform metadata and
  * the user's own words — and never from the model's judgement: a missed
  * resolution still leaves every shell staged on disk for the rule card to point

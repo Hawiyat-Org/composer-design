@@ -36,7 +36,7 @@ async function stubCatalogsEmpty(page: import('@playwright/test').Page) {
   await routeAgents(page, [
     {
       id: 'amr',
-      name: 'OpenDesign AMR',
+      name: 'ComposerDesign AMR',
       bin: 'vela',
       available: true,
       version: 'test',
@@ -118,7 +118,7 @@ test('[P0] after local Sign out, the app returns to Cloud sign-in without cleari
 
   const settings = await openSettingsDialog(page);
   // Scope to the AMR agent card: the settings sidebar also carries an
-  // "OpenDesign MCP" nav item, so a surface-wide /OpenDesign/i now resolves
+  // "ComposerDesign MCP" nav item, so a surface-wide /ComposerDesign/i now resolves
   // to that `settings-nav-item` (which has no aria-pressed) instead of the
   // agent card's select button.
   await expect(amrAgentToggle(settings)).toHaveAttribute('aria-pressed', 'true');
@@ -134,9 +134,9 @@ test('[P0] after local Sign out, the app returns to Cloud sign-in without cleari
   // so the saved AMR setup must survive for reauthentication.
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(
-    page.getByRole('heading', { name: /Sign in to OpenDesign|登录 OpenDesign/i }),
+    page.getByRole('heading', { name: /Sign in to ComposerDesign|登录 ComposerDesign/i }),
   ).toBeVisible({ timeout: T.long });
-  await expect(page.getByRole('button', { name: /Sign in to OpenDesign|登录 OpenDesign/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Sign in to ComposerDesign|登录 ComposerDesign/i })).toBeVisible();
   await expect(page.getByTestId('home-hero-input')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => {
     const raw = window.localStorage.getItem('open-design:config');

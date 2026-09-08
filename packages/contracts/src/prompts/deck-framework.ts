@@ -73,7 +73,7 @@ export const DECK_SKELETON_HTML = `<!doctype html>
       --bg: #ffffff;
       --fg: #1c1b1a;
       --muted: #6b6964;
-      --accent: #c96442;
+      --accent: #787878;
       --surface: #ffffff;
       --shell: #08090d;
     }
@@ -560,7 +560,7 @@ const LEGACY_DECK_COMPATIBILITY_BODY = `# Slide deck — selected or existing sc
 
 This deck already has a source-of-truth scaffold: either the user selected a legacy deck seed or the project contains an existing HTML deck. Preserve that scaffold and follow its owning Skill/template instructions. If the selected Skill requires \`assets/template.html\`, copy and fill that seed; if a deck HTML file already exists, edit it in place and preserve its filename.
 
-Do not replace the selected/existing scaffold with Open Design's canonical skeleton. Do not rewrite its navigation runtime, add a second navigation runtime, or copy OD Deck Protocol v1 markers into a legacy seed. The host viewer's compatibility bridge owns navigation for legacy deck shapes. If the existing scaffold already implements OD Deck Protocol v1, preserve it as-is.
+Do not replace the selected/existing scaffold with Composer Design's canonical skeleton. Do not rewrite its navigation runtime, add a second navigation runtime, or copy OD Deck Protocol v1 markers into a legacy seed. The host viewer's compatibility bridge owns navigation for legacy deck shapes. If the existing scaffold already implements OD Deck Protocol v1, preserve it as-is.
 
 Keep the selected scaffold's slide structure, styling contract, keyboard behavior, and print rules intact while changing only the deck-specific content and the slots its Skill allows.`;
 

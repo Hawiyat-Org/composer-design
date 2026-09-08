@@ -26,8 +26,6 @@ name: cut-patch-release
 # must live on main to run on its cron.
 
 on:
-  schedule:
-    - cron: '0 1 * * 4'        # 01:00 UTC = 09:00 Asia/Shanghai, Thursday
   workflow_dispatch:
     inputs:
       version:

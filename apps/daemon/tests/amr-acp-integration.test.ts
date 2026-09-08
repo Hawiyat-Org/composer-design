@@ -1078,7 +1078,7 @@ describe('AMR ACP transport — end-to-end against fake vela stub', () => {
       kind: 'amr_account',
       action: 'recharge',
       actionUrl: DEFAULT_AMR_RECHARGE_URL,
-      promoted_by: 'open_design_acp_retry_status',
+      promoted_by: 'composer_design_acp_retry_status',
     });
     expect(String(payload?.message ?? '')).toContain('AMR Cloud reported insufficient balance');
   });
@@ -1118,7 +1118,7 @@ describe('AMR ACP transport — end-to-end against fake vela stub', () => {
       kind: 'amr_account',
       action: 'recharge',
       actionUrl: DEFAULT_AMR_RECHARGE_URL,
-      promoted_by: 'open_design_acp_stderr_retry_status',
+      promoted_by: 'composer_design_acp_stderr_retry_status',
     });
     expect(String(payload?.message ?? '')).toContain('AMR Cloud reported insufficient balance');
   });
@@ -1159,7 +1159,7 @@ describe('AMR ACP transport — end-to-end against fake vela stub', () => {
       kind: 'amr_account',
       action: 'recharge',
       actionUrl: DEFAULT_AMR_RECHARGE_URL,
-      promoted_by: 'open_design_acp_stderr_retry_status',
+      promoted_by: 'composer_design_acp_stderr_retry_status',
     });
   });
 

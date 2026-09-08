@@ -34,35 +34,35 @@ export type WorkspaceAuthorityMetricOutcome =
   | 'fallback';
 
 export const workspaceAuthorityDecisionsTotal = new Counter({
-  name: 'open_design_workspace_authority_decisions_total',
+  name: 'composer_design_workspace_authority_decisions_total',
   help: 'Workspace authority decisions by bounded mode, source, reason, and outcome.',
   labelNames: ['mode', 'source', 'reason', 'outcome'] as const,
   registers: [register],
 });
 
 export const workspaceAuthoritySuppressedRequestsTotal = new Counter({
-  name: 'open_design_workspace_authority_suppressed_requests_total',
+  name: 'composer_design_workspace_authority_suppressed_requests_total',
   help: 'Upstream Workspace authority requests avoided by a valid lease or realtime safety floor.',
   labelNames: ['mode', 'source', 'reason'] as const,
   registers: [register],
 });
 
 export const workspaceAuthorityInvalidationsTotal = new Counter({
-  name: 'open_design_workspace_authority_invalidations_total',
+  name: 'composer_design_workspace_authority_invalidations_total',
   help: 'Workspace authority cache invalidations by bounded reason.',
   labelNames: ['mode', 'source', 'reason'] as const,
   registers: [register],
 });
 
 export const workspaceAuthorityRealtimeTransitionsTotal = new Counter({
-  name: 'open_design_workspace_authority_realtime_transitions_total',
+  name: 'composer_design_workspace_authority_realtime_transitions_total',
   help: 'Strict Workspace authority realtime health observations.',
   labelNames: ['mode', 'health', 'member_events', 'listener_status', 'source_gap'] as const,
   registers: [register],
 });
 
 export const workspaceAuthorityAgeMs = new Histogram({
-  name: 'open_design_workspace_authority_age_ms',
+  name: 'composer_design_workspace_authority_age_ms',
   help: 'Age of cached Workspace authority when it is used for a local response.',
   labelNames: ['mode', 'source'] as const,
   buckets: [10, 100, 500, 1_000, 5_000, 10_000, 15_000, 30_000, 60_000, 300_000],
@@ -70,7 +70,7 @@ export const workspaceAuthorityAgeMs = new Histogram({
 });
 
 export const workspaceAuthorityRevocationClearMs = new Histogram({
-  name: 'open_design_workspace_authority_revocation_clear_ms',
+  name: 'composer_design_workspace_authority_revocation_clear_ms',
   help: 'Time from receiving an access-revoked frame to clearing local authority state.',
   labelNames: ['mode'] as const,
   buckets: [0.1, 0.5, 1, 2, 5, 10, 25, 50, 100, 250, 500, 1_000],

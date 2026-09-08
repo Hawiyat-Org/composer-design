@@ -194,7 +194,7 @@ export interface ChatRequest {
   context?: RunContextSelection;
   appliedPluginSnapshotId?: string | null;
   /**
-   * Run-scoped media execution policy. Omitted means current OpenDesign
+   * Run-scoped media execution policy. Omitted means current ComposerDesign
    * behavior: media generation is enabled and OD may execute its configured
    * local providers.
    */

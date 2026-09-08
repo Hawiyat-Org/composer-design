@@ -874,7 +874,7 @@ describe('DesignSystemCreationFlow', () => {
     await waitFor(() => expect(mocks.patchProject).toHaveBeenCalledWith(
       project.id,
       expect.objectContaining({
-        pendingPrompt: expect.stringContaining('Create this project as a complete OpenDesign design system workspace.'),
+        pendingPrompt: expect.stringContaining('Create this project as a complete ComposerDesign design system workspace.'),
       }),
     ));
     await waitFor(() => expect(onProjectPrepared).toHaveBeenCalledWith(
@@ -961,7 +961,7 @@ describe('DesignSystemCreationFlow', () => {
     expect(mocks.patchProject).toHaveBeenCalledWith(
       project.id,
       expect.objectContaining({
-        pendingPrompt: expect.stringContaining('Create this project as a complete OpenDesign design system workspace.'),
+        pendingPrompt: expect.stringContaining('Create this project as a complete ComposerDesign design system workspace.'),
       }),
     );
     expect(mocks.patchProject).toHaveBeenCalledWith(
@@ -2065,12 +2065,12 @@ describe('DesignSystemCreationFlow', () => {
   it.skip('adds website source links with Enter and keeps them out of GitHub intake', async () => {
     const system: DesignSystemDetail = {
       id: 'user:open-design-website-design-system',
-      title: 'OpenDesign Website Design System',
+      title: 'ComposerDesign Website Design System',
       category: 'Custom',
-      summary: 'OpenDesign website source.',
+      summary: 'ComposerDesign website source.',
       swatches: [],
       surface: 'web',
-      body: '# OpenDesign Website Design System\n',
+      body: '# ComposerDesign Website Design System\n',
       source: 'user',
       status: 'draft',
       isEditable: true,
@@ -2078,7 +2078,7 @@ describe('DesignSystemCreationFlow', () => {
     };
     const project: Project = {
       id: 'ds-open-design-website-design-system',
-      name: 'OpenDesign Website Design System',
+      name: 'ComposerDesign Website Design System',
       skillId: null,
       designSystemId: system.id,
       createdAt: 1,
@@ -2112,7 +2112,7 @@ describe('DesignSystemCreationFlow', () => {
     expect(sourceInput.value).toBe('');
 
     fireEvent.change(screen.getByPlaceholderText(/Mission Impastabowl/i), {
-      target: { value: 'OpenDesign website source' },
+      target: { value: 'ComposerDesign website source' },
     });
     continueToGeneration();
     continueToGeneration();
@@ -2165,15 +2165,15 @@ describe('DesignSystemCreationFlow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Show access methods' }));
     expect(screen.getByText('This device')).toBeTruthy();
-    expect(screen.getByText('OpenDesign account')).toBeTruthy();
+    expect(screen.getByText('ComposerDesign account')).toBeTruthy();
     expect(screen.getByText('Connector platform')).toBeTruthy();
     expect(screen.getByText('Coming soon')).toBeTruthy();
     expect(screen.getByText('Not configured')).toBeTruthy();
 
-    fireEvent.change(input, { target: { value: 'https://github.com/nexu-io/open-design/' } });
+    fireEvent.change(input, { target: { value: 'https://github.com/nexu-io/composer-design/' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
-    expect(screen.getByText('nexu-io/open-design')).toBeTruthy();
+    expect(screen.getByText('nexu-io/composer-design')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Configure Composio' }));
 
@@ -2329,7 +2329,7 @@ describe('DesignSystemCreationFlow', () => {
         redirectUrl: 'https://example.com/oauth',
         expiresAt: '2099-05-08T10:00:00.000Z',
       },
-      error: 'Popup blocked. Allow popups for OpenDesign and try again.',
+      error: 'Popup blocked. Allow popups for ComposerDesign and try again.',
     });
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => ({ closed: false } as Window));
     const config = {
@@ -2350,7 +2350,7 @@ describe('DesignSystemCreationFlow', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Connect via Composio' }));
 
       await waitFor(() => expect(screen.getByText('Pending')).toBeTruthy());
-      expect(screen.getByText('Popup blocked. Allow popups for OpenDesign and try again.')).toBeTruthy();
+      expect(screen.getByText('Popup blocked. Allow popups for ComposerDesign and try again.')).toBeTruthy();
 
       fireEvent.click(screen.getByRole('button', { name: 'Open authorization' }));
 
@@ -2434,7 +2434,7 @@ describe('DesignSystemCreationFlow', () => {
     expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
       project.id,
       'context/source-context.md',
-      expect.stringContaining('https://github.com/nexu-io/open-design'),
+      expect.stringContaining('https://github.com/nexu-io/composer-design'),
       undefined,
       null,
     );
@@ -2448,7 +2448,7 @@ describe('DesignSystemCreationFlow', () => {
     expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
       project.id,
       'context/source-context.md',
-      expect.stringContaining('"$OD_NODE_BIN" "$OD_BIN" tools connectors github-design-context --repo \'https://github.com/nexu-io/open-design\' --output context/github/nexu-io-open-design.md'),
+      expect.stringContaining('"$OD_NODE_BIN" "$OD_BIN" tools connectors github-design-context --repo \'https://github.com/nexu-io/composer-design\' --output context/github/nexu-io-composer-design.md'),
       undefined,
       null,
     );

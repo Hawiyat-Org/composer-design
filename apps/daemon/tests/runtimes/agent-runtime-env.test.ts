@@ -7,8 +7,8 @@ import {
   createAgentRuntimeEnv,
   createAgentRuntimeToolPrompt,
   createDaemonDataDirConfiguredAgentEnv,
-  createOpenDesignToolEnv,
-  resolveOpenDesignNodeBin,
+  createComposerDesignToolEnv,
+  resolveComposerDesignNodeBin,
 } from '../../src/server.js';
 import { applyAgentLaunchEnv } from '../../src/runtimes/launch.js';
 import { spawnEnvForAgent } from '../../src/runtimes/env.js';
@@ -16,7 +16,7 @@ import { withPlatform } from './helpers/test-helpers.js';
 
 describe('agent runtime tool environment', () => {
   it('passes the pinned Workspace pair to dynamic Skill wrappers, clearing ambient identity for unbound runs', () => {
-    const scoped = createOpenDesignToolEnv({
+    const scoped = createComposerDesignToolEnv({
       daemonUrl: 'http://127.0.0.1:7456',
       projectId: 'project-a',
       workspaceScope: {
@@ -33,14 +33,14 @@ describe('agent runtime tool environment', () => {
     });
     const unbound = {
       ...scoped,
-      ...createOpenDesignToolEnv({
+      ...createComposerDesignToolEnv({
         daemonUrl: 'http://127.0.0.1:7456',
         projectId: 'unbound',
       }),
     };
     expect(unbound.OD_WORKSPACE_ID).toBe('');
     expect(unbound.OD_WORKSPACE_MEMBER_ID).toBe('');
-    const historical = createOpenDesignToolEnv({
+    const historical = createComposerDesignToolEnv({
       daemonUrl: 'http://127.0.0.1:7456',
       projectId: 'project-a',
       workspaceScope: {
@@ -55,22 +55,22 @@ describe('agent runtime tool environment', () => {
   });
 
   it('prefers explicit OD_NODE_BIN over the process executable', () => {
-    expect(resolveOpenDesignNodeBin({
-      env: { OD_NODE_BIN: 'C:\\Open Design\\resources\\open-design\\bin\\node.exe' },
-      execPath: 'C:\\Users\\Ada\\AppData\\Roaming\\Open Design\\en\\hash\\Open Design.exe',
+    expect(resolveComposerDesignNodeBin({
+      env: { OD_NODE_BIN: 'C:\\Composer Design\\resources\\open-design\\bin\\node.exe' },
+      execPath: 'C:\\Users\\Ada\\AppData\\Roaming\\Composer Design\\en\\hash\\Composer Design.exe',
       platform: 'win32',
       resourceRoot: null,
-    })).toBe('C:\\Open Design\\resources\\open-design\\bin\\node.exe');
+    })).toBe('C:\\Composer Design\\resources\\open-design\\bin\\node.exe');
   });
 
   it('resolves the bundled resource node before falling back to process.execPath', () => {
-    expect(resolveOpenDesignNodeBin({
+    expect(resolveComposerDesignNodeBin({
       env: {},
-      execPath: 'C:\\Users\\Ada\\AppData\\Roaming\\Open Design\\en\\hash\\Open Design.exe',
+      execPath: 'C:\\Users\\Ada\\AppData\\Roaming\\Composer Design\\en\\hash\\Composer Design.exe',
       platform: 'win32',
-      resourceRoot: 'C:\\Users\\Ada\\AppData\\Local\\Programs\\Open Design\\resources\\open-design',
+      resourceRoot: 'C:\\Users\\Ada\\AppData\\Local\\Programs\\Composer Design\\resources\\open-design',
       exists: (candidate) => candidate.endsWith('\\resources\\open-design\\bin\\node.exe'),
-    })).toBe('C:\\Users\\Ada\\AppData\\Local\\Programs\\Open Design\\resources\\open-design\\bin\\node.exe');
+    })).toBe('C:\\Users\\Ada\\AppData\\Local\\Programs\\Composer Design\\resources\\open-design\\bin\\node.exe');
   });
 
   it('injects daemon URL and run-scoped tool token into agent sessions', () => {
@@ -261,7 +261,7 @@ describe('agent runtime tool environment', () => {
         base,
         configuredAgentEnv,
       ),
-      ...createOpenDesignToolEnv({
+      ...createComposerDesignToolEnv({
         daemonUrl: 'http://127.0.0.1:7456',
         hyperFramesBin: '/opt/open-design/hyperframes/bin/hyperframes.mjs',
         projectDir: '/tmp/project',

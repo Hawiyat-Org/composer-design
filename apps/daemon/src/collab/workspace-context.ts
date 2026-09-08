@@ -232,7 +232,7 @@ function withWorkspaceDeepLink(url: string, workspaceId: string): string {
       parsed.searchParams.set('workspaceId', workspaceId.trim());
     }
     if (!parsed.searchParams.get('source')) {
-      parsed.searchParams.set('source', 'open_design');
+      parsed.searchParams.set('source', 'composer_design');
     }
     return parsed.toString();
   } catch {

@@ -122,7 +122,7 @@ export interface KnownProvider {
   baseUrl: string;
   /** Ranked provider-owned preferences, matched against the live account catalogue. */
   preferredModels: string[];
-  /** Model ids that OpenDesign previously preselected but the provider retired. */
+  /** Model ids that ComposerDesign previously preselected but the provider retired. */
   retiredModels?: string[];
   /** Optional provider-specific key console link shown in Settings. */
   apiKeyConsoleLink?: { host: string; url: string };
@@ -204,7 +204,7 @@ export const KNOWN_PROVIDERS: KnownProvider[] = [
     ],
     apiKeyConsoleLink: {
       host: 'atlascloud.ai',
-      url: 'https://atlascloud.ai/?utm_source=open_design&utm_medium=provider_preset&utm_campaign=atlascloud_byok',
+      url: 'https://atlascloud.ai/?utm_source=composer_design&utm_medium=provider_preset&utm_campaign=atlascloud_byok',
     },
   },
   {

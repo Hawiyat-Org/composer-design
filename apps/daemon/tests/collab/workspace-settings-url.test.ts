@@ -14,16 +14,16 @@ describe('resolveWorkspaceSettingsUrl', () => {
       resolveWorkspaceSettingsUrl('ws-1', undefined, {
         OD_VELA_WEB_URL: 'https://web.example',
       } as NodeJS.ProcessEnv),
-    ).toBe('https://web.example/settings?workspaceId=ws-1&source=open_design');
+    ).toBe('https://web.example/settings?workspaceId=ws-1&source=composer_design');
   });
 
   it('appends the id to an explicit URL that lacks it and preserves one that has it', () => {
     expect(resolveWorkspaceSettingsUrl('ws-1', 'https://web.example/settings')).toBe(
-      'https://web.example/settings?workspaceId=ws-1&source=open_design',
+      'https://web.example/settings?workspaceId=ws-1&source=composer_design',
     );
     expect(
       resolveWorkspaceSettingsUrl('ws-1', 'https://web.example/settings?workspaceId=ws-other'),
-    ).toBe('https://web.example/settings?workspaceId=ws-other&source=open_design');
+    ).toBe('https://web.example/settings?workspaceId=ws-other&source=composer_design');
     expect(
       resolveWorkspaceSettingsUrl(
         'ws-1',
@@ -49,7 +49,7 @@ describe('resolveWorkspaceSettingsUrl', () => {
       }),
     }, {
       OPEN_DESIGN_AMR_PROFILE: 'test',
-    })).toBe('https://test.example/settings?workspaceId=ws-1&source=open_design');
+    })).toBe('https://test.example/settings?workspaceId=ws-1&source=composer_design');
   });
 
   it('does not let a prod URL from workspace context override the selected profile origin', () => {
@@ -62,7 +62,7 @@ describe('resolveWorkspaceSettingsUrl', () => {
       }),
     }, {
       OPEN_DESIGN_AMR_PROFILE: 'feature-test',
-    })).toBe('https://feature.example/settings?workspaceId=ws-1&source=open_design');
+    })).toBe('https://feature.example/settings?workspaceId=ws-1&source=composer_design');
   });
 
   it('fails closed instead of reusing an explicit URL when the selected profile has no trusted origin', () => {
@@ -89,7 +89,7 @@ describe('parseWorkspaceCollabContext', () => {
     });
 
     expect(context?.workspaceSettingsUrl).toBe(
-      'https://web.example/settings?workspaceId=ws-personal&source=open_design',
+      'https://web.example/settings?workspaceId=ws-personal&source=composer_design',
     );
   });
 });

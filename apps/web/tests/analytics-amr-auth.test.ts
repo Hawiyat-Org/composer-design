@@ -31,7 +31,7 @@ import { cancelVelaLogin, startVelaLogin } from '../src/providers/daemon';
 
 const attribution: AmrEntryAttribution = {
   entryId: 'od-amr-test-entry',
-  sourceProduct: 'open_design',
+  sourceProduct: 'composer_design',
   sourceDetail: 'inline_model_switcher_amr_row',
   occurredAt: new Date().toISOString(),
 };

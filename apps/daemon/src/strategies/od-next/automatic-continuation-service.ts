@@ -1,5 +1,5 @@
 import type {
-  OpenDesignPlanContractV2,
+  ComposerDesignPlanContractV2,
   StrategyInputStageV2,
 } from '@open-design/contracts';
 
@@ -15,7 +15,7 @@ export type OdNextExecutionPreflightResolver = (input: {
   runId: string;
   agentId: string;
   productionRoutes: readonly string[];
-  plan: OpenDesignPlanContractV2;
+  plan: ComposerDesignPlanContractV2;
 }) => OdNextExecutionPreflightInput | undefined | Promise<OdNextExecutionPreflightInput | undefined>;
 
 export type OdNextComplexProductionResolver = (input: {
@@ -23,7 +23,7 @@ export type OdNextComplexProductionResolver = (input: {
   taskExecutionId: string;
   runId: string;
   agentId: string;
-  plan: OpenDesignPlanContractV2;
+  plan: ComposerDesignPlanContractV2;
   runtimeCapabilitySnapshot?: unknown;
 }) => OdNextComplexRuntimeEvidence | undefined | Promise<OdNextComplexRuntimeEvidence | undefined>;
 
@@ -52,7 +52,7 @@ interface AutomaticContinuationRun {
  * this service owns capability selection only.
  */
 export async function resolveAutomaticContinuationEvidence(input: {
-  plan: OpenDesignPlanContractV2 | null | undefined;
+  plan: ComposerDesignPlanContractV2 | null | undefined;
   phase: 'eligibility' | 'completion';
   task: AutomaticContinuationTask;
   run: AutomaticContinuationRun;

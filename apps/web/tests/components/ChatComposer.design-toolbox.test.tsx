@@ -162,7 +162,7 @@ function renderComposer(
 
 function openToolbox(ref: { current: ChatComposerHandle | null }) {
   act(() => {
-    ref.current?.openDesignToolbox();
+    ref.current?.composerDesignToolbox();
   });
 }
 

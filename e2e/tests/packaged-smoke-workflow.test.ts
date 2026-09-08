@@ -242,7 +242,7 @@ async function runReleaseStableForFailure(env: Record<string, string>): Promise<
       cwd: workspaceRoot,
       env: {
         ...process.env,
-        GITHUB_REPOSITORY: "nexu-io/open-design",
+        GITHUB_REPOSITORY: "nexu-io/composer-design",
         GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
         OPEN_DESIGN_RELEASE_CHANNEL: "stable",
         ...env,
@@ -2825,7 +2825,7 @@ process.stdin.on("end", () => {
     ]);
 
     const trigger = sectionBetween(canary, "on:", "\npermissions:");
-    expect(trigger).toContain("schedule:");
+    expect(trigger).not.toContain("schedule:");
     expect(trigger).toContain("workflow_dispatch:");
     expect(trigger).toContain("workflow_call:");
     expect(canary).toContain("ref: main");
@@ -2915,8 +2915,8 @@ process.stdin.on("end", () => {
     // The staged path must stay in lockstep with resolveMacPaths().dmgPath and
     // resolveWinPaths().setupPath, which is the only file `tools-pack install`
     // reads. A drift here fails as "no mac dmg found at ...".
-    expect(stage).toContain('join(toolsPackDir, "out", "mac", "namespaces", namespace, "dmg", `Open Design-${token}.dmg`)');
-    expect(stage).toContain('join(toolsPackDir, "out", "win", "namespaces", namespace, "builder", `Open Design-${token}-setup.exe`)');
+    expect(stage).toContain('join(toolsPackDir, "out", "mac", "namespaces", namespace, "dmg", `Composer Design-${token}.dmg`)');
+    expect(stage).toContain('join(toolsPackDir, "out", "win", "namespaces", namespace, "builder", `Composer Design-${token}-setup.exe`)');
     // A target that did not build carries no `artifacts` key at all, so status
     // is the only safe thing to branch on.
     expect(stage).toContain('entry?.status === "published"');
@@ -3116,9 +3116,10 @@ process.stdin.on("end", () => {
       readFile(feishuNoticeScriptPath, "utf8"),
     ]);
 
-    // Thursday cron, and a patch (not minor) bump.
+    // Thursday cron originally, and a patch (not minor) bump. Fork removes schedule triggers.
     const trigger = sectionBetween(workflow, "on:", "\npermissions:");
-    expect(trigger).toContain("cron: '0 1 * * 4'");
+    expect(trigger).not.toContain("cron: '0 1 * * 4'");
+    expect(trigger).not.toContain("schedule:");
     expect(workflow).toContain('V="${major}.${minor}.$((patch+1))"');
     expect(workflow).not.toContain("minor+1");
 
@@ -3285,7 +3286,7 @@ process.stdin.on("end", () => {
         cwd: workspaceRoot,
         env: workflowFixtureEnv({
           GITHUB_REF_NAME: `release/v${baseVersion}`,
-          GITHUB_REPOSITORY: "nexu-io/open-design",
+          GITHUB_REPOSITORY: "nexu-io/composer-design",
           GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
           NODE_TLS_REJECT_UNAUTHORIZED: "0",
           OPEN_DESIGN_RELEASE_CHANNEL: "stable",
@@ -3359,7 +3360,7 @@ process.stdin.on("end", () => {
           {
         artifacts: {
           dmg: {
-            url: "https://releases.open-design.ai/betas/versions/1.2.3-beta.3.unsigned/Open Design Beta.dmg",
+            url: "https://releases.open-design.ai/betas/versions/1.2.3-beta.3.unsigned/Composer Design Beta.dmg",
           },
         },
         channel: "beta",
@@ -3443,7 +3444,7 @@ process.stdin.on("end", () => {
           {
         artifacts: {
           dmg: {
-            url: "https://releases.open-design.ai/betas/versions/1.2.3-beta.4.unsigned/Open Design Beta.dmg",
+            url: "https://releases.open-design.ai/betas/versions/1.2.3-beta.4.unsigned/Composer Design Beta.dmg",
           },
         },
         channel: "beta",
@@ -3527,7 +3528,7 @@ process.stdin.on("end", () => {
           {
         artifacts: {
           dmg: {
-            url: "https://releases.open-design.ai/betas/versions/1.2.3-beta.4.unsigned/Open Design Beta.dmg",
+            url: "https://releases.open-design.ai/betas/versions/1.2.3-beta.4.unsigned/Composer Design Beta.dmg",
           },
         },
         channel: "beta",
@@ -3991,7 +3992,7 @@ function stablePrereleaseMetadataFixture(baseVersion: string, prereleaseVersion:
     github: {
       branch: `release/v${baseVersion}`,
       commit: "0123456789abcdef0123456789abcdef01234567",
-      repository: "nexu-io/open-design",
+      repository: "nexu-io/composer-design",
       workflow: "release-prerelease",
     },
     prereleaseNumber: 12,
@@ -4000,8 +4001,8 @@ function stablePrereleaseMetadataFixture(baseVersion: string, prereleaseVersion:
       mac: {
         arch: "arm64",
         artifacts: {
-          dmg: artifact("Open Design.dmg"),
-          zip: artifact("Open Design-mac-arm64.zip"),
+          dmg: artifact("Composer Design.dmg"),
+          zip: artifact("Composer Design-mac-arm64.zip"),
         },
         enabled: true,
         signed: true,
@@ -4009,8 +4010,8 @@ function stablePrereleaseMetadataFixture(baseVersion: string, prereleaseVersion:
       macIntel: {
         arch: "x64",
         artifacts: {
-          dmg: artifact("Open Design Intel.dmg"),
-          zip: artifact("Open Design-mac-x64.zip"),
+          dmg: artifact("Composer Design Intel.dmg"),
+          zip: artifact("Composer Design-mac-x64.zip"),
         },
         enabled: true,
         signed: true,
@@ -4018,7 +4019,7 @@ function stablePrereleaseMetadataFixture(baseVersion: string, prereleaseVersion:
       win: {
         arch: "x64",
         artifacts: {
-          installer: artifact("Open Design Setup.exe"),
+          installer: artifact("Composer Design Setup.exe"),
         },
         enabled: true,
       },

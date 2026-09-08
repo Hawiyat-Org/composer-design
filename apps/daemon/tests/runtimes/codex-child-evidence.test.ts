@@ -203,7 +203,7 @@ describe('collectCodexChildEvidence', () => {
       cliVersion: 'codex-cli 0.147.0',
       sourceTag: 'rust-v0.147.0',
       sourceCommit: 'be6e8eac029b183056b7e4402879f15d2c85f61b',
-      evidenceReview: 'open_design_best_effort',
+      evidenceReview: 'composer_design_best_effort',
     });
     const { recordingDigest: _recordingDigest, ...digestInput } = structuredClone(seed);
     expect(seed.recordingDigest).toBe(

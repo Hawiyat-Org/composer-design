@@ -21,7 +21,7 @@ export const HU_SKILL_COPY: Record<string, { description?: string; examplePrompt
   },
   'agent-browser': {
     description:
-      'Böngészőautomatizálási CLI AI-ügynököknek. Akkor használd, ha a felhasználónak böngészőviselkedést kell\nvizsgálnia, tesztelnie vagy automatizálnia: oldalak navigálása, űrlapok kitöltése,\ngombok kattintása, képernyőképek készítése, oldaladatok kinyerése, a kiválasztott\nOpenDesign böngészőfül-kontextus olvasása, webalkalmazások tesztelése, OpenDesign\nelőnézetek dogfoodingja, QA, hibavadászat vagy alkalmazásminőség áttekintése. Részesítsd előnyben a helyi OpenDesign\nelőnézeti URL-eket, hacsak a felhasználó kifejezetten nem kér külső böngészést.',
+      'Böngészőautomatizálási CLI AI-ügynököknek. Akkor használd, ha a felhasználónak böngészőviselkedést kell\nvizsgálnia, tesztelnie vagy automatizálnia: oldalak navigálása, űrlapok kitöltése,\ngombok kattintása, képernyőképek készítése, oldaladatok kinyerése, a kiválasztott\nComposerDesign böngészőfül-kontextus olvasása, webalkalmazások tesztelése, ComposerDesign\nelőnézetek dogfoodingja, QA, hibavadászat vagy alkalmazásminőség áttekintése. Részesítsd előnyben a helyi ComposerDesign\nelőnézeti URL-eket, hacsak a felhasználó kifejezetten nem kér külső böngészést.',
     examplePrompt:
       'Böngészőautomatizálási CLI AI-ügynököknek.',
   },
@@ -849,7 +849,7 @@ export const HU_SKILL_COPY: Record<string, { description?: string; examplePrompt
   },
   'ui-ux-pro-max': {
     description:
-      'Csak katalógusos UI/UX Pro Max bejegyzés. A teljes upstream sablonok, adatok és keresési munkafolyamat nincs csomagolva az OpenDesignba.',
+      'Csak katalógusos UI/UX Pro Max bejegyzés. A teljes upstream sablonok, adatok és keresési munkafolyamat nincs csomagolva az ComposerDesignba.',
     examplePrompt:
       'Csak katalógusos UI/UX Pro Max bejegyzés.',
   },

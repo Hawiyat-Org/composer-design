@@ -157,7 +157,7 @@ describe('buildStructuredMainRunObservationV1', () => {
         workspace_id: null,
         redacted: false,
         truncated: false,
-        stored_in_open_design: true,
+        stored_in_composer_design: true,
         retention_policy: 'project_lifetime',
         access_scope: 'project',
         sensitivity: 'private',

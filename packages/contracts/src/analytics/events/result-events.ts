@@ -458,7 +458,7 @@ export interface RunCreatedProps extends RunTaskLineageProps {
   tokens: RunTokenProps;
   design_system?: RunDesignSystemProps;
   // External MCP/Plugin attribution. These fields are optional so existing UI
-  // and CLI Run producers keep their current contract; the OpenDesign Cloud
+  // and CLI Run producers keep their current contract; the ComposerDesign Cloud
   // Plugin path validates and supplies the complete subset.
   entry_surface?: AnalyticsEntrySurface;
   host_product?: AnalyticsHostProduct;
@@ -521,7 +521,7 @@ export interface RunFinishedProps extends Omit<RunCreatedProps, 'area'> {
   admission_phase?: TrackingRunAdmissionPhase;
   policy_reason?: TrackingRunPolicyReason;
   terminal_integrity?: TrackingRunTerminalIntegrity;
-  /** Current physical attempt within this Open Design Run. */
+  /** Current physical attempt within this Composer Design Run. */
   run_attempt?: number;
   /** Vela-owned runtime generation UUID when explicitly reported back. */
   runtime_generation_id?: string;
@@ -949,7 +949,7 @@ export type FileUploadResultProps = TrackingFileUploadSurface & {
 export interface ArtifactExportResultProps {
   page_name: 'artifact';
   area: 'share_option_popover';
-  entry_surface: 'open_design_ui';
+  entry_surface: 'composer_design_ui';
   artifact_id: string;
   artifact_kind: TrackingArtifactKind;
   export_format: TrackingExportFormat;

@@ -170,7 +170,7 @@ describe('run request idempotency', () => {
         externalPluginId: 'open-design',
         externalPluginVersion: '0.4.0',
         distributionMechanism: 'git_marketplace',
-        publisherClass: 'open_design_first_party',
+        publisherClass: 'composer_design_first_party',
         attributionQuality: 'self_reported',
         pluginWorkflowId,
         logicalRequestDigest: logical.digest,
@@ -211,7 +211,7 @@ describe('run request idempotency', () => {
         id: 'open-design',
         version: '0.4.0',
         distributionMechanism: 'git_marketplace',
-        publisherClass: 'open_design_first_party',
+        publisherClass: 'composer_design_first_party',
       },
     });
 
@@ -272,7 +272,7 @@ describe('run request idempotency', () => {
           externalPluginId: 'open-design',
           externalPluginVersion: '0.4.0',
           distributionMechanism: 'git_marketplace',
-          publisherClass: 'open_design_first_party',
+          publisherClass: 'composer_design_first_party',
           attributionQuality: 'self_reported',
           pluginWorkflowId,
           logicalRequestDigest: logical.digest,

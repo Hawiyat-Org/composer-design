@@ -137,7 +137,7 @@ describe('native OpenCode child evidence', () => {
       }>;
     };
     expect(seed.fixtureKind).toBe('sanitized_real_best_effort');
-    expect(seed.evidenceReview).toBe('open_design_best_effort');
+    expect(seed.evidenceReview).toBe('composer_design_best_effort');
     expect(seed.recordingDigest).toMatch(/^sha256:[a-f0-9]{64}$/u);
     const { recordingDigest: _recordingDigest, ...digestInput } = structuredClone(seed);
     expect(seed.recordingDigest).toBe(

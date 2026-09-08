@@ -27,7 +27,7 @@ describe('memory tree helpers', () => {
       dataDir,
       {
         name: 'Design agent goal',
-        description: 'OpenDesign should evolve from accepted work',
+        description: 'ComposerDesign should evolve from accepted work',
         type: 'project',
         body: '- Keep design-system extraction in the loop',
       },

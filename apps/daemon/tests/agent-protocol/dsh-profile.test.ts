@@ -321,7 +321,7 @@ describe('DeepSeek Harness profile session controller', () => {
     const child = new FakeDshChild();
     const writes: Array<Record<string, unknown>> = [];
     const events: Array<{ event: string; payload: Record<string, unknown> }> = [];
-    const exactText = '<open_design_prompt_bundle version="1">exact DSH text</open_design_prompt_bundle>';
+    const exactText = '<composer_design_prompt_bundle version="1">exact DSH text</composer_design_prompt_bundle>';
     child.stdin.on('data', (chunk) => {
       for (const line of String(chunk).trim().split('\n')) {
         if (line) writes.push(JSON.parse(line) as Record<string, unknown>);

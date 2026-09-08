@@ -159,7 +159,7 @@ type PlatformCase = {
   expectedPayloadExecutablePath: (root: string, namespace: string) => string;
   expectedResourceRoot: (root: string, namespace: string) => string;
   fixturePlatformKey: "mac" | "win";
-  productName: "Open Design" | "Open Design Beta" | "Open Design Prerelease";
+  productName: "Composer Design" | "Composer Design Beta" | "Composer Design Prerelease";
   namespace: "release-beta" | "release-beta-win" | "release-prerelease";
   payloadArchiveName: string;
   payloadPath: string;
@@ -233,7 +233,7 @@ function fakePackagedConfig(root: string, testCase: PlatformCase): PackagedConfi
     nodeCommand: null,
     posthogHost: null,
     posthogKey: null,
-    resourceRoot: join(root, "installed", "resources", "open-design"),
+    resourceRoot: join(root, "installed", "resources", "composer-design"),
     telemetryRelayUrl: HISTORICAL_OUTER_RELAY_URL,
     webOutputMode: "server",
     webSidecarEntry: null,
@@ -318,11 +318,11 @@ async function createPayloadMetadataFixture(options: PlatformCase): Promise<Fixt
 
 async function writeExtractedWindowsPayload(destinationRoot: string, testCase: PlatformCase): Promise<void> {
   const executableName = `${testCase.productName}.exe`;
-  await mkdir(join(destinationRoot, "payload", "resources", "open-design", "bin"), { recursive: true });
+  await mkdir(join(destinationRoot, "payload", "resources", "composer-design", "bin"), { recursive: true });
   await mkdir(join(destinationRoot, "payload", "resources", "prebundled", "daemon"), { recursive: true });
   await mkdir(join(destinationRoot, "payload", "resources", "prebundled", "web"), { recursive: true });
   await writeFile(join(destinationRoot, "payload", executableName), "");
-  await writeFile(join(destinationRoot, "payload", "resources", "open-design", "bin", "node.exe"), "");
+  await writeFile(join(destinationRoot, "payload", "resources", "composer-design", "bin", "node.exe"), "");
   await writeFile(join(destinationRoot, "payload", "resources", "prebundled", "daemon", "daemon-sidecar.mjs"), FAKE_SIDECAR_SOURCE);
   await writeFile(join(destinationRoot, "payload", "resources", "prebundled", "web", "web-sidecar.mjs"), FAKE_SIDECAR_SOURCE);
   await writeFile(
@@ -353,12 +353,12 @@ async function writeExtractedWindowsPayload(destinationRoot: string, testCase: P
 async function writeExtractedMacPayload(destinationRoot: string, testCase: PlatformCase): Promise<void> {
   const appBundleName = `${testCase.productName}.app`;
   const resourcesRoot = join(destinationRoot, "payload", appBundleName, "Contents", "Resources");
-  await mkdir(join(resourcesRoot, "open-design", "bin"), { recursive: true });
+  await mkdir(join(resourcesRoot, "composer-design", "bin"), { recursive: true });
   await mkdir(join(resourcesRoot, "prebundled", "daemon"), { recursive: true });
   await mkdir(join(resourcesRoot, "prebundled", "web"), { recursive: true });
   await mkdir(join(destinationRoot, "payload", appBundleName, "Contents", "MacOS"), { recursive: true });
   await writeFile(join(destinationRoot, "payload", appBundleName, "Contents", "MacOS", testCase.productName), "");
-  await writeFile(join(resourcesRoot, "open-design", "bin", "node"), "");
+  await writeFile(join(resourcesRoot, "composer-design", "bin", "node"), "");
   await writeFile(join(resourcesRoot, "prebundled", "daemon", "daemon-sidecar.mjs"), FAKE_SIDECAR_SOURCE);
   await writeFile(join(resourcesRoot, "prebundled", "web", "web-sidecar.mjs"), FAKE_SIDECAR_SOURCE);
   await writeFile(
@@ -399,12 +399,12 @@ const platformCases: PlatformCase[] = [
     channel: "beta",
     currentVersion: "1.2.3-beta.4",
     expectedPayloadExecutablePath: (root, namespace) =>
-      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "Open Design.exe"),
+      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "Composer Design.exe"),
     expectedResourceRoot: (root, namespace) =>
-      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "resources", "open-design"),
+      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "resources", "composer-design"),
     fixturePlatformKey: "win",
     namespace: "release-beta-win",
-    productName: "Open Design",
+    productName: "Composer Design",
     payloadArchiveName: "open-design-1.2.3-beta.5-win-x64-payload.7z",
     payloadPath: "/payload.7z",
     platform: "win32",
@@ -416,12 +416,12 @@ const platformCases: PlatformCase[] = [
     channel: "beta",
     currentVersion: "1.2.3-beta.4",
     expectedPayloadExecutablePath: (root, namespace) =>
-      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "Open Design Beta.app", "Contents", "MacOS", "Open Design Beta"),
+      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "Composer Design Beta.app", "Contents", "MacOS", "Composer Design Beta"),
     expectedResourceRoot: (root, namespace) =>
-      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "Open Design Beta.app", "Contents", "Resources", "open-design"),
+      join(root, "launcher", "channels", "beta", "namespaces", namespace, "versions", "1.2.3-beta.5", "payload", "Composer Design Beta.app", "Contents", "Resources", "composer-design"),
     fixturePlatformKey: "mac",
     namespace: "release-beta",
-    productName: "Open Design Beta",
+    productName: "Composer Design Beta",
     payloadArchiveName: "open-design-1.2.3-beta.5-mac-arm64-payload.zip",
     payloadPath: "/payload.zip",
     platform: "darwin",
@@ -433,12 +433,12 @@ const platformCases: PlatformCase[] = [
     channel: "prerelease",
     currentVersion: "1.2.3-prerelease.4",
     expectedPayloadExecutablePath: (root, namespace) =>
-      join(root, "launcher", "channels", "prerelease", "namespaces", namespace, "versions", "1.2.3-prerelease.5", "payload", "Open Design Prerelease.app", "Contents", "MacOS", "Open Design Prerelease"),
+      join(root, "launcher", "channels", "prerelease", "namespaces", namespace, "versions", "1.2.3-prerelease.5", "payload", "Composer Design Prerelease.app", "Contents", "MacOS", "Composer Design Prerelease"),
     expectedResourceRoot: (root, namespace) =>
-      join(root, "launcher", "channels", "prerelease", "namespaces", namespace, "versions", "1.2.3-prerelease.5", "payload", "Open Design Prerelease.app", "Contents", "Resources", "open-design"),
+      join(root, "launcher", "channels", "prerelease", "namespaces", namespace, "versions", "1.2.3-prerelease.5", "payload", "Composer Design Prerelease.app", "Contents", "Resources", "open-design"),
     fixturePlatformKey: "mac",
     namespace: "release-prerelease",
-    productName: "Open Design Prerelease",
+    productName: "Composer Design Prerelease",
     payloadArchiveName: "open-design-1.2.3-prerelease.5-mac-arm64-payload.zip",
     payloadPath: "/prerelease-payload.zip",
     platform: "darwin",
@@ -849,14 +849,14 @@ type FloorPlatformTarget = {
  * effect stays the only difference between scenarios.
  */
 async function writeExtractedFloorMacPayload(destinationRoot: string): Promise<void> {
-  const appBundleName = "Open Design.app";
+  const appBundleName = "Composer Design.app";
   const bundleRoot = join(destinationRoot, "payload", appBundleName);
   const resourcesRoot = join(bundleRoot, "Contents", "Resources");
   await mkdir(join(resourcesRoot, "open-design", "bin"), { recursive: true });
   await mkdir(join(resourcesRoot, "prebundled", "daemon"), { recursive: true });
   await mkdir(join(resourcesRoot, "prebundled", "web"), { recursive: true });
   await mkdir(join(bundleRoot, "Contents", "MacOS"), { recursive: true });
-  await writeFile(join(bundleRoot, "Contents", "MacOS", "Open Design"), "");
+  await writeFile(join(bundleRoot, "Contents", "MacOS", "Composer Design"), "");
   await writeFile(join(resourcesRoot, "open-design", "bin", "node"), "");
   await writeFile(join(resourcesRoot, "prebundled", "daemon", "daemon-sidecar.mjs"), "");
   await writeFile(join(resourcesRoot, "prebundled", "web", "web-sidecar.mjs"), "");
@@ -876,7 +876,7 @@ async function writeExtractedFloorMacPayload(destinationRoot: string): Promise<v
       channel: CHANNEL,
       entry: {
         cwd: `payload/${appBundleName}`,
-        executable: `payload/${appBundleName}/Contents/MacOS/Open Design`,
+        executable: `payload/${appBundleName}/Contents/MacOS/Composer Design`,
       },
       namespace: "default",
       payloadRoot: "payload",
@@ -889,7 +889,7 @@ async function writeExtractedFloorMacPayload(destinationRoot: string): Promise<v
 
 /** The Windows counterpart: a flat payload rooted at the executable. */
 async function writeExtractedFloorWindowsPayload(destinationRoot: string): Promise<void> {
-  const executableName = "Open Design.exe";
+  const executableName = "Composer Design.exe";
   const payloadRoot = join(destinationRoot, "payload");
   const resourcesRoot = join(payloadRoot, "resources");
   await mkdir(join(resourcesRoot, "open-design", "bin"), { recursive: true });
@@ -928,7 +928,7 @@ const floorPlatformTargets = {
     arch: "arm64",
     // Inside the bundle: <launchPath>/Contents/Resources/open-design-config.json
     installedOuterConfigPath: (launchPath) => join(launchPath, "Contents", "Resources", "open-design-config.json"),
-    installedLaunchPath: (installedRoot) => join(installedRoot, "Open Design.app"),
+    installedLaunchPath: (installedRoot) => join(installedRoot, "Composer Design.app"),
     installedLaunchPathIsDirectory: true,
     installerArtifactKey: "dmg",
     installerExtension: ".dmg",
@@ -941,7 +941,7 @@ const floorPlatformTargets = {
     arch: "x64",
     // Beside the executable: dirname(<launchPath>)/resources/open-design-config.json
     installedOuterConfigPath: (launchPath) => join(dirname(launchPath), "resources", "open-design-config.json"),
-    installedLaunchPath: (installedRoot) => join(installedRoot, "Open Design.exe"),
+    installedLaunchPath: (installedRoot) => join(installedRoot, "Composer Design.exe"),
     installedLaunchPathIsDirectory: false,
     installerArtifactKey: "installer",
     installerExtension: ".exe",

@@ -106,7 +106,7 @@ export function DesignSystemPreviewModal({
           trackDesignSystemsTemplatesModalClick(analytics.track, {
             page_name: 'design_systems',
             area: 'templates_modal',
-            element: viewId === 'kit' ? 'open_design_set' : viewId,
+            element: viewId === 'kit' ? 'composer_design_set' : viewId,
             templates_id: system.id,
             templates_type: system.source ?? 'library',
           });

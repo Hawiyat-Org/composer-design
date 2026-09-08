@@ -720,7 +720,7 @@ function DesignKitViewInner({
     }
   }
 
-  function openDesignMdEditor() {
+  function composerDesignMdEditor() {
     if (!designMd) return;
     onEditClick?.('design_md_edit', 'design_md');
     setDesignMdTarget({ kind: 'all' });
@@ -728,7 +728,7 @@ function DesignKitViewInner({
     setDesignMdOpen(true);
   }
 
-  function openDesignMdModuleEditor(module: DesignMdModuleSpec) {
+  function composerDesignMdModuleEditor(module: DesignMdModuleSpec) {
     if (!designMd) return;
     onEditClick?.('design_md_edit', designMdTrackingModule(module));
     const slice = designMdModuleSlice(designMd.body, module);
@@ -777,7 +777,7 @@ function DesignKitViewInner({
     const key = event.key.toLowerCase();
     if (key === 'e' && canEditDesignMd) {
       event.preventDefault();
-      openDesignMdEditor();
+      composerDesignMdEditor();
     } else if (key === 'c' && designMd?.body) {
       event.preventDefault();
       void copyDesignMd();
@@ -909,9 +909,9 @@ function DesignKitViewInner({
       <>
         {moduleActionButton(t('ds.copyDesignMd'), 'copy', () => void copyDesignMd(), !designMd.body)}
         {canEditDesignMd
-          ? moduleActionButton(t('ds.editDesignMd'), 'edit', openDesignMdEditor, Boolean(designMd.saving || anyActionBusy))
+          ? moduleActionButton(t('ds.editDesignMd'), 'edit', composerDesignMdEditor, Boolean(designMd.saving || anyActionBusy))
           : designMd.onOpenFile
-            ? moduleActionButton(t('ds.openDesignMd'), 'file-text', designMd.onOpenFile)
+            ? moduleActionButton(t('ds.composerDesignMd'), 'file-text', designMd.onOpenFile)
             : null}
         {canEditDesignMd
           ? moduleActionButton(t('ds.uploadMd'), 'upload', () => designMdInputRef.current?.click(), Boolean(designMd.saving || anyActionBusy))
@@ -928,9 +928,9 @@ function DesignKitViewInner({
       <>
         {moduleActionButton(t('ds.copyDesignMdModule', moduleVars), 'copy', () => void copyDesignMdModule(module), !slice.text.trim())}
         {canEditDesignMd
-          ? moduleActionButton(t('ds.editDesignMdModule', moduleVars), 'edit', () => openDesignMdModuleEditor(module), Boolean(designMd.saving || anyActionBusy))
+          ? moduleActionButton(t('ds.editDesignMdModule', moduleVars), 'edit', () => composerDesignMdModuleEditor(module), Boolean(designMd.saving || anyActionBusy))
           : designMd.onOpenFile
-            ? moduleActionButton(t('ds.openDesignMdModule', moduleVars), 'file-text', designMd.onOpenFile)
+            ? moduleActionButton(t('ds.composerDesignMdModule', moduleVars), 'file-text', designMd.onOpenFile)
             : null}
       </>
     );
@@ -997,14 +997,14 @@ function DesignKitViewInner({
               id: 'design-md-edit',
               label: t('ds.editDesignMd'),
               icon: 'edit' as IconName,
-              onClick: openDesignMdEditor,
+              onClick: composerDesignMdEditor,
               disabled: Boolean(designMd.saving || anyActionBusy),
               loading: actionBusy === 'design-md-save',
             }]
           : designMd.onOpenFile
             ? [{
                 id: 'design-md-open',
-                label: t('ds.openDesignMd'),
+                label: t('ds.composerDesignMd'),
                 icon: 'file-text' as IconName,
                 onClick: designMd.onOpenFile,
               }]

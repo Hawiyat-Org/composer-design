@@ -91,13 +91,13 @@ export function renderDeliverableSyntaxRepairPrompt(input: {
     ))
     .join('\n');
   return [
-    `<open_design_deliverable_syntax_repair schema="v1" attempt="${input.attempt}" max_attempts="${input.maxAttempts}">`,
+    `<composer_design_deliverable_syntax_repair schema="v1" attempt="${input.attempt}" max_attempts="${input.maxAttempts}">`,
     'The host syntax validator found a parse error in the final Web deliverable.',
     'Fix only the diagnosed syntax error in the existing deliverable. Do not redesign, rewrite unrelated content, or create a second deliverable.',
     'Do not perform a self-review, inspect unrelated files, or run manual checks, tests, node --check, or custom validation scripts.',
     'After that single edit, invoke the designated deliverable-syntax wrapper exactly once. If it passes, stop immediately.',
     '',
     escapeXml(diagnostics),
-    '</open_design_deliverable_syntax_repair>',
+    '</composer_design_deliverable_syntax_repair>',
   ].join('\n');
 }

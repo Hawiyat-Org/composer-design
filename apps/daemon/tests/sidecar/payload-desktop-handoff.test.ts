@@ -23,9 +23,9 @@ async function fixture() {
   const runtimeRoot = join(root, "namespaces", namespace, "runtime");
   const launcherPaths = resolveLauncherPaths({ channel: "beta", namespace, root });
   const versionPaths = resolveLauncherVersionPaths({ channel: "beta", namespace, root, version });
-  const outerBundlePath = join(root, "installed", "Open Design Beta.local.app");
-  const outerExecutablePath = join(outerBundlePath, "Contents", "MacOS", "Open Design Beta");
-  const payloadExecutablePath = join(versionPaths.payloadRoot, "Open Design Beta.app", "Contents", "MacOS", "Open Design Beta");
+  const outerBundlePath = join(root, "installed", "Composer Design Beta.local.app");
+  const outerExecutablePath = join(outerBundlePath, "Contents", "MacOS", "Composer Design Beta");
+  const payloadExecutablePath = join(versionPaths.payloadRoot, "Composer Design Beta.app", "Contents", "MacOS", "Composer Design Beta");
   await mkdir(join(outerExecutablePath, ".."), { recursive: true });
   await mkdir(join(payloadExecutablePath, ".."), { recursive: true });
   await mkdir(runtimeRoot, { recursive: true });
@@ -34,7 +34,7 @@ async function fixture() {
   await writeFile(payloadExecutablePath, "");
   await writeFile(versionPaths.manifestPath, JSON.stringify({
     channel: "beta",
-    entry: { executable: "payload/Open Design Beta.app/Contents/MacOS/Open Design Beta" },
+    entry: { executable: "payload/Composer Design Beta.app/Contents/MacOS/Composer Design Beta" },
     namespace,
     platform: "darwin",
     schemaVersion: LAUNCHER_SCHEMA_VERSION,
@@ -225,7 +225,7 @@ describe("legacy payload desktop handoff", () => {
       await symlink(value.root, aliasRoot, "dir");
       await writeFile(value.launcherPaths.installPath, JSON.stringify({
         channel: "beta",
-        launchPath: join(aliasRoot, "installed", "Open Design Beta.local.app"),
+        launchPath: join(aliasRoot, "installed", "Composer Design Beta.local.app"),
         namespace: value.namespace,
         schemaVersion: LAUNCHER_SCHEMA_VERSION,
       }));

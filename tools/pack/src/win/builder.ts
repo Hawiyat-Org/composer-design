@@ -176,7 +176,7 @@ async function runElectronBuilderRaw(
     )
     : null;
   const builderConfig = {
-    appId: "io.open-design.desktop",
+    appId: "com.hawiyat.composer-design",
     afterPack: webStandaloneHookConfigPath == null ? undefined : winResources.webStandaloneAfterPackHook,
     asar: ELECTRON_BUILDER_ASAR,
     buildDependenciesFromSource: ELECTRON_BUILDER_BUILD_DEPENDENCIES_FROM_SOURCE,
@@ -197,7 +197,7 @@ async function runElectronBuilderRaw(
       version: packageVersion,
     },
     extraResources: [
-      { from: paths.resourceRoot, to: "open-design" },
+      { from: paths.resourceRoot, to: "composer-design" },
       { from: paths.packagedConfigPath, to: "open-design-config.json" },
       // Vendored dom-to-pptx browser bundle for editable PPTX export (read from
       // process.resourcesPath by the desktop main at runtime).
@@ -833,8 +833,8 @@ export async function runElectronBuilder(
           reuseRequiredPaths: [
             ...resolveWinNsisOverlayRequiredPaths(),
             [
-              "resources/open-design-web-standalone/apps/web/server.js",
-              "resources/open-design-web-standalone/server.js",
+            "resources/composer-design-web-standalone/apps/web/server.js",
+            "resources/composer-design-web-standalone/server.js",
             ],
           ],
           to: paths.unpackedRoot,

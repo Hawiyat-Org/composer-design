@@ -579,7 +579,7 @@ function workspaceIdentityRequiredBody() {
   return {
     error: 'WORKSPACE_IDENTITY_REQUIRED',
     message:
-      'Publishing a public link needs a signed-in workspace. Sign in to OpenDesign Cloud, ' +
+      'Publishing a public link needs a signed-in workspace. Sign in to ComposerDesign Cloud, ' +
       'or use Deploy to publish this file without one.',
   };
 }

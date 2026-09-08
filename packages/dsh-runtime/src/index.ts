@@ -28,7 +28,7 @@ import {
 
 export const name = 'open-design-runtime';
 export const inject = [
-  'openDesignStartup',
+  'composerDesignStartup',
   'agentDefaultModel',
   'agents',
   'llm',
@@ -411,7 +411,7 @@ async function serve(
           type: 'protocol_error',
           ...(requestId ? { request_id: requestId } : {}),
           code: 'DSH_PROFILE_INVALID_COMMAND',
-          message: 'OpenDesign sent an invalid profile command.',
+          message: 'ComposerDesign sent an invalid profile command.',
         });
         return;
       }
@@ -449,7 +449,7 @@ async function serve(
 }
 
 export function apply(ctx: Context): void {
-  const startup = ctx.openDesignStartup;
+  const startup = ctx.composerDesignStartup;
   const exit = ctx.get('appExit');
   if (!startup || !exit) throw new Error('open-design-runtime requires startup and appExit services');
   if (startup.mode === 'probe') {

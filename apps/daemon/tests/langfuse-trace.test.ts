@@ -164,7 +164,7 @@ describe('readLangfuseConfig', () => {
 });
 
 describe('readTelemetrySinkConfig', () => {
-  it('prefers the OpenDesign telemetry relay when configured', () => {
+  it('prefers the ComposerDesign telemetry relay when configured', () => {
     const cfg = readTelemetrySinkConfig({
       OPEN_DESIGN_TELEMETRY_RELAY_URL: 'https://telemetry.open-design.ai/api/langfuse//',
       LANGFUSE_PUBLIC_KEY: 'pk',
@@ -925,7 +925,7 @@ describe('buildTracePayload', () => {
             size_bytes: 100,
             redacted: false,
             truncated: false,
-            stored_in_open_design: true,
+            stored_in_composer_design: true,
             retention_policy: 'project_lifetime',
             access_scope: 'project',
             sensitivity: 'private',
@@ -947,7 +947,7 @@ describe('buildTracePayload', () => {
             size_bytes: 200,
             redacted: false,
             truncated: false,
-            stored_in_open_design: true,
+            stored_in_composer_design: true,
             retention_policy: 'project_lifetime',
             access_scope: 'project',
             sensitivity: 'private',
@@ -986,7 +986,7 @@ describe('buildTracePayload', () => {
             extension: 'pdf',
             redacted: false,
             truncated: false,
-            stored_in_open_design: true,
+            stored_in_composer_design: true,
             retention_policy: 'project_lifetime',
             access_scope: 'project',
             sensitivity: 'private',
@@ -1011,7 +1011,7 @@ describe('buildTracePayload', () => {
             export_status: 'available',
             redacted: false,
             truncated: false,
-            stored_in_open_design: true,
+            stored_in_composer_design: true,
             retention_policy: 'project_lifetime',
             access_scope: 'project',
             sensitivity: 'private',
@@ -1083,7 +1083,7 @@ describe('buildTracePayload', () => {
       size_bytes: 1,
       redacted: false,
       truncated: false,
-      stored_in_open_design: true,
+      stored_in_composer_design: true,
       retention_policy: 'project_lifetime' as const,
       access_scope: 'project' as const,
       sensitivity: 'private' as const,
@@ -1118,7 +1118,7 @@ describe('buildTracePayload', () => {
       extension: 'pdf',
       redacted: false,
       truncated: false,
-      stored_in_open_design: true,
+      stored_in_composer_design: true,
       retention_policy: 'project_lifetime' as const,
       access_scope: 'project' as const,
       sensitivity: 'private' as const,
@@ -1651,7 +1651,7 @@ describe('buildTracePayload', () => {
             extension: 'pdf',
             redacted: false,
             truncated: false,
-            stored_in_open_design: true,
+            stored_in_composer_design: true,
             retention_policy: 'project_lifetime',
             access_scope: 'project',
             sensitivity: 'private',
@@ -2511,7 +2511,7 @@ describe('reportRunCompleted', () => {
     expect(JSON.stringify(batch)).not.toContain('sk-raw');
   });
 
-  it('POSTs serialized ingestion batches to the OpenDesign telemetry relay', async () => {
+  it('POSTs serialized ingestion batches to the ComposerDesign telemetry relay', async () => {
     const relayConfig: TelemetrySinkConfig = {
       kind: 'relay',
       relayUrl: 'https://telemetry.open-design.ai/api/langfuse',

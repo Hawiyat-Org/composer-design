@@ -81,7 +81,7 @@ import {
   openFolderDialog,
   pushRecentLinkedDir,
 } from '../providers/registry';
-import { isOpenDesignHostAvailable, pickHostWorkingDir } from '@open-design/host';
+import { isComposerDesignHostAvailable, pickHostWorkingDir } from '@open-design/host';
 import type {
   DesignSystemSummary,
   Project,
@@ -261,9 +261,9 @@ interface PendingPluginUseHandoff {
 }
 
 const AUTHORING_DEFAULT_SCENARIO_INPUTS = {
-  artifactKind: 'OpenDesign plugin',
-  audience: 'OpenDesign plugin authors',
-  topic: 'packaging a reusable workflow as an OpenDesign plugin',
+  artifactKind: 'ComposerDesign plugin',
+  audience: 'ComposerDesign plugin authors',
+  topic: 'packaging a reusable workflow as an ComposerDesign plugin',
 };
 
 
@@ -2142,7 +2142,7 @@ export function HomeView({
   async function handlePickWorkingDir() {
     // On desktop the working-dir POST is gated behind a host-minted token, so
     // pick through the host bridge to capture { baseDir, token } together.
-    if (isOpenDesignHostAvailable()) {
+    if (isComposerDesignHostAvailable()) {
       const result = await pickHostWorkingDir();
       if (result.ok) {
         setWorkingDir(result.baseDir);
@@ -2161,7 +2161,7 @@ export function HomeView({
       // auth gate and surface as a confusing late create-time failure.
       // Surface the host error instead and keep the existing working dir.
       setError(
-        `Couldn't open the folder picker (${'reason' in result ? result.reason : 'host unavailable'}). Please update OpenDesign and try again.`,
+        `Couldn't open the folder picker (${'reason' in result ? result.reason : 'host unavailable'}). Please update ComposerDesign and try again.`,
       );
       return null;
     }
@@ -2178,7 +2178,7 @@ export function HomeView({
   }
 
   async function handlePickLocalCodeDir() {
-    if (isOpenDesignHostAvailable()) {
+    if (isComposerDesignHostAvailable()) {
       const result = await pickHostWorkingDir();
       if (result.ok) {
         void rememberRecentDir(result.baseDir);
@@ -2186,7 +2186,7 @@ export function HomeView({
       }
       if ('canceled' in result && result.canceled) return null;
       setError(
-        `Couldn't open the folder picker (${'reason' in result ? result.reason : 'host unavailable'}). Please update OpenDesign and try again.`,
+        `Couldn't open the folder picker (${'reason' in result ? result.reason : 'host unavailable'}). Please update ComposerDesign and try again.`,
       );
       return null;
     }

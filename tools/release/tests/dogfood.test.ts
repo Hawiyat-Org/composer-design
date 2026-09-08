@@ -71,7 +71,7 @@ describe("dogfood destination guard", () => {
 
 describe("dogfood key minting", () => {
   it("pins every minted key under the dogfood root", () => {
-    const objectKey = dogfoodObjectKey({ buildId: "1234-1", fileName: "Open Design-release-beta-win-setup.exe", version: "0.15.3-beta.7" });
+    const objectKey = dogfoodObjectKey({ buildId: "1234-1", fileName: "Composer Design-release-beta-win-setup.exe", version: "0.15.3-beta.7" });
     expect(objectKey).toBe("dogfood/0.15.3-beta.7/1234-1/Open-Design-release-beta-win-setup.exe");
     expect(objectKey.startsWith(`${DOGFOOD_ROOT_PREFIX}/`)).toBe(true);
     expect(dogfoodPrefix({ buildId: "1234-1", version: "0.15.3-beta.7" })).toBe("dogfood/0.15.3-beta.7/1234-1");

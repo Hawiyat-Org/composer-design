@@ -125,14 +125,14 @@ export async function startDaemonSidecar(
       } catch {
         return {
           ok: false,
-          error: "Open Design desktop is not running. Open or upgrade the desktop client before rendering HyperFrames video.",
+          error: "Composer Design desktop is not running. Open or upgrade the desktop client before rendering HyperFrames video.",
           errorCode: "FRAME_RENDERER_NOT_READY",
         };
       }
       if (status.state !== "running" || status.capabilities?.frameRenderer !== true) {
         return {
           ok: false,
-          error: "This Open Design desktop version does not support HyperFrames rendering. Upgrade the desktop client and try again.",
+          error: "This Composer Design desktop version does not support HyperFrames rendering. Upgrade the desktop client and try again.",
           errorCode: "FRAME_RENDERER_NOT_READY",
         };
       }

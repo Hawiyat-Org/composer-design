@@ -92,7 +92,7 @@ describe('local MCP Vela login tools', () => {
       'x-od-analytics-external-plugin-id': 'open-design',
       'x-od-analytics-external-plugin-version': '0.4.0',
       'x-od-analytics-distribution-mechanism': 'git_marketplace',
-      'x-od-analytics-publisher-class': 'open_design_first_party',
+      'x-od-analytics-publisher-class': 'composer_design_first_party',
     };
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (url.endsWith('/api/integrations/vela/login')) {
@@ -130,7 +130,7 @@ describe('local MCP Vela login tools', () => {
             id: 'open-design',
             version: '0.4.0',
             distributionMechanism: 'git_marketplace',
-            publisherClass: 'open_design_first_party',
+            publisherClass: 'composer_design_first_party',
           },
           pluginWorkflowId: '019f9414-85e8-7f20-8d8f-7f868b2d4b5f',
         },

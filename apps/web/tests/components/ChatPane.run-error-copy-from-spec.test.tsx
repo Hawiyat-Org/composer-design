@@ -140,9 +140,9 @@ const SPEC_CELLS: readonly SpecCell[] = [
     body: '长时间未收到 AI 的新回复，本次运行已停止，请稍后再试。',
   },
   {
-    label: 'S22 · Open Design 自己的 bug',
+    label: 'S22 · Composer Design 自己的 bug',
     code: 'AGENT_RUNTIME_DEF_INVALID',
-    title: 'Open Design 运行异常',
+    title: 'Composer Design 运行异常',
     body: '请尝试重新生成，或更换模型后重试。如果问题持续出现，请联系支持。',
   },
   {

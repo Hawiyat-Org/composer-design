@@ -1,4 +1,4 @@
-import { getOpenDesignHost } from '@open-design/host';
+import { getComposerDesignHost } from '@open-design/host';
 import type { AppTheme } from '../types';
 
 const ACCENT_VARS = [
@@ -44,7 +44,7 @@ function accentVars(accentColor: string): Record<(typeof ACCENT_VARS)[number], s
 }
 
 /**
- * The one appearance OpenDesign ships.
+ * The one appearance ComposerDesign ships.
  *
  * Product removed the theme setting: the workspace surfaces have no dark
  * tokens, so a dark app is a broken app. `data-theme` is therefore a constant
@@ -82,7 +82,7 @@ export function applyAppearanceToDocument({
   // follows the OS appearance, so the light app over a dark OS sat on dark
   // glass and read as a muddy gray (#94). Feature-detected — browsers and
   // older host builds have no appearance capability.
-  getOpenDesignHost()?.appearance?.setTheme(FORCED_APP_THEME);
+  getComposerDesignHost()?.appearance?.setTheme(FORCED_APP_THEME);
 
   const normalized = resolveAccentColor(accentColor);
   const vars = accentVars(normalized);

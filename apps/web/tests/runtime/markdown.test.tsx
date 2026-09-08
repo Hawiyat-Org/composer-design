@@ -64,11 +64,11 @@ describe('renderMarkdown', () => {
 
   it('renders angle-wrapped destinations that contain spaces', () => {
     const out = html(
-      '打开 [index.html](</Users/me/Library/Application Support/Open Design/project/index.html>)',
+      '打开 [index.html](</Users/me/Library/Application Support/Composer Design/project/index.html>)',
     );
 
     expect(out).toContain('<a class="md-link"');
-    expect(out).toContain('href="/Users/me/Library/Application Support/Open Design/project/index.html"');
+    expect(out).toContain('href="/Users/me/Library/Application Support/Composer Design/project/index.html"');
     expect(out).toContain('>index.html</a>');
     expect(out).not.toContain('[index.html]');
   });

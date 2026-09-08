@@ -503,7 +503,7 @@ test('bash 的 locations 目录不会漏进在途行的 file_path', () => {
  * 所以早期那一行上的两格都可能是猜的。真语料 202 次调用跑下来:
  *
  *  · **路径 0/202 变过** —— 「先无名、后补名」不会闪。
- *  · **名字 1/202 变过**,而且是那次 task:`Task → Survey OpenDesign chat panel`
+ *  · **名字 1/202 变过**,而且是那次 task:`Task → Survey ComposerDesign chat panel`
  *    的首词。第一帧 title 就是 `task`(vela 的 `mapOpenCodeToolPart` 在 title 为空
  *    时回落成工具名),真标题要等 running 帧。这是**变准了**,不是变错了。
  *
