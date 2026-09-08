@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
 import { writeFakeVelaBin } from '@/amr';
-import { createAmrProject, putAmrAppConfig } from '@/vitest/amr';
+import { AMR_TEST_WORKSPACE_HEADERS, createAmrProject, putAmrAppConfig } from '@/vitest/amr';
 import { requestJson } from '@/vitest/http';
 import { readRunEvents, startRun, waitForRunStatus, waitForRunTerminal } from '@/vitest/runs';
 import { createSmokeSuite } from '@/vitest/suite';
@@ -21,10 +21,12 @@ describe('AMR logout state persistence', () => {
           assistantText: 'AMR logout persistence success',
           endpoints: suite.amr,
           requireLoginConfig: false,
+          requireSetModel: false,
         });
         const strictVelaBin = await writeFakeVelaBin(join(suite.scratchDir, 'fake-vela-logout-strict'), {
           assistantText: 'AMR logout persistence strict',
           endpoints: suite.amr,
+          requireSetModel: false,
         });
 
         await putAmrAppConfig(webUrl, {
@@ -51,8 +53,11 @@ describe('AMR logout state persistence', () => {
           projectId: project.project.id,
           reasoning: 'default',
           skillId: null,
+        }, { ...AMR_TEST_WORKSPACE_HEADERS });
+        await waitForRunStatus(webUrl, firstRun.runId, 'succeeded', {
+          headers: { ...AMR_TEST_WORKSPACE_HEADERS },
+          timeoutMs: 20_000,
         });
-        await waitForRunStatus(webUrl, firstRun.runId, 'succeeded', { timeoutMs: 20_000 });
 
         await putAmrAppConfig(webUrl, {
           agentId: 'amr',
@@ -78,11 +83,18 @@ describe('AMR logout state persistence', () => {
           projectId: project.project.id,
           reasoning: 'default',
           skillId: null,
+        }, { ...AMR_TEST_WORKSPACE_HEADERS });
+        const terminal = await waitForRunTerminal(webUrl, secondRun.runId, {
+          headers: { ...AMR_TEST_WORKSPACE_HEADERS },
+          timeoutMs: 20_000,
         });
-        const terminal = await waitForRunTerminal(webUrl, secondRun.runId, { timeoutMs: 20_000 });
         expect(terminal.status).toBe('failed');
 
-        await expect(readRunEvents(webUrl, secondRun.runId)).resolves.toMatch(/AMR_AUTH_REQUIRED/);
+        await expect(
+          readRunEvents(webUrl, secondRun.runId, {
+            headers: { ...AMR_TEST_WORKSPACE_HEADERS },
+          }),
+        ).resolves.toMatch(/AMR_AUTH_REQUIRED/);
       });
     });
   });

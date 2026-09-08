@@ -9,6 +9,13 @@ export interface BaseUrlValidationResult {
   parsed?: ParsedBaseUrl;
   error?: string;
   forbidden?: boolean;
+  // Addresses resolved by DNS lookup that passed validation. Present when
+  // `validateBaseUrlResolved` performed a DNS lookup and every resolved address
+  // was safe (public, or allowlisted). Callers that fetch the URL (e.g.
+  // `assertAndFetchExternalAsset`) pin the connection to these addresses so
+  // that a DNS-rebinding domain cannot return a different (loopback/internal)
+  // address at fetch time (issue #5478).
+  resolvedAddresses?: ReadonlyArray<{ address: string; family: number }>;
 }
 
 export interface ParsedBaseUrl {
@@ -108,7 +115,59 @@ export function isBlockedExternalApiHostname(hostname: string): boolean {
   return Boolean(mapped && isBlockedIpv4(mapped));
 }
 
-export function validateBaseUrl(baseUrl: string): BaseUrlValidationResult {
+// Normalized forms a hostname can be matched under: the bracket-stripped,
+// lowercased, trailing-dot-stripped string plus, for IPv4-mapped IPv6
+// literals, the dotted-quad form. Both an allowlist entry and a candidate
+// host are reduced through this so `10.0.0.5`, `10.0.0.5.`, `[::ffff:10.0.0.5]`
+// and `10.0.0.5` all compare equal.
+function internalHostMatchForms(hostname: string): string[] {
+  const normalized = normalizeBracketedIpv6(hostname);
+  const forms = new Set<string>([normalized]);
+  const mapped = ipv4MappedToDotted(hostname);
+  if (mapped) forms.add(mapped.toLowerCase());
+  return [...forms];
+}
+
+// Issue #3225 — explicit, operator-declared escape hatch from the
+// default-deny internal-IP guard. Returns true only when `hostname` matches
+// a host the operator deliberately trusted (see `OD_ALLOWED_INTERNAL_HOSTS`
+// on the daemon). An empty/absent allowlist always returns false, so the
+// strict default is preserved unless an operator opts in. This is consulted
+// ONLY for user-configured provider endpoints, never for the
+// attacker-controllable asset-download SSRF guard.
+export function isAllowlistedInternalHost(
+  hostname: string,
+  allowedInternalHosts?: readonly string[],
+): boolean {
+  if (!allowedInternalHosts || allowedInternalHosts.length === 0) return false;
+  const candidateForms = internalHostMatchForms(hostname);
+  for (const entry of allowedInternalHosts) {
+    if (typeof entry !== 'string' || !entry.trim()) continue;
+    const entryForms = internalHostMatchForms(entry.trim());
+    if (entryForms.some((form) => candidateForms.includes(form))) return true;
+  }
+  return false;
+}
+
+export interface ValidateBaseUrlOptions {
+  // Hosts the operator has explicitly declared trusted (issue #3225). Each
+  // entry is a bare hostname or IP literal; a host that matches is exempted
+  // from the internal-IP block. Defaults to none, keeping the strict
+  // default-deny behavior for every caller that does not opt in.
+  allowedInternalHosts?: readonly string[];
+  // When true, loopback hosts (127.0.0.0/8, ::1, localhost) are treated as
+  // forbidden rather than allowed. Used by `assertExternalAssetUrl` for
+  // attacker-controllable asset download URLs (issue #5478), where loopback
+  // must never be reachable regardless of the operator allowlist. Defaults to
+  // false so user-configured provider endpoints (connection test, BYOK chat)
+  // keep working with local gateways.
+  forbidLoopback?: boolean;
+}
+
+export function validateBaseUrl(
+  baseUrl: string,
+  options: ValidateBaseUrlOptions = {},
+): BaseUrlValidationResult {
   let parsed: ParsedBaseUrl;
   try {
     parsed = new URL(String(baseUrl).replace(/\/+$/, ''));
@@ -119,7 +178,17 @@ export function validateBaseUrl(baseUrl: string): BaseUrlValidationResult {
     return { error: 'Only http/https allowed' };
   }
   const hostname = parsed.hostname.toLowerCase();
-  if (!isLoopbackApiHost(hostname) && isBlockedExternalApiHostname(hostname)) {
+  // When forbidLoopback is set (asset download URLs), reject loopback
+  // hosts entirely — they should never be reachable from an
+  // attacker-controllable response field (issue #5478).
+  if (options.forbidLoopback && isLoopbackApiHost(hostname)) {
+    return { error: 'Loopback addresses blocked for asset URLs', forbidden: true };
+  }
+  if (
+    !isLoopbackApiHost(hostname) &&
+    !isAllowlistedInternalHost(hostname, options.allowedInternalHosts) &&
+    isBlockedExternalApiHostname(hostname)
+  ) {
     return { error: 'Internal IPs blocked', forbidden: true };
   }
   return { parsed };
@@ -179,7 +248,15 @@ export interface ConnectionTestDiagnostics {
   stderrTail?: string;
 }
 
-export type ConnectionTestProtocol = 'anthropic' | 'openai' | 'azure' | 'google' | 'ollama' | 'senseaudio' | 'aihubmix';
+export type ConnectionTestProtocol =
+  | 'anthropic'
+  | 'openai'
+  | 'azure'
+  | 'google'
+  | 'ollama'
+  | 'senseaudio'
+  | 'aihubmix'
+  | 'bedrock';
 
 export interface ProviderTestRequest extends ReasoningExecutionRequestFields {
   protocol: ConnectionTestProtocol;
@@ -194,6 +271,7 @@ export interface AgentTestRequest {
   agentId: string;
   model?: string;
   reasoning?: string;
+  serviceTier?: string;
   agentCliEnv?: AgentCliEnvPrefs;
 }
 
@@ -207,6 +285,8 @@ export interface ConnectionTestResponse {
   latencyMs: number;
   // Model id or CLI default slot that this test exercised.
   model?: string;
+  // Concrete model reported by a local agent when an alias or default slot resolves.
+  resolvedModel?: string;
   // Truncated assistant reply (≤ 120 chars) on success.
   sample?: string;
   // Upstream HTTP status when relevant (provider tests).

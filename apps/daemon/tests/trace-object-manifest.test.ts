@@ -93,7 +93,7 @@ describe('buildTraceObjectManifests', () => {
     expect(manifests?.completeness).toBe('complete');
     expect(manifests?.artifactManifest).toHaveLength(2);
     expect(manifests?.artifactManifest?.map((entry) => entry.status)).toEqual(['ok', 'ok']);
-    expect(manifests?.artifactManifest?.map((entry) => entry.stored_in_open_design))
+    expect(manifests?.artifactManifest?.map((entry) => entry.stored_in_composer_design))
       .toEqual([true, true]);
   });
 
@@ -172,12 +172,12 @@ describe('buildTraceObjectManifests', () => {
     expect(manifests?.attachmentManifest?.[0]).toMatchObject({
       status: 'ok',
       extension: 'txt',
-      stored_in_open_design: true,
+      stored_in_composer_design: true,
     });
     expect(manifests?.artifactManifest?.[0]).toMatchObject({
       status: 'ok',
       extension: 'html',
-      stored_in_open_design: true,
+      stored_in_composer_design: true,
     });
     expect(manifests?.attachmentManifest?.[0]).not.toHaveProperty('reason');
     expect(manifests?.artifactManifest?.[0]).not.toHaveProperty('reason');
@@ -211,7 +211,7 @@ describe('buildTraceObjectManifests', () => {
     expect(manifests?.completeness).toBe('partial');
     expect(manifests?.artifactManifest?.[0]).toMatchObject({
       status: 'unavailable',
-      stored_in_open_design: false,
+      stored_in_composer_design: false,
       size_bytes: 'release artifact'.length,
       sha256: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
     });
@@ -325,7 +325,7 @@ describe('buildTraceObjectManifests', () => {
     expect(manifests?.completeness).toBe('complete');
     expect(manifests?.artifactManifest?.[0]).toMatchObject({
       status: 'ok',
-      stored_in_open_design: true,
+      stored_in_composer_design: true,
       size_bytes: 'release artifact'.length,
     });
   });

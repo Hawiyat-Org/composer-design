@@ -1,8 +1,7 @@
 // Modal wrapper around NewProjectPanel.
 //
-// Triggered by the "+" button on the entry nav rail. Reuses the
-// existing NewProjectPanel surface so all of the per-kind tabs
-// (prototype / live-artifact / deck / template / image / video /
+// Reuses the existing NewProjectPanel surface so all of the per-kind
+// tabs (prototype / live-artifact / deck / template / image / video /
 // audio / other) and their connector / template / design-system
 // pickers carry over without duplication. The modal closes itself
 // when the panel calls onCreate and it completes (success path) or when the user
@@ -11,8 +10,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { ConnectorDetail } from '@open-design/contracts';
-import type { OpenDesignHostProjectImportSuccess } from '@open-design/host';
+import type { ComposerDesignHostProjectImportSuccess } from '@open-design/host';
 import { modalOverlay, modalContent } from '../motion';
+import { useT } from '../i18n';
 import type {
   DesignSystemSummary,
   MediaProviderCredentials,
@@ -31,6 +31,7 @@ import {
 interface Props {
   open: boolean;
   skills: SkillSummary[];
+  designTemplates?: SkillSummary[];
   designSystems: DesignSystemSummary[];
   defaultDesignSystemId: string | null;
   templates: ProjectTemplate[];
@@ -45,7 +46,7 @@ interface Props {
     file: File,
   ) => Promise<ImportClaudeDesignOutcome | void> | ImportClaudeDesignOutcome | void;
   onImportFolder?: (baseDir: string) => Promise<void> | void;
-  onImportFolderResponse?: (response: OpenDesignHostProjectImportSuccess) => Promise<void> | void;
+  onImportFolderResponse?: (response: ComposerDesignHostProjectImportSuccess) => Promise<void> | void;
   onOpenConnectorsTab?: () => void;
   onClose: () => void;
   initialTab?: CreateTab;
@@ -68,6 +69,7 @@ export function NewProjectModal({ open, ...rest }: Props) {
 
 function NewProjectModalBody({
   skills,
+  designTemplates,
   designSystems,
   defaultDesignSystemId,
   templates,
@@ -88,6 +90,8 @@ function NewProjectModalBody({
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const t = useT();
+  const title = t('newproj.titleOther');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -132,7 +136,7 @@ function NewProjectModalBody({
       className="new-project-modal-backdrop"
       role="dialog"
       aria-modal="true"
-      aria-label="New project"
+      aria-label={title}
       data-testid="new-project-modal"
       onClick={(e) => {
         if (e.target === e.currentTarget && !creating) onClose();
@@ -150,7 +154,7 @@ function NewProjectModalBody({
         exit="exit"
       >
         <header className="new-project-modal__head">
-          <h2 className="new-project-modal__title">New project</h2>
+          <h2 className="new-project-modal__title">{title}</h2>
           <button
             ref={closeRef}
             type="button"
@@ -166,6 +170,7 @@ function NewProjectModalBody({
         <div className="new-project-modal__body">
           <NewProjectPanel
             skills={skills}
+            {...(designTemplates ? { designTemplates } : {})}
             designSystems={designSystems}
             defaultDesignSystemId={defaultDesignSystemId}
             templates={templates}

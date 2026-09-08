@@ -24,7 +24,7 @@ describe('AMR attribution helper', () => {
     vi.unstubAllGlobals();
   });
 
-  it('accepts every AMR entry source defined for Composer Design entry points', () => {
+  it('accepts every AMR entry source defined for ComposerDesign entry points', () => {
     const track = vi.fn();
     const sources = [
       'onboarding_amr_card',
@@ -38,10 +38,12 @@ describe('AMR attribution helper', () => {
       'handoff_amr_website',
       'chat_error_authorize_retry',
       'chat_error_recharge',
+      'chat_error_upgrade',
       'chat_error_switch_retry_card',
       'generation_preview_authorize_retry',
       'generation_preview_recharge',
       'generation_preview_switch_retry_card',
+      'artifact_success_upgrade',
     ] as const;
 
     for (const [index, source] of sources.entries()) {
@@ -66,7 +68,7 @@ describe('AMR attribution helper', () => {
     });
 
     expect(attribution).toMatchObject({
-      sourceProduct: 'open_design',
+      sourceProduct: 'composer_design',
       sourceDetail: 'chat_error_recharge',
       occurredAt: '2026-06-03T12:00:00.000Z',
     });
@@ -80,7 +82,7 @@ describe('AMR attribution helper', () => {
         element: 'chat_error_recharge',
         action: 'click_amr_entry',
         entry_id: attribution.entryId,
-        source_product: 'open_design',
+        source_product: 'composer_design',
         source_detail: 'chat_error_recharge',
         entry_occurred_at: '2026-06-03T12:00:00.000Z',
       }),
@@ -96,13 +98,13 @@ describe('AMR attribution helper', () => {
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
     expect(JSON.parse(String(init.body))).toEqual({
       payload: {
-        pageName: 'open_design',
+        pageName: 'composer_design',
         sourcePageName: 'chat_panel',
         area: 'amr_entry',
         element: 'chat_error_recharge',
         action: 'click_amr_entry',
         entryId: attribution.entryId,
-        sourceProduct: 'open_design',
+        sourceProduct: 'composer_design',
         sourceDetail: 'chat_error_recharge',
         entryOccurredAt: '2026-06-03T12:00:00.000Z',
       },
@@ -218,13 +220,13 @@ describe('AMR attribution helper', () => {
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
     expect(JSON.parse(String(init.body))).toEqual({
       payload: {
-        pageName: 'open_design',
+        pageName: 'composer_design',
         sourcePageName: 'onboarding',
         area: 'onboarding',
         element: 'about_you_submit',
         action: 'submit_profile',
         entryId: attribution.entryId,
-        sourceProduct: 'open_design',
+        sourceProduct: 'composer_design',
         sourceDetail: 'onboarding_amr_card',
         entryOccurredAt: '2026-06-03T12:00:00.000Z',
         profileOccurredAt: '2026-06-03T12:03:00.000Z',
@@ -244,7 +246,7 @@ describe('AMR attribution helper', () => {
     const attribution = recordAmrEntry(track, 'chat_error_recharge', now);
 
     expect(attribution).toMatchObject({
-      sourceProduct: 'open_design',
+      sourceProduct: 'composer_design',
       sourceDetail: 'chat_error_recharge',
       occurredAt: '2026-06-03T12:00:00.000Z',
     });
@@ -330,34 +332,105 @@ describe('AMR attribution helper', () => {
     expect(readAmrAttribution(new Date('2026-06-10T12:00:01.000Z'))).toBeNull();
   });
 
-  it('adds Composer Design attribution params to AMR wallet URLs', () => {
+  // A campaign entry has to outlive the ordinary window, because the campaign
+  // itself is longer than it: someone who clicks a banner on day 1 and
+  // subscribes on day 11 is a conversion the campaign earned, and a 7-day
+  // record would have dropped their entry before the payment landed —
+  // under-reporting the campaign against its own success metric.
+  it('keeps a campaign entry for the full two-week campaign window', () => {
+    const track = vi.fn();
+    const attribution = recordAmrEntry(
+      track,
+      'deepseek_workbench_badge',
+      new Date('2026-08-14T12:00:00.000Z'),
+      { campaignId: 'deepseek_v4_pro', conversionSource: 'deepseek_workbench_badge' },
+    );
+
+    // Day 11 — past the ordinary window, still inside the campaign.
+    expect(readAmrAttribution(new Date('2026-08-25T12:00:00.000Z'))).toEqual(
+      attribution,
+    );
+    // The last moment of the fourteenth day still counts.
+    expect(readAmrAttribution(new Date('2026-08-28T11:59:59.000Z'))).toEqual(
+      attribution,
+    );
+    // Past fourteen days it expires like anything else — the longer window is
+    // scoped to the campaign, not an open-ended exemption.
+    expect(readAmrAttribution(new Date('2026-08-28T12:00:01.000Z'))).toBeNull();
+  });
+
+  // The extended window is keyed on the campaign stamp, so a non-campaign entry
+  // recorded during the campaign keeps the ordinary seven days.
+  it('leaves non-campaign entries on the ordinary seven-day window', () => {
+    const track = vi.fn();
+    recordAmrEntry(
+      track,
+      'settings_amr_authorize',
+      new Date('2026-08-14T12:00:00.000Z'),
+    );
+
+    expect(readAmrAttribution(new Date('2026-08-25T12:00:00.000Z'))).toBeNull();
+  });
+
+  it('adds ComposerDesign attribution params to AMR wallet URLs', () => {
     expect(
-      attributedAmrUrl('https://open-design.ai/amr/wallet?tab=recharge', {
+      attributedAmrUrl('https://open-design.ai/amr/dashboard?tab=recharge', {
         entryId: 'od-amr-entry-123',
-        sourceProduct: 'open_design',
+        sourceProduct: 'composer_design',
         sourceDetail: 'generation_preview_recharge',
         occurredAt: '2026-06-03T12:00:00.000Z',
       }),
     ).toBe(
-      'https://open-design.ai/amr/wallet?tab=recharge&od_origin=open_design&od_entry_id=od-amr-entry-123&od_entry_source=generation_preview_recharge&od_entry_at=2026-06-03T12%3A00%3A00.000Z',
+      'https://open-design.ai/amr/dashboard?tab=recharge&od_origin=composer_design&od_entry_id=od-amr-entry-123&od_entry_source=generation_preview_recharge&od_entry_at=2026-06-03T12%3A00%3A00.000Z',
     );
   });
 
   it('adds od_device_id only when a device id is provided', () => {
     const attribution = {
       entryId: 'od-amr-entry-123',
-      sourceProduct: 'open_design' as const,
+      sourceProduct: 'composer_design' as const,
       sourceDetail: 'generation_preview_recharge' as const,
       occurredAt: '2026-06-03T12:00:00.000Z',
     };
     // With a device id (user opted into metrics): od_device_id is present.
     expect(
-      attributedAmrUrl('https://open-design.ai/amr/wallet', attribution, 'od-install-abc'),
+      attributedAmrUrl('https://open-design.ai/amr/dashboard', attribution, 'od-install-abc'),
     ).toContain('od_device_id=od-install-abc');
     // Without one (consent off): no od_device_id param leaks into the URL.
     expect(
-      attributedAmrUrl('https://open-design.ai/amr/wallet', attribution, null),
+      attributedAmrUrl('https://open-design.ai/amr/dashboard', attribution, null),
     ).not.toContain('od_device_id');
+  });
+
+  it('forwards campaign and conversion attribution for final payment joins', () => {
+    const track = vi.fn();
+    const attribution = recordAmrEntry(
+      track,
+      'deepseek_workbench_badge',
+      new Date('2026-08-05T12:00:00.000Z'),
+      {
+        campaignId: 'deepseek_v4_flash',
+        conversionSource: 'deepseek_workbench_badge',
+      },
+    );
+
+    expect(track).toHaveBeenCalledWith(
+      'ui_click',
+      expect.objectContaining({
+        entry_id: attribution.entryId,
+        source_detail: 'deepseek_workbench_badge',
+        campaign_id: 'deepseek_v4_flash',
+        conversion_source: 'deepseek_workbench_badge',
+      }),
+      undefined,
+    );
+    const url = new URL(
+      attributedAmrUrl('https://open-design.ai/zh/pricing/', attribution),
+    );
+    expect(url.searchParams.get('od_entry_id')).toBe(attribution.entryId);
+    expect(url.searchParams.get('od_entry_source')).toBe('deepseek_workbench_badge');
+    expect(url.searchParams.get('od_conversion_source')).toBe('deepseek_workbench_badge');
+    expect(url.searchParams.get('od_campaign_id')).toBe('deepseek_v4_flash');
   });
 
   it('resolves the AMR handoff device id to the canonical id, gated on consent', () => {

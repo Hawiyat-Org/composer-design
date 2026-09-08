@@ -15,7 +15,7 @@
  *   - Runs initialize → session/new → session/set_model (if --model given) →
  *     session/prompt with the prompt from VELA_VERIFY_PROMPT (defaults to a
  *     short hello).
- *   - Logs every Open Design `send(event, payload)` to stdout so you can see
+ *   - Logs every OpenDesign `send(event, payload)` to stdout so you can see
  *     the same text_delta / usage events the chat UI would receive.
  *   - Exits 0 on completedSuccessfully, 1 otherwise.
  */
@@ -27,7 +27,7 @@ import path from 'node:path';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const { attachAcpSession } = await import(
-  path.join(HERE, '..', 'dist', 'acp.js')
+  path.join(HERE, '..', 'dist', 'agent-protocol', 'index.js')
 );
 
 const velaBin = process.env.VELA_BIN || 'vela';
@@ -46,7 +46,7 @@ if (
   process.exit(2);
 }
 
-const child = spawn(velaBin, ['agent', 'run', '--runtime', 'opencode'], {
+const child = spawn(velaBin, ['agent', 'run'], {
   stdio: ['pipe', 'pipe', 'pipe'],
   env: process.env,
 });

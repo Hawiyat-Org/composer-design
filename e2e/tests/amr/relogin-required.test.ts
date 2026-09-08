@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
 import { seedVelaLoginConfig, writeFakeVelaBin } from '@/amr';
-import { createAmrProject, putAmrAppConfig } from '@/vitest/amr';
+import { AMR_TEST_WORKSPACE_HEADERS, createAmrProject, putAmrAppConfig } from '@/vitest/amr';
 import { readRunEvents, startRun, waitForRunStatus, waitForRunTerminal } from '@/vitest/runs';
 import { createSmokeSuite } from '@/vitest/suite';
 
@@ -18,6 +18,7 @@ describe('AMR relogin-required run failures', () => {
       await suite.with.toolsDev(async ({ webUrl }) => {
         const velaBin = await writeFakeVelaBin(join(suite.scratchDir, 'fake-vela-missing-login'), {
           endpoints: suite.amr,
+          requireSetModel: false,
         });
 
         await putAmrAppConfig(webUrl, {
@@ -44,11 +45,18 @@ describe('AMR relogin-required run failures', () => {
           projectId: project.project.id,
           reasoning: 'default',
           skillId: null,
+        }, { ...AMR_TEST_WORKSPACE_HEADERS });
+        const terminal = await waitForRunTerminal(webUrl, run.runId, {
+          headers: { ...AMR_TEST_WORKSPACE_HEADERS },
+          timeoutMs: 20_000,
         });
-        const terminal = await waitForRunTerminal(webUrl, run.runId, { timeoutMs: 20_000 });
         expect(terminal.status).toBe('failed');
 
-        await expect(readRunEvents(webUrl, run.runId)).resolves.toMatch(/AMR_AUTH_REQUIRED/);
+        await expect(
+          readRunEvents(webUrl, run.runId, {
+            headers: { ...AMR_TEST_WORKSPACE_HEADERS },
+          }),
+        ).resolves.toMatch(/AMR_AUTH_REQUIRED/);
       });
     });
   });
@@ -62,6 +70,7 @@ describe('AMR relogin-required run failures', () => {
       await suite.with.toolsDev(async ({ webUrl }) => {
         const velaBin = await writeFakeVelaBin(join(suite.scratchDir, 'fake-vela-configured-profile'), {
           endpoints: suite.amr,
+          requireSetModel: false,
         });
 
         await putAmrAppConfig(webUrl, {
@@ -86,9 +95,12 @@ describe('AMR relogin-required run failures', () => {
           projectId: project.project.id,
           reasoning: 'default',
           skillId: null,
-        });
+        }, { ...AMR_TEST_WORKSPACE_HEADERS });
 
-        await waitForRunStatus(webUrl, run.runId, 'succeeded', { timeoutMs: 20_000 });
+        await waitForRunStatus(webUrl, run.runId, 'succeeded', {
+          headers: { ...AMR_TEST_WORKSPACE_HEADERS },
+          timeoutMs: 20_000,
+        });
       });
     });
   });
@@ -108,6 +120,7 @@ describe('AMR relogin-required run failures', () => {
           const velaBin = await writeFakeVelaBin(join(suite.scratchDir, 'fake-vela-daemon-env-credentials'), {
             endpoints: suite.amr,
             requireLoginConfig: false,
+            requireSetModel: false,
           });
 
           await putAmrAppConfig(webUrl, {
@@ -132,9 +145,12 @@ describe('AMR relogin-required run failures', () => {
             projectId: project.project.id,
             reasoning: 'default',
             skillId: null,
-          });
+          }, { ...AMR_TEST_WORKSPACE_HEADERS });
 
-          await waitForRunStatus(webUrl, run.runId, 'succeeded', { timeoutMs: 20_000 });
+          await waitForRunStatus(webUrl, run.runId, 'succeeded', {
+            headers: { ...AMR_TEST_WORKSPACE_HEADERS },
+            timeoutMs: 20_000,
+          });
         });
       },
     );

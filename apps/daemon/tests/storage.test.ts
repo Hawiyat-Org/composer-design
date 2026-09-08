@@ -277,7 +277,7 @@ describe('resolveDaemonDbConfig', () => {
       OD_DAEMON_DB: 'postgres',
       OD_PG_HOST:   'pg.local',
       OD_PG_PORT:   '6543',
-      OD_PG_DATABASE: 'open_design',
+      OD_PG_DATABASE: 'composer_design',
       OD_PG_USER:   'od',
       OD_PG_SSL_MODE: 'disable',
     });
@@ -285,7 +285,7 @@ describe('resolveDaemonDbConfig', () => {
     expect(cfg.postgres).toEqual({
       host:     'pg.local',
       port:     6543,
-      database: 'open_design',
+      database: 'composer_design',
       user:     'od',
       sslMode:  'disable',
     });

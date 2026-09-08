@@ -2,32 +2,53 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ApplyResult,
   ChatSessionMode,
+  CreateProjectExampleReference,
   InstalledPluginRecord,
   ProjectKind,
   ProjectMetadata,
+  ProjectScenarioTaskProfile,
+  LocalCatalogScope,
+  RunContextSelection,
 } from '@open-design/contracts';
 import {
   applyPlugin,
+  duplicatePluginAsProject,
   listPlugins,
   renderPluginBriefTemplate,
+  resolvedWorkspaceContextForWrite,
   resolvePluginQueryFallback,
 } from '../state/projects';
 import { useI18n } from '../i18n';
 import { localizePluginDescription, localizePluginTitle } from './plugins-home/localization';
+import type { PluginUseAction } from './plugins-home/useActions';
 import { Icon } from './Icon';
 import { PluginDetailsModal } from './PluginDetailsModal';
 import { TrustBadge } from './TrustBadge';
 import { authorInitials, derivePluginSourceLinks } from '../runtime/plugin-source';
 import { useAnalytics } from '../analytics/provider';
 import { trackPluginLoopClick } from '../analytics/events';
+import { navigate } from '../router';
+import { useWorkspaceContext } from '../collab/useWorkspaceContext';
 
 export interface PluginLoopSubmit {
   prompt: string;
   pluginId: string | null;
+  pluginSelectionProvenance?: 'automatic-default';
+  /** Exact product-owned OD Next route; absent for ordinary plugin routing. */
+  automaticStrategyTaskProfile?: ProjectScenarioTaskProfile | null;
+  /**
+   * Identity of the official example card the user picked under a task type.
+   * Sent INSTEAD of `pluginId`/`appliedPluginSnapshotId`, and only alongside
+   * `automaticStrategyTaskProfile` — the example is a look, not a strategy.
+   */
+  exampleReference?: CreateProjectExampleReference | null;
+  /** Exact identity of the local catalogue record selected by the user. */
+  pluginSource?: string | null;
   // Marketplace trust of the routed plugin (official / community / …), used
   // to attribute project_create_result to a plugin type. Null when no plugin.
   pluginType?: string | null;
   skillId?: string | null;
+  skillCatalogScope?: LocalCatalogScope | null;
   appliedPluginSnapshotId: string | null;
   pluginTitle: string | null;
   taskKind: string | null;
@@ -35,7 +56,9 @@ export interface PluginLoopSubmit {
   contextPlugins?: Array<{ id: string; title: string; description?: string }> | null;
   contextMcpServers?: Array<{ id: string; label?: string; transport?: string; url?: string; command?: string }> | null;
   contextConnectors?: Array<{ id: string; name: string; provider?: string; category?: string; status?: string; accountLabel?: string }> | null;
+  initialRunContext?: RunContextSelection | null;
   designSystemId?: string | null;
+  designSystemCatalogScope?: LocalCatalogScope | null;
   // Stage B of plugin-driven-flow-plan: when the user picked a Home
   // chip the rail tells the submit handler which `ProjectKind` to
   // stamp on the new project's metadata. The daemon-side default
@@ -43,10 +66,12 @@ export interface PluginLoopSubmit {
   // video / audio → od-media-generation, others → od-new-generation).
   // Null means the caller did not stamp an explicit kind. HomeView's
   // free-form fallback uses `other` and binds the hidden od-default
-  // router plugin so the agent asks for the exact task type in-chat.
+  // router plugin so the agent infers the task type and asks only when
+  // the brief cannot be routed reliably.
   projectKind?: ProjectKind | null;
   projectMetadata?: ProjectMetadata | null;
   workingDir?: string | null;
+  linkedDirs?: string[] | null;
   // Single-use desktop token minted for `workingDir` when the folder was
   // chosen through the host's native picker. Spent (not persisted) on the
   // post-creation working-dir POST so the daemon's desktop-auth gate accepts
@@ -63,6 +88,16 @@ interface Props {
   onSubmit: (payload: PluginLoopSubmit) => void;
 }
 
+function pluginLoopLocalLabel(
+  locale: string,
+  key: 'pluginActive' | 'reloadExampleQuery',
+): string {
+  if (locale === 'zh-CN') {
+    return key === 'pluginActive' ? '插件已启用' : '重新加载示例请求';
+  }
+  return key === 'pluginActive' ? 'Plugin active' : 'Reload example query';
+}
+
 interface ActivePlugin {
   record: InstalledPluginRecord;
   result: ApplyResult;
@@ -70,8 +105,9 @@ interface ActivePlugin {
 }
 
 export function PluginLoopHome({ onSubmit }: Props) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const analytics = useAnalytics();
+  const workspaceContextState = useWorkspaceContext();
   const [plugins, setPlugins] = useState<InstalledPluginRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [pendingApplyId, setPendingApplyId] = useState<string | null>(null);
@@ -106,10 +142,16 @@ export function PluginLoopHome({ onSubmit }: Props) {
     });
   }, [plugins]);
 
-  async function usePlugin(record: InstalledPluginRecord) {
+  async function usePlugin(
+    record: InstalledPluginRecord,
+    action: PluginUseAction = 'use-with-query',
+  ) {
     setPendingApplyId(record.id);
     setError(null);
-    const result = await applyPlugin(record.id, { locale });
+    const result = await applyPlugin(record.id, {
+      locale,
+      workspaceContext: resolvedWorkspaceContextForWrite(workspaceContextState),
+    });
     setPendingApplyId(null);
     if (!result) {
       setError(`Failed to apply ${record.title}. Make sure the daemon is reachable.`);
@@ -121,11 +163,29 @@ export function PluginLoopHome({ onSubmit }: Props) {
     }
     setActive({ record, result, inputs });
     const query = result.query || resolvePluginQueryFallback(record.manifest?.od?.useCase?.query, locale);
-    if (query) {
+    if (action === 'use-with-query' && query) {
       setPrompt(renderPluginBriefTemplate(query, inputs));
     }
     setDetailsRecord(null);
     requestAnimationFrame(() => textareaRef.current?.focus());
+  }
+
+  async function duplicatePlugin(record: InstalledPluginRecord) {
+    setError(null);
+    try {
+      const result = await duplicatePluginAsProject(record.id, {
+        name: localizePluginTitle(locale, record),
+      }, resolvedWorkspaceContextForWrite(workspaceContextState));
+      setDetailsRecord(null);
+      navigate({
+        kind: 'project',
+        projectId: result.projectId,
+        conversationId: result.conversationId,
+        fileName: result.relPath,
+      });
+    } catch {
+      setError(t('pluginCard.duplicateFailed'));
+    }
   }
 
   function openDetails(record: InstalledPluginRecord) {
@@ -313,12 +373,12 @@ export function PluginLoopHome({ onSubmit }: Props) {
                     type="button"
                     className="plugin-loop-home__card-details"
                     onClick={() => { trackPluginLoopClick(analytics.track, { page_name: 'plugins', area: 'plugin_loop', element: 'card_details', plugin_id: p.id }); openDetails(p); }}
-                    aria-label={`View details for ${p.title}`}
+                    aria-label={t('pluginCard.detailsAria', { title: cardTitle })}
                     data-testid={`view-details-${p.id}`}
-                    title="View plugin details"
+                    title={t('pluginCard.details')}
                   >
                     <Icon name="eye" size={12} />
-                    <span>Details</span>
+                    <span>{t('pluginCard.details')}</span>
                   </button>
                   <button
                     type="button"
@@ -329,14 +389,14 @@ export function PluginLoopHome({ onSubmit }: Props) {
                     data-testid={`use-example-${p.id}`}
                   >
                     {isPending
-                      ? 'Applying…'
+                      ? t('pluginCard.applying')
                       : hasQuery
                         ? isActive
-                          ? 'Reload example query'
-                          : 'Use example query'
+                          ? pluginLoopLocalLabel(locale, 'reloadExampleQuery')
+                          : t('pluginCard.useWithQuery')
                         : isActive
-                          ? 'Plugin active'
-                          : 'Use plugin'}
+                          ? pluginLoopLocalLabel(locale, 'pluginActive')
+                          : t('preview.usePlugin')}
                   </button>
                 </div>
               </div>
@@ -347,8 +407,10 @@ export function PluginLoopHome({ onSubmit }: Props) {
       {detailsRecord ? (
         <PluginDetailsModal
           record={detailsRecord}
+          workspaceContext={workspaceContextState.context}
           onClose={closeDetails}
-          onUse={(record) => void usePlugin(record)}
+          onUse={(record, action) => void usePlugin(record, action)}
+          onDuplicate={(record) => void duplicatePlugin(record)}
           isApplying={pendingApplyId === detailsRecord.id}
         />
       ) : null}

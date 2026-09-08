@@ -222,7 +222,7 @@ describe('MemorySection', () => {
     const entry = {
       id: 'project_design_agent_goal',
       name: 'Design agent goal',
-      description: 'Composer Design should evolve from accepted work',
+      description: 'ComposerDesign should evolve from accepted work',
       type: 'project',
       body: '- Keep design-system extraction in the loop',
       updatedAt: Date.now(),
@@ -314,7 +314,7 @@ describe('MemorySection', () => {
     const entry = {
       id: 'project_design_agent_goal',
       name: 'Design agent goal',
-      description: 'Composer Design should evolve from accepted work',
+      description: 'ComposerDesign should evolve from accepted work',
       type: 'project',
       body: '- Keep design-system extraction in the loop',
       updatedAt: Date.now(),
@@ -680,7 +680,7 @@ describe('MemorySection', () => {
               name: 'Memory context',
               description: 'Connector-derived context',
               type: 'project',
-              body: 'OpenDesign connector memory should focus on design preferences, UI decisions, and visual references from Notion.',
+              body: 'ComposerDesign connector memory should focus on design preferences, UI decisions, and visual references from Notion.',
               source: {
                 kind: 'connector',
                 connectorId: 'notion',
@@ -796,7 +796,7 @@ describe('MemorySection', () => {
         name: 'Memory context',
         description: 'Connector-derived context',
         type: 'project',
-        body: 'OpenDesign connector memory should focus on design preferences, UI decisions, and visual references from Notion.',
+        body: 'ComposerDesign connector memory should focus on design preferences, UI decisions, and visual references from Notion.',
       },
     ]);
   });
@@ -1157,6 +1157,175 @@ describe('MemorySection', () => {
       await waitFor(() => expect(onConnectorsChanged).toHaveBeenCalledTimes(1));
       await waitFor(() => expect(within(githubRow).getByText('octo@example.test')).toBeTruthy());
       expect(within(githubRow).getByText('Select')).toBeTruthy();
+    } finally {
+      window.removeEventListener(CONNECTORS_CHANGED_EVENT, onConnectorsChanged);
+    }
+  });
+
+  it('refreshes pending connector authorization when the window regains focus', async () => {
+    globalThis.EventSource = StubEventSource as unknown as typeof EventSource;
+    let connected = false;
+    const authWindow = {
+      document: {
+        title: '',
+        body: { innerHTML: '' },
+      },
+      location: { replace: vi.fn() },
+      close: vi.fn(),
+    };
+    vi.spyOn(window, 'open').mockReturnValue(authWindow as unknown as Window);
+    const onConnectorsChanged = vi.fn();
+    const suggestionBodies: unknown[] = [];
+    window.addEventListener(CONNECTORS_CHANGED_EVENT, onConnectorsChanged);
+
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      if (url === '/api/memory' && (!init || init.method === undefined)) {
+        return new Response(JSON.stringify({
+          enabled: true,
+          rootDir: '/tmp/memory',
+          index: '# Memory\n',
+          entries: [],
+          extraction: null,
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (url === '/api/memory/extractions') {
+        return new Response(JSON.stringify({ extractions: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url === '/api/connectors/discovery?hydrateTools=false') {
+        return new Response(JSON.stringify({
+          connectors: [
+            {
+              id: 'github',
+              name: 'GitHub',
+              provider: 'composio',
+              category: 'Developer',
+              status: 'available',
+              tools: [],
+            },
+          ],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (url === '/api/connectors/status') {
+        return new Response(JSON.stringify({
+          statuses: {
+            github: connected
+              ? { status: 'connected', accountLabel: 'External browser GitHub' }
+              : { status: 'available' },
+          },
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (url === '/api/connectors/auth-configs/prepare' && init?.method === 'POST') {
+        return new Response(JSON.stringify({
+          results: {
+            github: { status: 'ready', authConfigId: 'ac_github' },
+          },
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (url === '/api/connectors/github/connect' && init?.method === 'POST') {
+        return new Response(JSON.stringify({
+          connector: {
+            id: 'github',
+            name: 'GitHub',
+            provider: 'composio',
+            category: 'Developer',
+            status: 'available',
+            tools: [],
+          },
+          auth: {
+            kind: 'redirect_required',
+            redirectUrl: 'https://example.com/github-oauth',
+          },
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (url === '/api/memory/connectors/suggest' && init?.method === 'POST') {
+        suggestionBodies.push(JSON.parse(String(init.body)));
+        return new Response(JSON.stringify({
+          suggestions: [
+            {
+              id: 'project_external_github_1',
+              name: 'External GitHub context',
+              description: 'Connector-derived context after focus refresh.',
+              type: 'project',
+              body: 'Remember that this project depends on GitHub context imported after browser authorization.',
+              source: {
+                kind: 'connector',
+                connectorId: 'github',
+                connectorName: 'GitHub',
+                accountLabel: 'External browser GitHub',
+                toolName: 'github.github_search',
+                toolTitle: 'Search GitHub',
+              },
+            },
+          ],
+          attemptedLLM: true,
+          contextBytes: 72,
+          connectors: [
+            {
+              connectorId: 'github',
+              connectorName: 'GitHub',
+              accountLabel: 'External browser GitHub',
+              status: 'succeeded',
+              toolName: 'github.github_search',
+              toolTitle: 'Search GitHub',
+              summary: 'Found repo context after OAuth.',
+            },
+          ],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    }) as typeof fetch;
+
+    try {
+      renderMemorySection({
+        chatAgentId: 'codex',
+        chatModel: 'default',
+      });
+      await openAddMemories();
+      fireEvent.click(await screen.findByRole('tab', { name: 'Import from apps' }));
+      const githubRow = await waitFor(() => {
+        const row = document.querySelector('[data-memory-connector-id="github"]');
+        expect(row).toBeTruthy();
+        return row as HTMLElement;
+      });
+
+      fireEvent.click(within(githubRow).getByRole('button', { name: 'Connect GitHub' }));
+
+      await waitFor(() => {
+        expect(authWindow.location.replace).toHaveBeenCalledWith('https://example.com/github-oauth');
+      });
+      expect(within(githubRow).getByText('Finish authorization in your browser, then return here')).toBeTruthy();
+      expect(within(githubRow).queryByText('Select')).toBeNull();
+      expect(onConnectorsChanged).not.toHaveBeenCalled();
+
+      connected = true;
+      window.dispatchEvent(new Event('focus'));
+
+      await waitFor(() => expect(onConnectorsChanged).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(within(githubRow).getByText('External browser GitHub')).toBeTruthy());
+      expect(within(githubRow).queryByText('Finish authorization in your browser, then return here')).toBeNull();
+      expect(within(githubRow).getByText('Select')).toBeTruthy();
+
+      fireEvent.click(screen.getByLabelText('Use GitHub for memory extraction'));
+      const scanButton = await screen.findByRole('button', { name: /Scan selected apps/i });
+      await waitFor(() => {
+        expect((scanButton as HTMLButtonElement).disabled).toBe(false);
+      });
+      fireEvent.click(scanButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Found 1 suggested memory from 1 app/)).toBeTruthy();
+      });
+      expect(screen.getByText('72 B read')).toBeTruthy();
+      expect(screen.getByText(/Search GitHub · Found repo context after OAuth/)).toBeTruthy();
+      expect(suggestionBodies).toEqual([{
+        connectorIds: ['github'],
+        chatAgentId: 'codex',
+        chatModel: 'default',
+      }]);
     } finally {
       window.removeEventListener(CONNECTORS_CHANGED_EVENT, onConnectorsChanged);
     }
@@ -1926,7 +2095,7 @@ describe('MemorySection', () => {
               },
               startedAt: Date.now(),
               finishedAt: Date.now() + 1300,
-              userMessagePreview: 'Suggest durable OpenDesign memories from connected apps.',
+              userMessagePreview: 'Suggest durable ComposerDesign memories from connected apps.',
               error: 'openai 401: { "error": { "message": "Your authentication token has expired. Please try signing in again.", "type": "invalid_request_error", "code": "token_expired", "param": null }, "status": 401 }',
             },
           ],
@@ -1948,15 +2117,15 @@ describe('MemorySection', () => {
 	      .getByText('Connected app scan failed'),
 	  ).toBeTruthy();
 	  expect(
-	    screen.queryByText('Suggest durable OpenDesign memories from connected apps.'),
+	    screen.queryByText('Suggest durable ComposerDesign memories from connected apps.'),
 	  ).toBeNull();
 	  expect(
 	    within(document.querySelector('.memory-unified-list') as HTMLElement)
-	      .queryByText('Suggest durable OpenDesign memories from connected apps.'),
+	      .queryByText('Suggest durable ComposerDesign memories from connected apps.'),
 	  ).toBeNull();
 	  expect(screen.getByText('OpenAI authentication expired')).toBeTruthy();
     expect(
-      screen.getByText('Connected apps were read, but OpenDesign could not turn that context into memory.'),
+      screen.getByText('Connected apps were read, but ComposerDesign could not turn that context into memory.'),
     ).toBeTruthy();
     expect(
       screen.getByText('Update the Memory extraction model key or sign in again.'),
@@ -1992,7 +2161,7 @@ describe('MemorySection', () => {
               },
               startedAt: Date.now(),
               finishedAt: Date.now() + 900,
-              userMessagePreview: 'Suggest durable OpenDesign memories from connected apps.',
+              userMessagePreview: 'Suggest durable ComposerDesign memories from connected apps.',
               error: 'Claude Code CLI exit 1: authentication token has expired',
             },
           ],

@@ -1,7 +1,8 @@
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Dialog, DialogDescription, DialogFooter, DialogTitle } from "@open-design/components";
-import { projectKindToTracking } from "@open-design/contracts/analytics";
+import type { WorkspaceCollabContext } from "@open-design/contracts";
+import { projectKindFromMetadataToTracking } from "@open-design/contracts/analytics";
 import { useAnalytics } from "../analytics/provider";
 import {
   trackPageView,
@@ -10,7 +11,14 @@ import {
   trackProjectsMorePopoverClick,
 } from "../analytics/events";
 import { useT } from "../i18n";
-import { deleteLiveArtifact, fetchLiveArtifacts, fetchProjectFiles, liveArtifactPreviewUrl, projectFileUrl } from "../providers/registry";
+import { useWorkspaceContext } from "../collab/useWorkspaceContext";
+import { workspaceIdentityCacheKey } from "../collab/workspace-identity";
+import {
+	getProjectCoverSnapshot,
+	projectCoverSnapshotKey,
+	setProjectCoverSnapshot,
+} from "../lib/project-cover-cache";
+import { deleteLiveArtifact, fetchLiveArtifacts, fetchProjectFiles, liveArtifactPreviewUrl } from "../providers/registry";
 import type {
 	DesignSystemSummary,
 	LiveArtifactSummary,
@@ -21,9 +29,20 @@ import type {
 } from "../types";
 import { AnimatePresence } from "motion/react";
 import { Icon } from "./Icon";
-import { isDesignSystemProject, isPublishedDesignSystemProject } from "./design-system-project";
+import {
+	isDesignSystemProject,
+	isPublishedDesignSystemProject,
+	resolveProjectDesignSystemId,
+} from "./design-system-project";
 import { LiveArtifactBadges } from "./LiveArtifactBadges";
 import { Toast } from "./Toast";
+import {
+	HtmlProjectCoverFrame,
+	coverFromProjectFile,
+	projectCoverUrl,
+	selectProjectFileCover,
+	type ProjectCoverOverride,
+} from "./project-cover";
 
 type SubTab = "recent" | "yours";
 type ViewMode = "grid" | "kanban";
@@ -40,11 +59,37 @@ type DesignListItem =
 
 const DESIGNS_VIEW_STORAGE_KEY = "od:designs:view";
 const PROJECTS_AUTO_REFRESH_MS = 15000;
+const MAX_BACKGROUND_PROJECT_READS = 2;
+
+async function mapWithConcurrency<T, R>(
+	items: readonly T[],
+	concurrency: number,
+	map: (item: T) => Promise<R>,
+): Promise<R[]> {
+	const results = new Array<R>(items.length);
+	let nextIndex = 0;
+	const worker = async () => {
+		for (;;) {
+			const index = nextIndex;
+			if (index >= items.length) return;
+			nextIndex += 1;
+			results[index] = await map(items[index]!);
+		}
+	};
+	await Promise.all(
+		Array.from(
+			{ length: Math.min(Math.max(1, concurrency), items.length) },
+			() => worker(),
+		),
+	);
+	return results;
+}
 
 export const STATUS_ORDER = [
 	"not_started",
 	"running",
 	"awaiting_input",
+	"incomplete",
 	"succeeded",
 	"failed",
 	"canceled",
@@ -55,6 +100,7 @@ export const STATUS_LABEL_KEYS = {
 	queued: "designs.status.queued",
 	running: "designs.status.running",
 	awaiting_input: "designs.status.awaitingInput",
+	incomplete: "designs.status.incomplete",
 	succeeded: "designs.status.succeeded",
 	failed: "designs.status.failed",
 	canceled: "designs.status.canceled",
@@ -70,6 +116,7 @@ interface Props {
 	onOpen: (id: string) => void;
 	onOpenLiveArtifact: (projectId: string, artifactId: string) => void;
 	onDelete: (id: string) => Promise<boolean | void> | boolean | void;
+	onDuplicate?: (id: string) => Promise<void> | void;
 	onRename?: (id: string, name: string) => void;
 	onNewProject?: () => void;
 	onRefresh?: () => Promise<void> | void;
@@ -83,6 +130,7 @@ export function DesignsTab({
 	onOpen,
 	onOpenLiveArtifact,
 	onDelete,
+	onDuplicate,
 	onRename,
 	onNewProject,
 	onRefresh,
@@ -92,6 +140,7 @@ export function DesignsTab({
 	const confirmTitleId = useId();
 	const t = useT();
 	const analytics = useAnalytics();
+	const { context: workspaceContext, loading: workspaceContextLoading } = useWorkspaceContext();
 	// P0 page_view page_name=projects — fire once when the tab mounts so
 	// `/projects` landings register even before the user clicks anything.
 	// ref-keyed to survive re-renders that flip parent state without
@@ -108,7 +157,7 @@ export function DesignsTab({
 		Record<string, LiveArtifactSummary[]>
 	>({});
 	const [coverByProject, setCoverByProject] = useState<
-		Record<string, { kind: "html" | "image" | "video" | "logo"; name: string } | null>
+		Record<string, ProjectCoverOverride | null>
 	>({});
 	const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 	const [selectMode, setSelectMode] = useState(false);
@@ -123,14 +172,18 @@ export function DesignsTab({
 	const [projectsRefreshing, setProjectsRefreshing] = useState(false);
 	const menuContainerRef = useRef<HTMLDivElement | null>(null);
 	const projectsRefreshInFlightRef = useRef(false);
+	const liveWorkspaceIdentityRef = useRef<string | null>(null);
+	const coverWorkspaceIdentityRef = useRef<string | null>(null);
 	const [renameTarget, setRenameTarget] = useState<{ id: string; original: string } | null>(null);
 	const [renameInput, setRenameInput] = useState("");
 	const [confirmTarget, setConfirmTarget] = useState<{
 		title: string;
 		message: string;
 		confirmLabel: string;
-		onConfirm: () => void;
+		onConfirm: () => Promise<boolean | void> | boolean | void;
 	} | null>(null);
+	const [confirmPending, setConfirmPending] = useState(false);
+	const [confirmError, setConfirmError] = useState<string | null>(null);
 	const [view, setView] = useState<ViewMode>(() => {
 		if (typeof window === "undefined") return "grid";
 		try {
@@ -144,97 +197,116 @@ export function DesignsTab({
 	});
 
 	useEffect(() => {
-		let cancelled = false;
+		if (!isActive || workspaceContextLoading) return;
+		const controller = new AbortController();
+		const workspaceIdentity = workspaceIdentityCacheKey(workspaceContext);
+		if (liveWorkspaceIdentityRef.current !== workspaceIdentity) {
+			liveWorkspaceIdentityRef.current = workspaceIdentity;
+			setLiveArtifactsByProject({});
+		}
 		const projectIds = projects.map((project) => project.id);
 		if (projectIds.length === 0) {
 			setLiveArtifactsByProject({});
 			return;
 		}
 
-		void Promise.all(
-			projectIds.map(
-				async (projectId) =>
-					[projectId, await fetchLiveArtifacts(projectId)] as const,
-			),
+		void mapWithConcurrency(
+			projectIds,
+			MAX_BACKGROUND_PROJECT_READS,
+			async (projectId) =>
+					[
+						projectId,
+						await fetchLiveArtifacts(projectId, {
+							signal: controller.signal,
+							workspaceContext,
+						}),
+					] as const,
 		).then((entries) => {
-			if (cancelled) return;
+			if (controller.signal.aborted) return;
 			setLiveArtifactsByProject(Object.fromEntries(entries));
 		});
 
-		return () => {
-			cancelled = true;
-		};
-	}, [projects]);
+		return () => controller.abort();
+	}, [isActive, projects, workspaceContext, workspaceContextLoading]);
 
 	useEffect(() => {
-		let cancelled = false;
+		if (!isActive || workspaceContextLoading) return;
+		const controller = new AbortController();
 		if (projects.length === 0) {
 			setCoverByProject({});
 			return;
 		}
-		void Promise.all(
-			projects.map(async (project) => {
+		const workspaceIdentity = workspaceIdentityCacheKey(workspaceContext);
+		const workspaceIdentityChanged = coverWorkspaceIdentityRef.current !== workspaceIdentity;
+		coverWorkspaceIdentityRef.current = workspaceIdentity;
+		const immediateEntries: Array<readonly [string, ProjectCoverOverride | null]> = [];
+		const unresolvedProjects = projects.filter((project) => {
+			const snapshot = getProjectCoverSnapshot(
+				projectCoverSnapshotKey(workspaceIdentity, project.id, project.updatedAt),
+			);
+			if (snapshot === undefined) return true;
+			immediateEntries.push([project.id, snapshot.cover] as const);
+			return false;
+		});
+	const immediateByProject = new Map(immediateEntries);
+	setCoverByProject((current) => {
+		const next: Record<string, ProjectCoverOverride | null> = {};
+		for (const project of projects) {
+			if (immediateByProject.has(project.id)) {
+				next[project.id] = immediateByProject.get(project.id)!;
+			} else if (!workspaceIdentityChanged && Object.hasOwn(current, project.id)) {
+				next[project.id] = current[project.id]!;
+			}
+		}
+		return next;
+	});
+		void mapWithConcurrency(
+			unresolvedProjects,
+			MAX_BACKGROUND_PROJECT_READS,
+			async (project) => {
 				const designSystemProject = isDesignSystemProject(project);
 				// Brand projects render a generated logo/monogram cover (see
 				// projectCover) instead of a raw HTML file preview, so skip the
 				// file scan entirely for them.
-				if (project.metadata?.kind === "brand") return [project.id, null] as const;
-				if (project.metadata?.entryFile && !designSystemProject) return [project.id, null] as const;
-				let files: Awaited<ReturnType<typeof fetchProjectFiles>>;
-				try {
-					files = await fetchProjectFiles(project.id);
-				} catch {
-					return [project.id, null] as const;
-				}
-				if (designSystemProject) {
-					const logo = findDesignSystemLogoFile(files);
-					if (logo) {
-						return [
-							project.id,
-							{ kind: "logo" as const, name: logo.path ?? logo.name },
-						] as const;
+				let cover: ProjectCoverOverride | null;
+				if (project.metadata?.kind === "brand" || (project.metadata?.entryFile && !designSystemProject)) {
+					cover = null;
+				} else {
+					let files: Awaited<ReturnType<typeof fetchProjectFiles>>;
+					try {
+						files = await fetchProjectFiles(project.id, {
+							signal: controller.signal,
+							workspaceContext,
+						});
+					} catch {
+						return [project.id, undefined] as const;
 					}
-					return [project.id, null] as const;
+					if (controller.signal.aborted) return [project.id, undefined] as const;
+					if (designSystemProject) {
+						const logo = findDesignSystemLogoFile(files);
+						cover = logo ? coverFromProjectFile(logo, "logo") : null;
+					} else {
+						cover = selectProjectFileCover(files);
+					}
 				}
-				const html =
-					files.find((f) => (f.path ?? f.name) === "index.html") ??
-					files
-						.filter((f) => f.kind === "html")
-						.sort((a, b) => b.mtime - a.mtime)[0];
-				if (html) {
-					return [
-						project.id,
-						{ kind: "html" as const, name: html.path ?? html.name },
-					] as const;
-				}
-				const image = files
-					.filter((f) => f.kind === "image")
-					.sort((a, b) => b.mtime - a.mtime)[0];
-				if (image) {
-					return [
-						project.id,
-						{ kind: "image" as const, name: image.path ?? image.name },
-					] as const;
-				}
-				const video = files
-					.filter((f) => f.kind === "video")
-					.sort((a, b) => b.mtime - a.mtime)[0];
-				if (video) {
-					return [
-						project.id,
-						{ kind: "video" as const, name: video.path ?? video.name },
-					] as const;
-				}
-				return [project.id, null] as const;
-			}),
+				setProjectCoverSnapshot(
+					projectCoverSnapshotKey(workspaceIdentity, project.id, project.updatedAt),
+					cover,
+				);
+				return [project.id, cover] as const;
+			},
 		).then((entries) => {
-			if (cancelled) return;
-			setCoverByProject(Object.fromEntries(entries));
+			if (controller.signal.aborted) return;
+			const resolvedEntries = entries.filter(
+				(entry): entry is readonly [string, ProjectCoverOverride | null] => entry[1] !== undefined,
+			);
+			setCoverByProject((current) => ({
+				...current,
+				...Object.fromEntries(resolvedEntries),
+			}));
 		});
-		return () => {
-			cancelled = true;
-		};
-	}, [projects]);
+		return () => controller.abort();
+	}, [isActive, projects, workspaceContext, workspaceContextLoading]);
 
 	useEffect(() => {
 		if (!menuOpenId) return;
@@ -424,6 +496,7 @@ export function DesignsTab({
 		setRenameInput("");
 	};
 	const handleDeleteProject = (project: Project) => {
+		setConfirmError(null);
 		setConfirmTarget({
 			title: t("designs.deleteTitle"),
 			message: t("designs.deleteConfirm", { name: project.name }),
@@ -431,9 +504,21 @@ export function DesignsTab({
 			onConfirm: () => onDelete(project.id),
 		});
 	};
+	const handleDuplicateProject = (project: Project) => {
+		if (!onDuplicate) return;
+		void Promise.resolve(onDuplicate(project.id)).catch((err) => {
+			setDesignsToast({
+				id: (toastIdRef.current += 1),
+				message: err instanceof Error ? err.message : String(err),
+				role: "alert",
+				tone: "error",
+			});
+		});
+	};
 	const handleBatchDelete = () => {
 		const ids = Array.from(selected);
 		if (ids.length === 0) return;
+		setConfirmError(null);
 		setConfirmTarget({
 			title: t("designs.deleteTitle"),
 			message: t("designs.deleteSelectedConfirm", { n: ids.length }),
@@ -468,21 +553,42 @@ export function DesignsTab({
 		projectId: string,
 		artifact: LiveArtifactSummary,
 	) => {
+		setConfirmError(null);
 		setConfirmTarget({
 			title: t("common.delete"),
 			message: `${t("common.delete")} "${artifact.title}"?`,
 			confirmLabel: t("designs.menuDelete"),
 			onConfirm: async () => {
-				const ok = await deleteLiveArtifact(projectId, artifact.id);
-				if (!ok) return;
+				const ok = await deleteLiveArtifact(projectId, artifact.id, workspaceContext);
+				if (!ok) return false;
 				setLiveArtifactsByProject((current) => ({
 					...current,
 					[projectId]: (current[projectId] ?? []).filter(
 						(candidate) => candidate.id !== artifact.id,
 					),
 				}));
+				return true;
 			},
 		});
+	};
+
+	const commitConfirmTarget = async () => {
+		if (!confirmTarget || confirmPending) return;
+		const target = confirmTarget;
+		setConfirmError(null);
+		setConfirmPending(true);
+		try {
+			const result = await target.onConfirm();
+			if (result === false) {
+				setConfirmError(t("ds.actionFailed"));
+				return;
+			}
+			setConfirmTarget((current) => current === target ? null : current);
+		} catch (error) {
+			setConfirmError(error instanceof Error ? error.message : t("ds.actionFailed"));
+		} finally {
+			setConfirmPending(false);
+		}
 	};
 
 	return (
@@ -527,9 +633,27 @@ export function DesignsTab({
 					</div>
 				</div>
 				<div className="toolbar-right">
+					{onNewProject && projects.length > 0 ? (
+						<button
+							type="button"
+							className="designs-new-project-button"
+							data-testid="designs-new-project"
+							onClick={() => {
+								trackProjectsListControlsClick(analytics.track, {
+									page_name: "projects",
+									area: "list_controls",
+									element: "create_project",
+								});
+								onNewProject();
+							}}
+						>
+							<Icon name="plus" size={13} />
+							<span>{t("entry.navNewProject")}</span>
+						</button>
+					) : null}
 					<div className="toolbar-search">
 						<span className="search-icon" aria-hidden>
-							<Icon name="search" size={13} />
+							<Icon name="search" size={14} />
 						</span>
 						<input
 							placeholder={t("designs.searchPlaceholder")}
@@ -566,7 +690,7 @@ export function DesignsTab({
 						>
 							<Icon
 								name={projectsRefreshing ? "spinner" : "refresh"}
-								size={13}
+								size={14}
 								className={projectsRefreshing ? "icon-spin" : undefined}
 							/>
 							<span>
@@ -610,7 +734,7 @@ export function DesignsTab({
 								setSelectMode(true);
 							}}
 						>
-							<Icon name="check" size={13} />
+							<Icon name="check" size={14} />
 							<span>{t("designs.selectMode")}</span>
 						</button>
 					) : null}
@@ -667,6 +791,7 @@ export function DesignsTab({
 								<button
 									type="button"
 									className="primary designs-empty-cta"
+									data-testid="designs-empty-new-project"
 									onClick={() => {
 										trackProjectsListControlsClick(analytics.track, {
 											page_name: "projects",
@@ -689,7 +814,7 @@ export function DesignsTab({
 					{filtered.map((item) => {
 						const p = item.project;
 						const skill = skillName(p.skillId);
-						const ds = dsName(p.designSystemId);
+						const ds = dsName(resolveProjectDesignSystemId(p));
 						if (item.type === "live-artifact") {
 							const artifact = item.liveArtifact;
 							const title = liveArtifactCardTitle(p, artifact);
@@ -718,7 +843,7 @@ export function DesignsTab({
 											void handleDeleteLiveArtifact(p.id, artifact);
 										}}
 									>
-										<Icon name="close" size={12} />
+										<Icon name="close" size={14} />
 									</button>
 									<div
 										className="design-card-thumb live-artifact-thumb"
@@ -726,7 +851,12 @@ export function DesignsTab({
 									>
 										<iframe
 											className="thumb-iframe"
-											src={liveArtifactPreviewUrl(p.id, artifact.id)}
+											src={liveArtifactPreviewUrl(
+												p.id,
+												artifact.id,
+												"rendered",
+												workspaceContext,
+											)}
 											title=""
 											loading="lazy"
 											sandbox="allow-scripts"
@@ -761,7 +891,11 @@ export function DesignsTab({
 
 						const liveCount = liveArtifactsByProject[p.id]?.length ?? 0;
 						const status = p.status?.value ?? "not_started";
-						const cover = projectCover(p, coverByProject[p.id] ?? null);
+						const cover = projectCover(
+							p,
+							coverByProject[p.id] ?? null,
+							workspaceContext,
+						);
 						const isSelected = selected.has(p.id);
 						const designSystemProject = isDesignSystemProject(p);
 						const publishedDesignSystem = isPublishedDesignSystemProject(p, designSystems);
@@ -776,7 +910,7 @@ export function DesignsTab({
 										toggleSelected(p.id);
 									} else {
 										// P0 ui_click area=list element=project_card.
-										const projectKind = projectKindToTracking(p.metadata?.kind, p.metadata?.videoModel);
+										const projectKind = projectKindFromMetadataToTracking(p.metadata);
 										trackProjectsListClick(analytics.track, {
 											page_name: "projects",
 											area: "list",
@@ -800,7 +934,7 @@ export function DesignsTab({
 										className={`design-card-checkbox${isSelected ? " checked" : ""}`}
 										aria-hidden
 									>
-										{isSelected ? <Icon name="check" size={12} /> : null}
+										{isSelected ? <Icon name="check" size={14} /> : null}
 									</span>
 								) : (
 									<div
@@ -818,7 +952,7 @@ export function DesignsTab({
 												setMenuOpenId((cur) => {
 													const nextId = cur === p.id ? null : p.id;
 													if (nextId === p.id) {
-														const projectKind = projectKindToTracking(p.metadata?.kind, p.metadata?.videoModel);
+														const projectKind = projectKindFromMetadataToTracking(p.metadata);
 														trackProjectsListClick(analytics.track, {
 															page_name: "projects",
 															area: "list",
@@ -843,7 +977,7 @@ export function DesignsTab({
 												type="button"
 												role="menuitem"
 												onClick={() => {
-													const projectKind = projectKindToTracking(p.metadata?.kind, p.metadata?.videoModel);
+													const projectKind = projectKindFromMetadataToTracking(p.metadata);
 													trackProjectsMorePopoverClick(analytics.track, {
 														page_name: "projects",
 														area: "projects_more_popover",
@@ -855,15 +989,36 @@ export function DesignsTab({
 													handleRenameProject(p);
 												}}
 											>
-												<Icon name="pencil" size={12} />
+												<Icon name="pencil" size={14} />
 												<span>{t("designs.menuRename")}</span>
 											</button>
+											{onDuplicate ? (
+												<button
+													type="button"
+													role="menuitem"
+													onClick={() => {
+														const projectKind = projectKindFromMetadataToTracking(p.metadata);
+														trackProjectsMorePopoverClick(analytics.track, {
+															page_name: "projects",
+															area: "projects_more_popover",
+															element: "duplicate",
+															project_id: p.id,
+															...(projectKind ? { project_kind: projectKind } : {}),
+														});
+														setMenuOpenId(null);
+														handleDuplicateProject(p);
+													}}
+												>
+													<Icon name="copy" size={12} />
+													<span>{t("designs.menuDuplicate")}</span>
+												</button>
+											) : null}
 											<button
 												type="button"
 												role="menuitem"
 												className="danger"
 												onClick={() => {
-													const projectKind = projectKindToTracking(p.metadata?.kind, p.metadata?.videoModel);
+													const projectKind = projectKindFromMetadataToTracking(p.metadata);
 													trackProjectsMorePopoverClick(analytics.track, {
 														page_name: "projects",
 														area: "projects_more_popover",
@@ -875,7 +1030,7 @@ export function DesignsTab({
 													handleDeleteProject(p);
 												}}
 											>
-												<Icon name="close" size={12} />
+												<Icon name="close" size={14} />
 												<span>{t("designs.menuDelete")}</span>
 											</button>
 										</div>
@@ -897,14 +1052,13 @@ export function DesignsTab({
 										<img className="thumb-media" src={cover.src} alt="" loading="lazy" />
 									) : cover.kind === "video" && cover.src ? (
 										<video className="thumb-media" src={cover.src} muted preload="metadata" playsInline />
-									) : cover.kind === "html" && cover.src ? (
-										<iframe
-											className="thumb-iframe"
+									) : cover.kind === "html" ? (
+										<HtmlProjectCoverFrame
 											src={cover.src}
-											title=""
-											loading="lazy"
-											sandbox="allow-scripts"
-											tabIndex={-1}
+											initial={cover.initial}
+											iframeClassName="thumb-iframe"
+											glyphClassName="project-thumb-glyph"
+											diagnostic={`${p.id}:${cover.name ?? "unknown"}`}
 										/>
 									) : (
 										<span className="project-thumb-glyph">{cover.initial}</span>
@@ -976,7 +1130,7 @@ export function DesignsTab({
 									) : (
 										colProjects.map(({ project: p }) => {
 											const skill = skillName(p.skillId);
-											const ds = dsName(p.designSystemId);
+											const ds = dsName(resolveProjectDesignSystemId(p));
 											const designSystemProject = isDesignSystemProject(p);
 											return (
 												<div
@@ -1003,7 +1157,7 @@ export function DesignsTab({
 															handleDeleteProject(p);
 														}}
 													>
-														<Icon name="close" size={12} />
+														<Icon name="close" size={14} />
 													</button>
 													<div
 														className="design-kanban-card-name"
@@ -1080,24 +1234,38 @@ export function DesignsTab({
 				<Dialog
 					className="modal-confirm"
 					role="alertdialog"
-					onClose={() => setConfirmTarget(null)}
+					onClose={() => {
+						if (confirmPending) return;
+						setConfirmTarget(null);
+						setConfirmError(null);
+					}}
+					closeOnBackdrop={!confirmPending}
 					ariaLabelledBy={confirmTitleId}
 				>
 					<DialogTitle id={confirmTitleId}>{confirmTarget.title}</DialogTitle>
 					<DialogDescription className="modal-confirm-message">{confirmTarget.message}</DialogDescription>
+					{confirmError ? (
+						<p className="modal-confirm-error" role="alert">
+							{confirmError}
+						</p>
+					) : null}
 					<DialogFooter className="row">
-						<button type="button" onClick={() => setConfirmTarget(null)}>
+						<button
+							type="button"
+							disabled={confirmPending}
+							onClick={() => {
+								setConfirmTarget(null);
+								setConfirmError(null);
+							}}
+						>
 							{t("designs.renameCancel")}
 						</button>
 						<button
 							type="button"
 							className="primary danger"
 							autoFocus
-							onClick={() => {
-								const run = confirmTarget.onConfirm;
-								setConfirmTarget(null);
-								run();
-							}}
+							disabled={confirmPending}
+							onClick={() => void commitConfirmTarget()}
 						>
 							{confirmTarget.confirmLabel}
 						</button>
@@ -1182,12 +1350,14 @@ function isOrbitProject(project: Project): boolean {
 
 function projectCover(
 	project: Project,
-	override: { kind: "html" | "image" | "video" | "logo"; name: string } | null,
+	override: ProjectCoverOverride | null,
+	workspaceContext?: WorkspaceCollabContext | null,
 ): {
 	kind: "image" | "video" | "html" | "logo" | "brand" | "fallback";
 	src?: string;
 	style: CSSProperties;
 	initial: string;
+	name?: string;
 	brandId?: string;
 	brandHost?: string;
 } {
@@ -1219,17 +1389,28 @@ function projectCover(
 	if (override) {
 		return {
 			kind: override.kind,
-			src: projectFileUrl(project.id, override.name),
+			src: projectCoverUrl(
+				project.id,
+				override.name,
+				override.mtime,
+				workspaceContext,
+			),
 			style,
 			initial,
+			name: override.name,
 		};
 	}
 	const entry = meta?.entryFile;
 	if (entry) {
-		const src = projectFileUrl(project.id, entry);
+		const src = projectCoverUrl(
+			project.id,
+			entry,
+			project.updatedAt,
+			workspaceContext,
+		);
 		if (meta?.kind === "image") return { kind: "image", src, style, initial };
 		if (meta?.kind === "video") return { kind: "video", src, style, initial };
-		if (/\.html?$/i.test(entry)) return { kind: "html", src, style, initial };
+		if (/\.html?$/i.test(entry)) return { kind: "html", src, style, initial, name: entry };
 	}
 	return { kind: "fallback", style, initial };
 }
@@ -1294,13 +1475,17 @@ function ProjectBrandCover({
 	);
 }
 
-type ProjectCategory = "prototype" | "live-artifact" | "slide" | "media" | "brand";
+type ProjectCategory = "prototype" | "live-artifact" | "web-clone" | "slide" | "media" | "brand";
 
 function projectCategory(project: Project): ProjectCategory {
 	const meta = project.metadata;
 	if (meta?.intent === "live-artifact" || project.skillId === "live-artifact") {
 		return "live-artifact";
 	}
+	// Website clone projects still store `kind: 'prototype'` (see
+	// home-hero/chips.ts's 'web-clone' chip); only `intent: 'web-clone'`
+	// marks the scenario, so it must be checked before the prototype fallback.
+	if (meta?.intent === "web-clone") return "web-clone";
 	if (meta?.kind === "deck") return "slide";
 	if (meta?.kind === "brand") return "brand";
 	if (meta?.kind === "image" || meta?.kind === "video" || meta?.kind === "audio") {
@@ -1314,13 +1499,15 @@ function ProjectTag({ category }: { category: ProjectCategory }) {
 	const label =
 		category === "live-artifact"
 			? t("designs.tagLiveArtifact")
-			: category === "slide"
-				? t("designs.tagSlide")
-				: category === "brand"
-					? "Brand"
-				: category === "media"
-					? t("designs.tagMedia")
-					: t("designs.tagPrototype");
+			: category === "web-clone"
+				? t("designs.tagWebClone")
+				: category === "slide"
+					? t("designs.tagSlide")
+					: category === "brand"
+						? "Brand"
+					: category === "media"
+						? t("designs.tagMedia")
+						: t("designs.tagPrototype");
 	return (
 		<span className={`design-card-tag tag-${category}`}>{label}</span>
 	);

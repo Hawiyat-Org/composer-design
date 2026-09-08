@@ -2,10 +2,11 @@ import { writeFile } from "node:fs/promises";
 
 import { BrowserWindow, dialog } from "electron";
 import type { DesktopExportPdfInput, DesktopExportPdfResult } from "@open-design/sidecar-proto";
+import { findRealElementRange, findRealTagEnd, findRealTagOffset, HTML_TAG_PATTERNS } from '@open-design/contracts/runtime/html-injection-points';
 
-type PageSize = { height: number; width: number };
+export type PageSize = { height: number; width: number };
 
-const DECK_PAGE_SIZE: PageSize = { width: 13.333333, height: 7.5 };
+export const DECK_PAGE_SIZE: PageSize = { width: 13.333333, height: 7.5 };
 const MAX_PAGE_INCHES = 200;
 
 export type PrintReadyPdfOptions = {
@@ -19,7 +20,7 @@ type PrintToPdfOptions = {
   printBackground: boolean;
 };
 
-const DECK_PRINT_CSS = `
+export const DECK_PRINT_CSS = `
 @media print {
   @page { size: 1920px 1080px; margin: 0; }
   html, body {
@@ -45,6 +46,12 @@ const DECK_PRINT_CSS = `
     transform: none !important;
     position: relative !important;
     overflow: hidden !important;
+    /* Decks commonly show one slide at a time via opacity; without this the
+       inactive slides print as blank pages. */
+    opacity: 1 !important;
+    visibility: visible !important;
+    animation: none !important;
+    transition: none !important;
   }
   .slide:last-child, [data-screen-label]:last-child { page-break-after: auto; break-after: auto; }
   .deck-counter, .deck-hint, .deck-nav,
@@ -62,6 +69,7 @@ export async function exportPdfFromHtml(input: DesktopExportPdfInput): Promise<D
       { name: "All Files", extensions: ["*"] },
     ],
     title: "Save PDF",
+    properties: ["dontAddToRecent"],
   });
   if (save.canceled || !save.filePath) return { canceled: true, ok: true };
 
@@ -79,6 +87,7 @@ export async function exportPdfFromHtml(input: DesktopExportPdfInput): Promise<D
   try {
     await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(buildPrintableDocument(input))}`);
     await waitForPrintableContent(window);
+    if (input.deck) await unhideDeckSlidesForPrint(window);
     const pageSize = input.deck ? DECK_PAGE_SIZE : await inferPageSize(window);
     const pdf = await window.webContents.printToPDF(printToPdfOptions(pageSize));
     await writeFile(save.filePath, pdf);
@@ -188,6 +197,7 @@ export function createElectronPdfTarget(): PrintReadyPdfTarget {
           { name: "All Files", extensions: ["*"] },
         ],
         title: "Save PDF",
+        properties: ["dontAddToRecent"],
       });
       return save.canceled || !save.filePath ? null : save.filePath;
     },
@@ -250,36 +260,173 @@ function buildPrintableDocument(input: DesktopExportPdfInput): string {
 function injectBaseHref(doc: string, baseHref: string | undefined): string {
   if (!baseHref) return doc;
   const tag = `<base href="${escapeHtmlAttribute(baseHref)}">`;
-  if (/<head[^>]*>/i.test(doc)) return doc.replace(/<head[^>]*>/i, (match) => `${match}${tag}`);
-  if (/<html[^>]*>/i.test(doc)) return doc.replace(/<html[^>]*>/i, (match) => `${match}<head>${tag}</head>`);
+  // Structural lookup: a `<head>` an author wrote into a script string or an
+  // attribute is not this document's head (nexu-io/open-design#7410).
+  const headEnd = findRealTagEnd(doc, HTML_TAG_PATTERNS.headOpen);
+  if (headEnd >= 0) return doc.slice(0, headEnd) + tag + doc.slice(headEnd);
+  const htmlEnd = findRealTagEnd(doc, HTML_TAG_PATTERNS.htmlOpen);
+  if (htmlEnd >= 0) return `${doc.slice(0, htmlEnd)}<head>${tag}</head>${doc.slice(htmlEnd)}`;
   return `<!doctype html><html><head>${tag}</head><body>${doc}</body></html>`;
 }
 
 function injectTitle(doc: string, title: string): string {
   const tag = `<title>${escapeHtmlText(title)}</title>`;
-  if (/<title[^>]*>.*?<\/title>/is.test(doc)) return doc.replace(/<title[^>]*>.*?<\/title>/is, tag);
-  if (/<head[^>]*>/i.test(doc)) return doc.replace(/<head[^>]*>/i, (match) => `${match}${tag}`);
-  if (/<html[^>]*>/i.test(doc)) return doc.replace(/<html[^>]*>/i, (match) => `${match}<head>${tag}</head>`);
+  // Function replacement: a string replacement would expand `$$`, `$&`, `$``,
+  // and `$'` inside the (user-derived) title via String.prototype.replace's
+  // GetSubstitution, corrupting titles that contain them (#6795).
+  // The document's own <title>, not one an author stored in a script string:
+  // replacing that would rewrite their content (nexu-io/open-design#7410).
+  const existing = findRealElementRange(doc, HTML_TAG_PATTERNS.titleOpen, 'title');
+  if (existing) return doc.slice(0, existing.start) + tag + doc.slice(existing.end);
+  // Structural lookup: a `<head>` an author wrote into a script string or an
+  // attribute is not this document's head (nexu-io/open-design#7410).
+  const headEnd = findRealTagEnd(doc, HTML_TAG_PATTERNS.headOpen);
+  if (headEnd >= 0) return doc.slice(0, headEnd) + tag + doc.slice(headEnd);
+  const htmlEnd = findRealTagEnd(doc, HTML_TAG_PATTERNS.htmlOpen);
+  if (htmlEnd >= 0) return `${doc.slice(0, htmlEnd)}<head>${tag}</head>${doc.slice(htmlEnd)}`;
   return `<!doctype html><html><head>${tag}</head><body>${doc}</body></html>`;
 }
 
 function injectPrintStylesheet(doc: string, css: string): string {
   const tag = `<style data-od-desktop-pdf>${css}</style>`;
-  if (/<\/head>/i.test(doc)) return doc.replace(/<\/head>/i, `${tag}</head>`);
-  if (/<head[^>]*>/i.test(doc)) return doc.replace(/<head[^>]*>/i, (match) => `${match}${tag}`);
+  const headClose = findRealTagOffset(doc, HTML_TAG_PATTERNS.headClose);
+  if (headClose >= 0) return doc.slice(0, headClose) + tag + doc.slice(headClose);
+  const headEnd = findRealTagEnd(doc, HTML_TAG_PATTERNS.headOpen);
+  if (headEnd >= 0) return doc.slice(0, headEnd) + tag + doc.slice(headEnd);
   return `${tag}${doc}`;
 }
 
-export async function waitForPrintableContent(window: BrowserWindow): Promise<void> {
-  await window.webContents.executeJavaScript(
+// Marks every deck slide "active" before printing so the deck's own
+// `.slide.active` styling applies to ALL slides, not just the one its runtime
+// left active. Decks commonly gate visibility with
+// `.slide:not(.active){display:none!important}` (specificity 0,2,0); the host
+// DECK_PRINT_CSS `.slide{}` rule (0,1,0) loses that cascade, so without this the
+// vector PDF collapses to a single page (only the active slide). Mirrors the
+// active-class set the screenshot path toggles in deck-capture's showSlide.
+// `[data-deck-active]` shadow-DOM decks are handled by their own `@media print`.
+async function unhideDeckSlidesForPrint(window: BrowserWindow): Promise<void> {
+  try {
+    await window.webContents.executeJavaScript(
+      `(function(){document.querySelectorAll('.slide, [data-screen-label], .deck-slide, .ppt-slide').forEach(function(el){['active','visible','is-active','current'].forEach(function(c){el.classList.add(c)});});})()`,
+      true,
+    );
+  } catch {
+    // Best-effort — print proceeds even if the un-gate fails.
+  }
+}
+
+/**
+ * How long the whole "wait for printable content" step may take before the
+ * capture proceeds anyway.
+ *
+ * Waiting for resources is best-effort by design — the in-page script already
+ * resolves on `error` as well as `load`, i.e. a resource that failed to load
+ * still lets the capture run. Stalling forever is the one outcome that is
+ * never useful: a font or image URL that settles neither way (a recurring
+ * `od://` failure mode in the packaged app) used to leave this promise pending
+ * until the daemon's 600s desktop-IPC ceiling fired, so the user waited ten
+ * minutes to be told the export failed. Bounding the wait turns that into a
+ * capture that is at worst missing a late resource.
+ */
+export const PRINTABLE_CONTENT_WAIT_TIMEOUT_MS = 15_000;
+
+/**
+ * Per-resource ceiling inside the page, kept below the outer bound so a single
+ * stalled image drops out while the rest of the document still settles
+ * normally, instead of every export paying the full outer timeout.
+ *
+ * Derived rather than hard-coded so a caller on a tighter budget (the chat
+ * card's first-viewport thumbnail spends 5s where an export spends 15s) keeps
+ * the same inner/outer relationship instead of accidentally inverting it and
+ * making every resource pay the whole budget. At the default budget this is
+ * exactly the 10s it has always been.
+ */
+export function inPageResourceBudget(budgetMs: number): number {
+  return Math.max(1_000, Math.round((budgetMs * 2) / 3));
+}
+
+export type PrintableContentWaitOptions = {
+  /** Total ceiling for this wait. Defaults to {@link PRINTABLE_CONTENT_WAIT_TIMEOUT_MS}. */
+  budgetMs?: number;
+  /**
+   * Only wait for resources that intersect the first viewport.
+   *
+   * An export renders the whole document, so it has to wait for the whole
+   * document. A first-viewport cover does not: waiting on the 200th image of a
+   * long page cannot change a single pixel of the shot, it just spends the
+   * thumbnail's (much tighter) budget. Off by default — every existing caller
+   * keeps waiting for everything.
+   */
+  firstViewportOnly?: boolean;
+};
+
+/**
+ * Does `rect` overlap the first viewport of a `viewportHeight`-tall window?
+ *
+ * Serialized into the page, so it stays dependency-free. A zero-height element
+ * sitting at the top counts as visible: an `<img>` that has not loaded yet
+ * frequently lays out with no height, and it is precisely the thing the cover
+ * is waiting for.
+ */
+export function intersectsFirstViewport(
+  rect: { bottom: number; top: number },
+  viewportHeight: number,
+): boolean {
+  return rect.top < viewportHeight && rect.bottom >= 0;
+}
+
+export async function waitForPrintableContent(
+  window: BrowserWindow,
+  options?: PrintableContentWaitOptions,
+): Promise<void> {
+  const budgetMs =
+    typeof options?.budgetMs === "number" && Number.isFinite(options.budgetMs) && options.budgetMs > 0
+      ? options.budgetMs
+      : PRINTABLE_CONTENT_WAIT_TIMEOUT_MS;
+  const pageSettled = window.webContents.executeJavaScript(
     `(function() {
+      var RESOURCE_TIMEOUT_MS = ${inPageResourceBudget(budgetMs)};
+      var FIRST_VIEWPORT_ONLY = ${options?.firstViewportOnly === true};
+      var ${intersectsFirstViewport.name} = ${intersectsFirstViewport.toString()};
+
+      // Scope gate. With FIRST_VIEWPORT_ONLY off this is the identity filter,
+      // so an export's resource set is byte-for-byte what it always was.
+      function inCaptureScope(el) {
+        if (!FIRST_VIEWPORT_ONLY) return true;
+        try {
+          return ${intersectsFirstViewport.name}(
+            el.getBoundingClientRect(),
+            window.innerHeight || document.documentElement.clientHeight || 0
+          );
+        } catch (e) {
+          // Unmeasurable (detached, or a stub surface): keep it rather than
+          // silently skipping a resource the shot may need.
+          return true;
+        }
+      }
+
+      // Resolve-on-timeout (never reject): a resource we gave up on is treated
+      // exactly like one that fired 'error' — the capture proceeds without it.
+      // Count the ones we abandoned so the main process can tell "everything
+      // loaded" from "we stopped waiting", which decides whether the still
+      // in-flight requests need cancelling.
+      var stalledCount = 0;
+      function withDeadline(promise) {
+        return Promise.race([
+          promise,
+          new Promise(function(resolve) {
+            setTimeout(function() { stalledCount += 1; resolve(); }, RESOURCE_TIMEOUT_MS);
+          })
+        ]);
+      }
+
       function waitForImages() {
-        return Promise.all(Array.from(document.images || []).map(function(img) {
+        return Promise.all(Array.from(document.images || []).filter(inCaptureScope).map(function(img) {
           if (img.complete) return Promise.resolve();
-          return new Promise(function(resolve) {
+          return withDeadline(new Promise(function(resolve) {
             img.addEventListener('load', resolve, { once: true });
             img.addEventListener('error', resolve, { once: true });
-          });
+          }));
         }));
       }
 
@@ -295,19 +442,19 @@ export async function waitForPrintableContent(window: BrowserWindow): Promise<vo
 
       function waitForCssBackgroundImages() {
         var urls = new Set();
-        Array.from(document.querySelectorAll('*')).forEach(function(el) {
+        Array.from(document.querySelectorAll('*')).filter(inCaptureScope).forEach(function(el) {
           var style = window.getComputedStyle(el);
           cssUrlValues(style.backgroundImage).forEach(function(url) { urls.add(url); });
           cssUrlValues(style.borderImageSource).forEach(function(url) { urls.add(url); });
           cssUrlValues(style.listStyleImage).forEach(function(url) { urls.add(url); });
         });
         return Promise.all(Array.from(urls).map(function(url) {
-          return new Promise(function(resolve) {
+          return withDeadline(new Promise(function(resolve) {
             var img = new Image();
             img.onload = resolve;
             img.onerror = resolve;
             img.src = url;
-          });
+          }));
         }));
       }
 
@@ -316,16 +463,63 @@ export async function waitForPrintableContent(window: BrowserWindow): Promise<vo
       }
 
       return Promise.all([
-        document.fonts && document.fonts.ready ? document.fonts.ready.catch(function(){}) : Promise.resolve(),
+        document.fonts && document.fonts.ready
+          ? withDeadline(document.fonts.ready.catch(function(){}))
+          : Promise.resolve(),
         waitForImages(),
         waitForCssBackgroundImages()
       ])
         .then(nextFrame)
         .then(nextFrame)
-        .then(function(){ return true; });
+        .then(function(){ return { stalled: stalledCount > 0 }; });
     })()`,
     true,
-  );
+  ) as Promise<unknown>;
+
+  // Outer backstop for the case the in-page bound can never fire: a renderer
+  // whose event loop is wedged never runs our setTimeout either, and
+  // executeJavaScript itself stays pending. Resolve rather than reject, for
+  // the same reason the in-page bound does.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const OUTER_TIMEOUT = Symbol("printable-content-outer-timeout");
+  let raced: unknown;
+  try {
+    raced = await Promise.race([
+      pageSettled,
+      new Promise<symbol>((resolve) => {
+        timer = setTimeout(() => resolve(OUTER_TIMEOUT), budgetMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+
+  // Did we stop waiting on anything? Either layer counts:
+  //   - outer: the renderer never answered at all, so its event loop is wedged;
+  //   - in-page: the script came back on time but abandoned some resource.
+  // The in-page case is the ordinary stalled-network one — the renderer is
+  // healthy, so the page-side deadline fires first and the outer timer never
+  // runs. Keying only off the outer timer would skip cancellation in exactly
+  // that case and leave the requests in flight.
+  const inPageStalled =
+    typeof raced === "object" && raced !== null && (raced as { stalled?: unknown }).stalled === true;
+  const gaveUp = raced === OUTER_TIMEOUT || inPageStalled;
+
+  // Giving up on the wait is not enough on its own: the requests we stopped
+  // waiting for are still in flight, and every later `executeJavaScript` in
+  // the capture pipeline queues behind a renderer that is still busy with
+  // them. Measured on a document whose <img> and CSS url() both point at a
+  // socket that never answers, the steps AFTER this one cost 15340ms +
+  // 22459ms without this, and 6ms + 10566ms with it. Cancelling the
+  // outstanding loads hands the renderer back; the document is already
+  // parsed, so nothing that has rendered is lost.
+  if (gaveUp) {
+    try {
+      window.webContents.stop();
+    } catch {
+      // A destroyed webContents means the export is being torn down anyway.
+    }
+  }
 }
 
 export async function waitForPrintReadyHandshake(webContents: Electron.WebContents, nonce: string): Promise<void> {

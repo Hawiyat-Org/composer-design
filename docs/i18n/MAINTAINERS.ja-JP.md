@@ -1,7 +1,7 @@
 <!-- Machine-translated draft. Native-speaker review and corrections welcome via PR. -->
 # Maintainers
 
-<p align="center"><a href="../../MAINTAINERS.md">English</a> · <a href="MAINTAINERS.pt-BR.md">Português (Brasil)</a> · <a href="MAINTAINERS.de.md">Deutsch</a> · <a href="MAINTAINERS.fr.md">Français</a> · <a href="MAINTAINERS.zh-CN.md">简体中文</a> · <b>日本語</b></p>
+<p align="center"><a href="../../MAINTAINERS.md">English</a> · <a href="MAINTAINERS.pt-BR.md">Português (Brasil)</a> · <a href="MAINTAINERS.de.md">Deutsch</a> · <a href="MAINTAINERS.fr.md">Français</a> · <a href="MAINTAINERS.zh-CN.md">简体中文</a> · <b>日本語</b> · <a href="MAINTAINERS.ko.md">한국어</a> · <a href="MAINTAINERS.th.md">ภาษาไทย</a></p>
 
 このドキュメントは、`nexu-io/open-design` の Maintainer になるため、その役割を務めるため、そして退任するためのルールを定めるものです。Core Team の個別のメンバー一覧は内部で管理されており、ここには列挙していません。公に重要なのは、全員が従うルールそのものです。
 
@@ -15,7 +15,7 @@
 |---|---|
 | **Contributor** | 1 件以上の merged PR を持つすべての人。特別な権限はありません。 |
 | **External Maintainer** | 後述のルールにより昇格したコミュニティのコントリビューター。レビュー、approve、issue のクローズ/リオープン、issue の自己アサインが可能です。**merge button をクリックすることはできません** — それは Core Team に留まります。 |
-| **Core Team** | Open Design の内部チーム。リポジトリへのフルライト権限を持ち、ガバナンス上の決定における最終権限を有します。メンバー一覧は内部で管理されています。 |
+| **Core Team** | OpenDesign の内部チーム。リポジトリへのフルライト権限を持ち、ガバナンス上の決定における最終権限を有します。メンバー一覧は内部で管理されています。 |
 
 特に断りのない限り、本ドキュメントの残りの部分は **External Maintainer** に関するものです。
 

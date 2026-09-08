@@ -5,6 +5,7 @@ import {
   buildLegacyMaxTokensParam,
   buildMaxCompletionTokensParam,
   buildOpenAIChatTokenParam,
+  isAzureOpenAIHostname,
   isUnsupportedMaxTokensError,
 } from '../integrations/openai-chat-token-params.js';
 import {
@@ -32,10 +33,12 @@ import {
 } from '../integrations/aihubmix.js';
 import { isSafeId as isSafeProjectId } from '../projects.js';
 import { projectKindToTracking } from '@open-design/contracts/analytics';
-import { proxyDispatcherRequestInit, validateBaseUrlResolved } from '../connectionTest.js';
+import { proxyDispatcherRequestInit, validateUserProviderBaseUrl } from '../connectionTest.js';
+import { isKnownReasoningEffort, resolveModelForServiceTier } from '../runtimes/models.js';
 import { googleStreamGenerateContentUrl } from '../integrations/google-models.js';
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
 import { authorizeReasoningEgress, sendReasoningEgressDenial } from '../reasoning-egress.js';
+import type { AuthorizeProjectRequest } from '../collab/project-request-authority.js';
 
 // Allowlist for the `/feedback` route. Mirrors the
 // ChatMessageFeedbackReasonCode union in packages/contracts/src/api/chat.ts.
@@ -49,18 +52,23 @@ const FEEDBACK_REASON_ALLOWLIST: ReadonlySet<string> = new Set([
   'followed_design_system',
   'missed_request',
   'weak_visual',
+  'could_not_run',
+  'too_slow',
   'incomplete_output',
   'hard_to_use',
   'missed_design_system',
   'other',
 ]);
 
-export interface RegisterChatRoutesDeps extends RouteDeps<'db' | 'design' | 'http' | 'chat' | 'agents' | 'critique' | 'validation' | 'lifecycle' | 'paths' | 'telemetry'> {}
+export interface RegisterChatRoutesDeps extends RouteDeps<'db' | 'design' | 'http' | 'chat' | 'agents' | 'critique' | 'validation' | 'lifecycle' | 'paths' | 'telemetry' | 'appConfig'> {
+  authorizeProjectRequest: AuthorizeProjectRequest;
+}
 
 export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
   const { db, design } = ctx;
   const { sendApiError, createSseResponse } = ctx.http;
-  const { testProviderConnection, testAgentConnection, getAgentDef, isKnownModel, sanitizeCustomModel, listProviderModels } = ctx.agents;
+  const { readAppConfig } = ctx.appConfig;
+  const { testProviderConnection, testAgentConnection, getAgentDef, isKnownModel, isKnownServiceTier, sanitizeCustomModel, listProviderModels } = ctx.agents;
   const {
     handleCritiqueArtifact,
     handleCritiqueInterrupt,
@@ -104,20 +112,40 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
   app.post('/api/runs/:id/feedback', async (req, res) => {
     const runId = req.params.id;
     const body = (req.body ?? {}) as Partial<{
-      projectId: string;
-      conversationId: string;
-      assistantMessageId: string;
       rating: 'positive' | 'negative';
       reasonCodes: string[];
       hasCustomReason: boolean;
       customReason: string;
-    }>;
+    }> & Record<string, unknown>;
     if (!runId) {
       return sendApiError(res, 400, 'INVALID_RUN_ID', 'runId missing');
+    }
+    const callerOwnedContextFields = [
+      'projectId',
+      'conversationId',
+      'assistantMessageId',
+    ].filter((field) => Object.prototype.hasOwnProperty.call(body, field));
+    if (callerOwnedContextFields.length > 0) {
+      return sendApiError(
+        res,
+        400,
+        'INVALID_FEEDBACK_CONTEXT',
+        'feedback project, conversation, and message identity are derived from the run',
+      );
     }
     if (body.rating !== 'positive' && body.rating !== 'negative') {
       return sendApiError(res, 400, 'INVALID_RATING', 'rating must be positive or negative');
     }
+    const run = design.runs.get(runId);
+    if (!run || typeof run.projectId !== 'string' || !run.projectId) {
+      return sendApiError(res, 404, 'NOT_FOUND', 'run not found');
+    }
+    if (!await ctx.authorizeProjectRequest(
+      req,
+      res,
+      run.projectId,
+      { mode: 'write', capability: 'writeFiles' },
+    )) return;
     // Drop anything outside the contract-side reason allowlist and
     // deduplicate; otherwise a malformed or replayed client payload could
     // create unknown Langfuse categories or duplicate score ids in the
@@ -139,11 +167,13 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       return;
     }
     // Build score metadata bag that lands in the Langfuse score body.
-    // Mirrors the PostHog event so analysts can cross-reference.
+    // Mirrors the PostHog event so analysts can cross-reference. Every
+    // identity field comes from the daemon-owned run object; request bodies
+    // cannot retarget a score to another project/conversation/message.
     const scoreMetadata: Record<string, unknown> = {
-      projectId: body.projectId,
-      conversationId: body.conversationId,
-      assistantMessageId: body.assistantMessageId,
+      projectId: run.projectId,
+      conversationId: run.conversationId ?? null,
+      assistantMessageId: run.assistantMessageId ?? null,
       hasCustomReason: body.hasCustomReason === true,
       customReason,
     };
@@ -180,19 +210,19 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
     const protocol = body.protocol;
     if (
       typeof protocol !== 'string' ||
-      !['anthropic', 'openai', 'azure', 'google', 'ollama', 'senseaudio', 'aihubmix'].includes(protocol)
+      !['anthropic', 'openai', 'azure', 'google', 'ollama', 'senseaudio', 'aihubmix', 'bedrock'].includes(protocol)
     ) {
       return sendApiError(
         res,
         400,
         'BAD_REQUEST',
-        'protocol must be one of anthropic|openai|azure|google|ollama|senseaudio|aihubmix',
+        'protocol must be one of anthropic|openai|azure|google|ollama|senseaudio|aihubmix|bedrock',
       );
     }
     // AIHubMix's catalogue (GET /api/v1/models?type=llm) is public, so its
     // model list loads without a key. Every other protocol needs the key to
     // hit its /v1/models endpoint.
-    const apiKeyRequired = protocol !== 'aihubmix';
+    const apiKeyRequired = protocol !== 'aihubmix' && protocol !== 'bedrock';
     if (
       typeof body.baseUrl !== 'string' ||
       typeof body.apiKey !== 'string' ||
@@ -258,28 +288,31 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
         const protocol = body.protocol;
         if (
           typeof protocol !== 'string' ||
-          !['anthropic', 'openai', 'azure', 'google', 'ollama', 'senseaudio', 'aihubmix'].includes(protocol)
+          !['anthropic', 'openai', 'azure', 'google', 'ollama', 'senseaudio', 'aihubmix', 'bedrock'].includes(protocol)
         ) {
           return sendApiError(
             res,
             400,
             'BAD_REQUEST',
-            'protocol must be one of anthropic|openai|azure|google|ollama|senseaudio|aihubmix',
+            'protocol must be one of anthropic|openai|azure|google|ollama|senseaudio|aihubmix|bedrock',
           );
         }
+        const apiKeyRequired = protocol !== 'bedrock';
         if (
           typeof body.baseUrl !== 'string' ||
           typeof body.apiKey !== 'string' ||
           typeof body.model !== 'string' ||
           !body.baseUrl.trim() ||
-          !body.apiKey.trim() ||
+          (apiKeyRequired && !body.apiKey.trim()) ||
           !body.model.trim()
         ) {
           return sendApiError(
             res,
             400,
             'BAD_REQUEST',
-            'baseUrl, apiKey, and model are required',
+            apiKeyRequired
+              ? 'baseUrl, apiKey, and model are required'
+              : 'baseUrl and model are required',
           );
         }
         const reasoningDenial = authorizeReasoningEgress({
@@ -316,11 +349,18 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
         try {
           const def = getAgentDef(body.agentId);
           const testStart = Date.now();
-          const safeModel =
-            def && typeof body.model === 'string'
-              ? isKnownModel(def, body.model)
-                ? body.model
-                : sanitizeCustomModel(body.model)
+          const appConfig = await readAppConfig(ctx.paths.RUNTIME_DATA_DIR).catch(() => ({}));
+          const configuredModel =
+            def && typeof appConfig.agentModels?.[def.id]?.model === 'string'
+              ? appConfig.agentModels[def.id].model
+              : undefined;
+          const requestedModel =
+            typeof body.model === 'string' ? body.model : configuredModel;
+          let safeModel =
+            def && typeof requestedModel === 'string'
+              ? isKnownModel(def, requestedModel)
+                ? requestedModel
+                : sanitizeCustomModel(requestedModel)
               : undefined;
           if (def && typeof body.model === 'string' && body.model.trim() && !safeModel) {
             return res.json({
@@ -335,13 +375,27 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
           const safeReasoning =
             def &&
             typeof body.reasoning === 'string' &&
-            Array.isArray(def.reasoningOptions)
-              ? (def.reasoningOptions.find((r: any) => r.id === body.reasoning)?.id ?? undefined)
+            isKnownReasoningEffort(def, safeModel, body.reasoning)
+              ? body.reasoning
+              : undefined;
+          safeModel = def
+            ? resolveModelForServiceTier(
+                def,
+                safeModel,
+                typeof body.serviceTier === 'string' ? body.serviceTier : null,
+              ) ?? undefined
+            : safeModel;
+          const safeServiceTier =
+            def &&
+            typeof body.serviceTier === 'string' &&
+            isKnownServiceTier(def, safeModel, body.serviceTier)
+              ? body.serviceTier
               : undefined;
           const result = await testAgentConnection({
             agentId: body.agentId,
             model: safeModel ?? undefined,
             reasoning: safeReasoning,
+            serviceTier: safeServiceTier,
             agentCliEnv:
               body.agentCliEnv && typeof body.agentCliEnv === 'object'
                 ? body.agentCliEnv
@@ -373,9 +427,19 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
 
   // POST /api/projects/:projectId/critique/:runId/interrupt
   // Cascades an AbortController to the in-flight orchestrator for the given run.
+  const critiqueInterruptHandler =
+    handleCritiqueInterrupt(db, critiqueRunRegistry);
   app.post(
     '/api/projects/:projectId/critique/:runId/interrupt',
-    handleCritiqueInterrupt(db, critiqueRunRegistry),
+    async (req, res) => {
+      if (!await ctx.authorizeProjectRequest(
+        req,
+        res,
+        req.params.projectId,
+        { mode: 'write', capability: 'writeFiles' },
+      )) return;
+      critiqueInterruptHandler(req, res);
+    },
   );
 
   // GET /api/projects/:projectId/critique/:runId/artifact
@@ -386,12 +450,21 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
   //
   // Response cap is threaded from cfg.parserMaxBlockBytes so a row that
   // the orchestrator + writer accepted is always retrievable.
+  const critiqueArtifactHandler = handleCritiqueArtifact(db, {
+    artifactsRoot: critiqueArtifactsRoot,
+    responseCapBytes: critiqueResponseCapBytes,
+  });
   app.get(
     '/api/projects/:projectId/critique/:runId/artifact',
-    handleCritiqueArtifact(db, {
-      artifactsRoot: critiqueArtifactsRoot,
-      responseCapBytes: critiqueResponseCapBytes,
-    }),
+    async (req, res) => {
+      if (!await ctx.authorizeProjectRequest(
+        req,
+        res,
+        req.params.projectId,
+        { mode: 'read', allowNavigationQuery: true },
+      )) return;
+      await critiqueArtifactHandler(req, res);
+    },
   );
 
   // ---- API Proxy (SSE) for API-compatible endpoints ------------------------
@@ -405,10 +478,10 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
   // DNS-aware wrapper. The sync `validateBaseUrl` only inspects the literal
   // hostname string, so a public DNS name pointing at an internal address
   // (`internal.example.com → 10.0.0.5`) still passes. We delegate to
-  // `validateBaseUrlResolved` here so every proxy/stream handler runs the
+  // `validateUserProviderBaseUrl` here so every proxy/stream handler runs the
   // same resolved-IP check before issuing the upstream request.
   const validateExternalApiBaseUrl = (baseUrl: string) => {
-    return validateBaseUrlResolved(baseUrl);
+    return validateUserProviderBaseUrl(baseUrl);
   };
 
   const proxyErrorCode = (status: number) => {
@@ -442,7 +515,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
     //   bare host                            → /v1/<route>            (api.openai.com, api.anthropic.com)
     //   ends in /vN                          → no inject              (api.openai.com/v1, /v1)
     //   /vN sub-path                         → no inject              (api.deepinfra.com/v1/openai, openrouter.ai/api/v1)
-    //   non-versioned compat sub-path        → /v1/<route>            (api.deepseek.com/anthropic, api.minimaxi.com/anthropic)
+    //   non-versioned compat sub-path        → /v1/<route>            (api.deepseek.com/anthropic, api.minimax.io/anthropic)
     // Previously the check was end-of-path only, which broke the
     // /v1/openai sub-path case. A naive "non-empty path → respect"
     // would break the /anthropic sub-path case. Matching `/vN` as a
@@ -650,6 +723,20 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
     return payload;
   };
 
+  // A BYOK proxy stream must unwind when the client disconnects (Stop or a
+  // closed tab); otherwise the upstream completion — and any tool loop that
+  // would fire further paid image/video/speech rounds — keeps streaming and
+  // billing after the user is gone. Every upstream fetch below carries this
+  // signal. Mirrors the AbortController wiring already used by
+  // `/api/provider/models` and `/api/test/connection`.
+  const clientDisconnectSignal = (res: any, req?: any): AbortSignal => {
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    res.on('close', abort);
+    if (req) req.on('close', abort);
+    return controller.signal;
+  };
+
   const runAnthropicChatStream = async (
     res: any,
     opts: { url: string; headers: Record<string, string>; payload: any; logTag: string },
@@ -658,9 +745,11 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
     let proxyDispatcher: ReturnType<typeof proxyDispatcherRequestInit> | null = null;
     try {
       proxyDispatcher = proxyDispatcherRequestInit();
+      const signal = clientDisconnectSignal(res);
       sse.send('start', { model: opts.payload?.model });
       const response = await fetch(opts.url, {
         ...proxyDispatcher.requestInit,
+        signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...opts.headers },
         body: JSON.stringify(opts.payload),
@@ -746,9 +835,11 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
     let proxyDispatcher: ReturnType<typeof proxyDispatcherRequestInit> | null = null;
     try {
       proxyDispatcher = proxyDispatcherRequestInit();
+      const signal = clientDisconnectSignal(res);
       sse.send('start', { model: opts.model });
       const response = await fetch(opts.url, {
         ...proxyDispatcher.requestInit,
+        signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...opts.headers },
         body: JSON.stringify(opts.payload),
@@ -981,47 +1072,76 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       payloadMessages.unshift({ role: 'system', content: systemPrompt });
     }
 
+    const effectiveMaxTokens =
+      typeof maxTokens === 'number' && maxTokens > 0 ? maxTokens : 8192;
     const payload: any = {
       model,
       messages: payloadMessages,
-      ...buildOpenAIChatTokenParam(
-        model,
-        typeof maxTokens === 'number' && maxTokens > 0 ? maxTokens : 8192,
-      ),
+      ...buildOpenAIChatTokenParam(model, effectiveMaxTokens),
       stream: true,
     };
+    const retryPayload = {
+      model,
+      messages: payloadMessages,
+      ...buildMaxCompletionTokensParam(effectiveMaxTokens),
+      stream: true,
+    };
+    const canRetryUnsupportedMaxTokens = isAzureOpenAIHostname(
+      validated.parsed!.hostname,
+    );
 
     const sse = createSseResponse(res);
     let proxyDispatcher: ReturnType<typeof proxyDispatcherRequestInit> | null = null;
     try {
       proxyDispatcher = proxyDispatcherRequestInit();
+      const signal = clientDisconnectSignal(res);
       sse.send('start', { model });
-      const response = await fetch(url, {
+      const requestInit = {
         ...proxyDispatcher.requestInit,
+        signal,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
           ...(validated.parsed!.hostname === 'openrouter.ai' ? {
             'HTTP-Referer': 'https://opendesign.dev',
-            'X-Title': 'Composer Design',
+            'X-Title': 'ComposerDesign',
           } : {}),
         },
+        redirect: 'error' as const,
+      };
+      let response = await fetch(url, {
+        ...requestInit,
         body: JSON.stringify(payload),
-        redirect: 'error',
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error(
-          `[proxy:openai] upstream error: ${response.status} ${redactAuthTokens(errorText)}`,
-        );
-        sendProxyError(sse, `Upstream error: ${response.status}`, {
-          code: proxyErrorCode(response.status),
-          details: errorText,
-          retryable: response.status === 429 || response.status >= 500,
-        });
-        return sse.end();
+        let errorText = await response.text();
+        if (
+          canRetryUnsupportedMaxTokens &&
+          response.status === 400 &&
+          isUnsupportedMaxTokensError(errorText)
+        ) {
+          console.warn(
+            `[proxy:openai] retrying Azure-hosted request with max_completion_tokens model=${model}`,
+          );
+          response = await fetch(url, {
+            ...requestInit,
+            body: JSON.stringify(retryPayload),
+          });
+          errorText = response.ok ? '' : await response.text();
+        }
+        if (!response.ok) {
+          console.error(
+            `[proxy:openai] upstream error: ${response.status} ${redactAuthTokens(errorText)}`,
+          );
+          sendProxyError(sse, `Upstream error: ${response.status}`, {
+            code: proxyErrorCode(response.status),
+            details: errorText,
+            retryable: response.status === 429 || response.status >= 500,
+          });
+          return sse.end();
+        }
       }
 
       let ended = false;
@@ -1140,9 +1260,11 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
     let proxyDispatcher: ReturnType<typeof proxyDispatcherRequestInit> | null = null;
     try {
       proxyDispatcher = proxyDispatcherRequestInit();
+      const signal = clientDisconnectSignal(res);
       sse.send('start', { model });
       const requestInit = {
         ...proxyDispatcher.requestInit,
+        signal,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1315,9 +1437,11 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
     let proxyDispatcher: ReturnType<typeof proxyDispatcherRequestInit> | null = null;
     try {
       proxyDispatcher = proxyDispatcherRequestInit();
+      const signal = clientDisconnectSignal(res);
       sse.send('start', { model });
       const response = await fetch(url, {
         ...proxyDispatcher.requestInit,
+        signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify(payload),
@@ -1463,6 +1587,21 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
         'projectId is required and must be a safe identifier',
       );
     }
+    // The provider completion may immediately request a media tool that writes
+    // into this project. Authorize the whole loop before URL resolution,
+    // upstream egress, credential seeding, or tool execution so a read-only
+    // Team member cannot spend a BYOK key or mutate the creator's files.
+    //
+    // The shared gate preserves the signed-out/local compatibility contract:
+    // a project with no persisted Workspace binding is accepted without
+    // consulting cloud authority. Only a bound project must prove the exact
+    // creator-capable Workspace identity.
+    if (!await ctx.authorizeProjectRequest(
+      req,
+      res,
+      projectId,
+      { mode: 'write', capability: 'writeFiles' },
+    )) return;
 
     const effectiveBaseUrl = baseUrl || opts.defaultBaseUrl;
     const validated = await validateExternalApiBaseUrl(effectiveBaseUrl);
@@ -1839,10 +1978,12 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       let proxyDispatcher: ReturnType<typeof proxyDispatcherRequestInit> | null = null;
       try {
         proxyDispatcher = proxyDispatcherRequestInit();
-        toolCtx.requestInit = proxyDispatcher.requestInit;
+        const signal = clientDisconnectSignal(res);
+        toolCtx.requestInit = { ...proxyDispatcher.requestInit, signal };
         sse.send('start', { model });
         const convMessages: any[] = Array.isArray(messages) ? [...messages] : [];
         for (let loop = 0; loop < MAX_BYOK_TOOL_LOOPS; loop++) {
+          if (signal.aborted) return sse.end();
           const turn = await runAnthropicToolTurn(sse, anthropicUrl, headers, convMessages);
           if (turn.kind === 'error') return sse.end();
           if (turn.kind === 'text_end') {
@@ -1854,6 +1995,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
           convMessages.push({ role: 'assistant', content: turn.assistantBlocks });
           const toolResults: any[] = [];
           for (const call of turn.toolCalls) {
+            if (signal.aborted) return sse.end();
             const result = await executeOneTool(call);
             const toolName = call?.function?.name ?? 'unknown';
             if (result.ok) {
@@ -1994,13 +2136,15 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       let proxyDispatcher: ReturnType<typeof proxyDispatcherRequestInit> | null = null;
       try {
         proxyDispatcher = proxyDispatcherRequestInit();
-        toolCtx.requestInit = proxyDispatcher.requestInit;
+        const signal = clientDisconnectSignal(res);
+        toolCtx.requestInit = { ...proxyDispatcher.requestInit, signal };
         sse.send('start', { model });
         const contents: any[] = (Array.isArray(messages) ? messages : []).map((m: any) => ({
           role: m.role === 'assistant' ? 'model' : 'user',
           parts: [{ text: typeof m.content === 'string' ? m.content : '' }],
         }));
         for (let loop = 0; loop < MAX_BYOK_TOOL_LOOPS; loop++) {
+          if (signal.aborted) return sse.end();
           const turn = await runGeminiToolTurn(sse, geminiUrl, headers, contents);
           if (turn.kind === 'error') return sse.end();
           if (turn.kind === 'text_end') {
@@ -2012,6 +2156,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
           contents.push({ role: 'model', parts: turn.functionCallParts });
           const responseParts: any[] = [];
           for (const call of turn.toolCalls) {
+            if (signal.aborted) return sse.end();
             const result = await executeOneTool(call);
             const toolName = call?.function?.name ?? 'unknown';
             if (result.ok) {
@@ -2122,9 +2267,11 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
 
     try {
       proxyDispatcher = proxyDispatcherRequestInit();
-      toolCtx.requestInit = proxyDispatcher.requestInit;
+      const signal = clientDisconnectSignal(res, req);
+      toolCtx.requestInit = { ...proxyDispatcher.requestInit, signal };
       sse.send('start', { model });
       for (let loop = 0; loop < MAX_BYOK_TOOL_LOOPS; loop++) {
+        if (signal.aborted) return sse.end();
         const turn = await runTurn(sse, workingMessages);
         if (turn.kind === 'error') return sse.end();
         if (turn.kind === 'text_end') {
@@ -2134,6 +2281,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
         // turn.kind === 'tool_calls'
         workingMessages.push(turn.assistantMessage);
         for (const call of turn.toolCalls) {
+          if (signal.aborted) return sse.end();
           const result = await executeOneTool(call);
           // The tool result is delivered to the model as a `tool` role
           // message — a structured payload the model can interpret. We

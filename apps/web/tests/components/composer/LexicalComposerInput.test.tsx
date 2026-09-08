@@ -110,6 +110,38 @@ describe('LexicalComposerInput', () => {
     expect(ref.current?.getText()).toBe('@Deck Builder ');
   });
 
+  it('keeps multiple mention pills inline with surrounding text', async () => {
+    const { ref, getByTestId } = setup();
+    await waitFor(() => expect(ref.current).not.toBeNull());
+
+    act(() => {
+      ref.current?.insertText('先看 ');
+      ref.current?.insertMention({
+        token: '@Deck Builder',
+        entity: { id: 'deck-builder', kind: 'skill', label: 'Deck Builder' },
+      });
+      ref.current?.insertText('再处理 ');
+      ref.current?.insertMention({
+        token: '@designs/landing.html',
+        entity: {
+          id: 'designs/landing.html',
+          kind: 'file',
+          label: 'designs/landing.html',
+        },
+      });
+      ref.current?.insertText('结尾');
+    });
+
+    const host = getByTestId('chat-composer-input');
+    await waitFor(() =>
+      expect(host.querySelectorAll('.composer-inline-mention')).toHaveLength(2),
+    );
+    expect(ref.current?.getText()).toBe(
+      '先看 @Deck Builder 再处理 @designs/landing.html 结尾',
+    );
+    expect(ref.current?.getText()).not.toContain('\n');
+  });
+
   it('clear() empties the editor', async () => {
     const { ref } = setup({ draft: 'something' });
     await waitFor(() => expect(ref.current?.getText()).toBe('something'));
@@ -393,5 +425,28 @@ describe('LexicalComposerInput', () => {
       editor?.dispatchCommand(KEY_ENTER_COMMAND, enterEvent);
     });
     await waitFor(() => expect(onEnterSend).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not send when the browser repeats a held Enter key', async () => {
+    const { onEnterSend, getByTestId } = setup({ draft: 'hi' });
+    const editable = getByTestId('chat-composer-input') as HTMLElement & {
+      __lexicalEditor?: import('lexical').LexicalEditor;
+    };
+    const editor = editable.__lexicalEditor;
+    expect(editor).toBeTruthy();
+
+    act(() => {
+      editor?.dispatchCommand(KEY_ENTER_COMMAND, {
+        key: 'Enter',
+        shiftKey: false,
+        metaKey: false,
+        ctrlKey: false,
+        altKey: false,
+        repeat: true,
+        preventDefault() {},
+      } as unknown as KeyboardEvent);
+    });
+
+    await waitFor(() => expect(onEnterSend).not.toHaveBeenCalled());
   });
 });

@@ -1,18 +1,24 @@
 import {
   OPEN_DESIGN_HOST_UPDATER_STATES,
   checkHostUpdater,
+  clearHostUpdaterCache,
   downloadHostUpdater,
   getHostUpdaterStatus,
   installHostUpdater,
-  isOpenDesignHostAvailable,
+  isComposerDesignHostAvailable,
   quitHostAfterUpdaterInstallerOpen,
+  setHostUpdaterMenuLabels,
   subscribeHostUpdater,
-  type OpenDesignHostActionResult,
-  type OpenDesignHostFailure,
-  type OpenDesignHostUpdaterActionOptions,
-  type OpenDesignHostUpdaterResult,
-  type OpenDesignHostUpdaterStatusListener,
-  type OpenDesignHostUpdaterStatusSnapshot,
+  subscribeHostUpdaterOpenDialog,
+  type ComposerDesignHostActionResult,
+  type ComposerDesignHostFailure,
+  type ComposerDesignHostUpdaterActionOptions,
+  type ComposerDesignHostUpdaterMenuLabels,
+  type ComposerDesignHostUpdaterOpenDialogListener,
+  type ComposerDesignHostUpdaterReinstallSnapshot,
+  type ComposerDesignHostUpdaterResult,
+  type ComposerDesignHostUpdaterStatusListener,
+  type ComposerDesignHostUpdaterStatusSnapshot,
 } from '@open-design/host';
 
 export type UpdaterEnvironment = 'desktop' | 'web';
@@ -24,8 +30,12 @@ export type UpdaterDownloadProgress = {
 };
 
 export type UpdaterActionResult =
-  | { ok: true; model: UpdaterModel; status: OpenDesignHostUpdaterStatusSnapshot }
-  | OpenDesignHostFailure;
+  | { ok: true; model: UpdaterModel; status: ComposerDesignHostUpdaterStatusSnapshot }
+  | ComposerDesignHostFailure;
+
+export type UpdaterRestartSafety =
+  | { activeRunCount: number; state: 'blocked' }
+  | { activeRunCount: null; state: 'unknown' };
 
 export type UpdaterModel = {
   availableVersion: string | null;
@@ -44,15 +54,21 @@ export type UpdaterModel = {
   installerOpened: boolean;
   updateKind: 'installer' | 'payload' | 'unknown';
   promptKey: string | null;
+  /**
+   * Present when the feed requires a full installer reinstall (broken or
+   * outdated installed outer package). UI copy priority: `reinstall.url`
+   * jump link > default i18n reinstall copy.
+   */
+  reinstall: ComposerDesignHostUpdaterReinstallSnapshot | null;
   requiresManualInstall: boolean;
   upToDate: boolean;
   shouldShowControl: boolean;
   shouldPrompt: boolean;
-  status: OpenDesignHostUpdaterStatusSnapshot | null;
+  status: ComposerDesignHostUpdaterStatusSnapshot | null;
   supported: boolean;
 };
 
-function modelFromHostResult(result: OpenDesignHostUpdaterResult): UpdaterActionResult {
+function modelFromHostResult(result: ComposerDesignHostUpdaterResult): UpdaterActionResult {
   if (!result.ok) return result;
   return {
     ok: true,
@@ -67,7 +83,7 @@ function clampPercent(value: number): number {
 }
 
 function downloadProgressFromStatus(
-  status: OpenDesignHostUpdaterStatusSnapshot | null,
+  status: ComposerDesignHostUpdaterStatusSnapshot | null,
 ): UpdaterDownloadProgress | null {
   if (status == null) return null;
   if (status.state !== OPEN_DESIGN_HOST_UPDATER_STATES.DOWNLOADING) return null;
@@ -87,10 +103,10 @@ function downloadProgressFromStatus(
 }
 
 export function deriveUpdaterModel(
-  status: OpenDesignHostUpdaterStatusSnapshot | null,
+  status: ComposerDesignHostUpdaterStatusSnapshot | null,
   options: { hostAvailable?: boolean } = {},
 ): UpdaterModel {
-  const hostAvailable = options.hostAvailable ?? isOpenDesignHostAvailable();
+  const hostAvailable = options.hostAvailable ?? isComposerDesignHostAvailable();
   const environment: UpdaterEnvironment = hostAvailable ? 'desktop' : 'web';
   const state = status?.state;
   const busy =
@@ -149,6 +165,7 @@ export function deriveUpdaterModel(
     installerOpened,
     updateKind,
     promptKey,
+    reinstall: status?.reinstall ?? null,
     requiresManualInstall: Boolean(status?.capabilities.requiresManualInstall),
     upToDate,
     shouldShowControl: canInstallUpdate && hasDownloadedInstaller && !installerOpened,
@@ -158,28 +175,73 @@ export function deriveUpdaterModel(
   };
 }
 
-export async function readUpdaterStatus(options?: OpenDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
+export async function readUpdaterStatus(options?: ComposerDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
   return modelFromHostResult(await getHostUpdaterStatus(options));
 }
 
-export async function checkForUpdaterUpdate(options?: OpenDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
+export async function checkForUpdaterUpdate(options?: ComposerDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
   return modelFromHostResult(await checkHostUpdater(options));
 }
 
-export async function downloadUpdaterUpdate(options?: OpenDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
+export async function downloadUpdaterUpdate(options?: ComposerDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
   return modelFromHostResult(await downloadHostUpdater(options));
 }
 
-export async function openUpdaterInstaller(options?: OpenDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
+export async function openUpdaterInstaller(options?: ComposerDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
   return modelFromHostResult(await installHostUpdater(options));
 }
 
+export async function clearUpdaterCache(options?: ComposerDesignHostUpdaterActionOptions): Promise<UpdaterActionResult> {
+  return modelFromHostResult(await clearHostUpdaterCache(options));
+}
+
 export async function quitAfterUpdaterInstallerOpen(
-  options?: OpenDesignHostUpdaterActionOptions,
-): Promise<OpenDesignHostActionResult> {
+  options?: ComposerDesignHostUpdaterActionOptions,
+): Promise<ComposerDesignHostActionResult> {
   return await quitHostAfterUpdaterInstallerOpen(options);
 }
 
-export function subscribeToUpdaterStatus(listener: OpenDesignHostUpdaterStatusListener): () => void {
+export function subscribeToUpdaterStatus(listener: ComposerDesignHostUpdaterStatusListener): () => void {
   return subscribeHostUpdater(listener);
+}
+
+export function subscribeToUpdaterOpenDialog(listener: ComposerDesignHostUpdaterOpenDialogListener): () => void {
+  return subscribeHostUpdaterOpenDialog(listener);
+}
+
+export async function syncUpdaterMenuLabels(
+  labels: ComposerDesignHostUpdaterMenuLabels,
+): Promise<ComposerDesignHostActionResult> {
+  return await setHostUpdaterMenuLabels(labels);
+}
+
+export function restartSafetyFromUpdaterStatus(
+  status: ComposerDesignHostUpdaterStatusSnapshot | null,
+): UpdaterRestartSafety | null {
+  const code = status?.error?.code;
+  if (code !== 'active-runs-blocked' && code !== 'active-runs-unknown') return null;
+  const details = status?.error?.details;
+  const activeRunCount =
+    typeof details === 'object' && details != null && 'activeRunCount' in details
+      ? (details as { activeRunCount?: unknown }).activeRunCount
+      : null;
+  if (code === 'active-runs-blocked' && typeof activeRunCount === 'number' && activeRunCount > 0) {
+    return { activeRunCount, state: 'blocked' };
+  }
+  return { activeRunCount: null, state: 'unknown' };
+}
+
+export function restartSafetyFromActionResult(result: ComposerDesignHostActionResult): UpdaterRestartSafety | null {
+  if (result.ok || (result.reason !== 'active-runs-blocked' && result.reason !== 'active-runs-unknown')) {
+    return null;
+  }
+  const details = result.details;
+  const activeRunCount =
+    typeof details === 'object' && details != null && 'activeRunCount' in details
+      ? (details as { activeRunCount?: unknown }).activeRunCount
+      : null;
+  if (result.reason === 'active-runs-blocked' && typeof activeRunCount === 'number' && activeRunCount > 0) {
+    return { activeRunCount, state: 'blocked' };
+  }
+  return { activeRunCount: null, state: 'unknown' };
 }

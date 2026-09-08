@@ -2,15 +2,27 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  renderCodexImagegenOverride,
-  resolveCodexImagegenModelId,
-  shouldRenderCodexImagegenOverride,
-} from '../prompts/system.js';
+  OD_NEXT_BUNDLE_ECHO_GUARD_V2,
+  type OdNextPromptBundleHeadV2,
+  type OdNextPromptBundleRecipeIdentityV2,
+  serializeOdNextPromptBundleV2,
+} from '@open-design/contracts';
 import { renderResearchCommandContract } from '../prompts/research-contract.js';
+import {
+  describeChangedStableSections,
+  type StableChangedSection,
+  type StableSectionHashes,
+} from '../prompts/stable-sections.js';
+import {
+  assertOdNextBundleTextContributorCoverage,
+  assertOdNextLegacyTextContributorCoverage,
+  type OdNextBundleTextContributorIdV2,
+  type OdNextExactInputStage,
+  type OdNextLegacyTextContributorId,
+} from './od-next-exact-input.js';
 
 export const MAX_CHAT_IMAGE_BYTES = 1024 * 1024;
 export const UPLOAD_DIR = path.join(os.tmpdir(), 'od-uploads');
-type CodexImagegenProjectMetadata = Parameters<typeof resolveCodexImagegenModelId>[0];
 type InputValue =
   | string
   | number
@@ -20,11 +32,6 @@ type InputValue =
   | InputRecord
   | readonly InputValue[];
 type InputRecord = { [key: string]: InputValue };
-type MediaExecutionLike = {
-  mode?: string | null;
-  allowedSurfaces?: readonly string[] | null;
-  allowedModels?: readonly string[] | null;
-};
 type PreviewCommentImageAttachmentInput = {
   path?: InputValue;
   name?: InputValue;
@@ -90,6 +97,215 @@ export function composeLiveInstructionPrompt({
   return parts.join('\n\n---\n\n');
 }
 
+export function resolveOdNextRequestUserPrompt({
+  message,
+  currentPrompt,
+  hasCurrentPrompt,
+}: {
+  message: unknown;
+  currentPrompt: unknown;
+  hasCurrentPrompt: boolean;
+}): string {
+  if (hasCurrentPrompt) {
+    return typeof currentPrompt === 'string' ? currentPrompt : '';
+  }
+  return typeof message === 'string' ? message : '';
+}
+
+export function composeChatAgentTextPayload({
+  formOverride,
+  daemonSystemPrompt,
+  runtimeToolPrompt,
+  researchCommandContract,
+  runContextPrompt,
+  connectedExternalMcpReference,
+  browserUnavailableGuard,
+  titleGenerationDirective,
+  clientSystemPrompt,
+  cwdReference,
+  linkedDirectoryReferences,
+  echoGuard,
+  requestOrStageText,
+  projectAttachmentReferences,
+  commentAttachmentReferences,
+  imageReferences,
+  odNextRequestBundle,
+  strategyInputStage = null,
+}: {
+  formOverride: string;
+  daemonSystemPrompt: string;
+  runtimeToolPrompt: string;
+  researchCommandContract: string;
+  runContextPrompt: string;
+  connectedExternalMcpReference: string;
+  browserUnavailableGuard: string;
+  titleGenerationDirective: string;
+  clientSystemPrompt: string;
+  cwdReference: string;
+  linkedDirectoryReferences: string;
+  echoGuard: string;
+  requestOrStageText: string;
+  projectAttachmentReferences: string;
+  commentAttachmentReferences: string;
+  imageReferences: string;
+  odNextRequestBundle?: {
+    head: OdNextPromptBundleHeadV2;
+    recipeIdentity: OdNextPromptBundleRecipeIdentityV2;
+    runtimeFacts: string;
+    taskType: string;
+    attachments: string;
+    taskConfiguration: string;
+    stableContext: string;
+    priorTranscript: string;
+    frozenSkillPackage: string;
+    requestInputFacts: string;
+    userSelectedSkills: { skillNames: ReadonlyArray<string>; body: string } | null;
+  } | undefined;
+  strategyInputStage?: OdNextExactInputStage | null;
+}) {
+  const contributors: Record<OdNextLegacyTextContributorId, string> = {
+    form_override: formOverride,
+    daemon_system_prompt: daemonSystemPrompt,
+    runtime_tool_prompt: runtimeToolPrompt,
+    research_command_contract: researchCommandContract,
+    run_context_prompt: runContextPrompt,
+    connected_external_mcp_reference: connectedExternalMcpReference,
+    browser_unavailable_guard: browserUnavailableGuard,
+    title_generation_directive: titleGenerationDirective,
+    client_system_prompt: clientSystemPrompt,
+    cwd_reference: cwdReference,
+    linked_directory_references: linkedDirectoryReferences,
+    echo_guard: echoGuard,
+    request_text: requestOrStageText,
+    project_attachment_references: projectAttachmentReferences,
+    comment_attachment_references: commentAttachmentReferences,
+    image_references: imageReferences,
+  };
+  if (strategyInputStage && strategyInputStage !== 'request') {
+    assertOdNextLegacyTextContributorCoverage(
+      [`${strategyInputStage}_turn`],
+      strategyInputStage,
+    );
+    return {
+      composedPrompt: requestOrStageText,
+      clientInstructionPrompt: '',
+      instructionPrompt: '',
+    };
+  }
+  if (strategyInputStage === 'request') {
+    if (!odNextRequestBundle) {
+      throw new TypeError('OD Next request stage requires canonical Bundle inputs.');
+    }
+    // The echo guard names the bundle's own tag names, so the contract owns its
+    // wording. Comparing instead of overwriting makes a drifting caller fail
+    // loudly rather than shipping two different guards.
+    if (echoGuard.trim() && echoGuard.trim() !== OD_NEXT_BUNDLE_ECHO_GUARD_V2) {
+      throw new TypeError('OD Next echo guard must match the canonical Bundle contract.');
+    }
+    const bundleContributors: Record<OdNextBundleTextContributorIdV2, string> = {
+      daemon_system_prompt: odNextRequestBundle.head.coreSystemPrompt.coreStrategy,
+      echo_guard: odNextRequestBundle.head.coreSystemPrompt.echoGuard,
+      user_selected_skills: odNextRequestBundle.userSelectedSkills?.body ?? '',
+      task_type_fact: odNextRequestBundle.taskType,
+      attachment_facts: odNextRequestBundle.attachments,
+      task_config_pending_fact: odNextRequestBundle.taskConfiguration,
+      title_generation_directive: titleGenerationDirective,
+      recipe_identity: odNextRequestBundle.recipeIdentity.appliedSnapshot,
+      runtime_facts: odNextRequestBundle.runtimeFacts,
+      runtime_tool_prompt: runtimeToolPrompt,
+      stable_context_prompt: odNextRequestBundle.stableContext,
+      frozen_skill_package: odNextRequestBundle.frozenSkillPackage,
+      request_input_facts: odNextRequestBundle.requestInputFacts,
+      research_command_contract: researchCommandContract,
+      run_context_prompt: runContextPrompt,
+      connected_external_mcp_reference: connectedExternalMcpReference,
+      browser_unavailable_guard: browserUnavailableGuard,
+      client_system_prompt: clientSystemPrompt,
+      form_override: formOverride,
+      prior_transcript: odNextRequestBundle.priorTranscript,
+      request_text: requestOrStageText,
+    };
+    assertOdNextBundleTextContributorCoverage(Object.keys(bundleContributors));
+    const composedPrompt = serializeOdNextPromptBundleV2({
+      ...odNextRequestBundle.head,
+      sessionSkills: {
+        ...odNextRequestBundle.head.sessionSkills,
+        ...(odNextRequestBundle.userSelectedSkills
+          ? { userSelectedSkills: odNextRequestBundle.userSelectedSkills }
+          : {}),
+      },
+      taskMetadata: {
+        taskType: odNextRequestBundle.taskType,
+        attachments: odNextRequestBundle.attachments,
+        taskConfiguration: odNextRequestBundle.taskConfiguration,
+        titleDirective: titleGenerationDirective,
+      },
+      context: {
+        recipeIdentity: odNextRequestBundle.recipeIdentity,
+        runtimeFacts: odNextRequestBundle.runtimeFacts,
+        runtimeToolEnvironment: runtimeToolPrompt,
+        stableRequestContext: odNextRequestBundle.stableContext,
+        frozenSkillPackage: odNextRequestBundle.frozenSkillPackage,
+        requestInputFacts: odNextRequestBundle.requestInputFacts,
+        researchCommandContract,
+        runContext: runContextPrompt,
+        connectedExternalMcp: connectedExternalMcpReference,
+        browserUnavailableGuard,
+        clientSystemPrompt,
+        formOverride,
+        priorTranscript: odNextRequestBundle.priorTranscript,
+      },
+      userFirstPrompt: requestOrStageText,
+    });
+    return {
+      composedPrompt,
+      clientInstructionPrompt: '',
+      // The structured system prompt has no single flat text form; callers that
+      // need a live instruction string are on the ordinary path below.
+      instructionPrompt: '',
+    };
+  }
+
+  assertOdNextLegacyTextContributorCoverage(Object.keys(contributors), strategyInputStage);
+
+  const clientInstructionPrompt = [
+    researchCommandContract,
+    runContextPrompt,
+    connectedExternalMcpReference,
+    browserUnavailableGuard,
+    titleGenerationDirective,
+    clientSystemPrompt,
+  ]
+    .map((part) => (typeof part === 'string' ? part.trim() : ''))
+    .filter(Boolean)
+    .join('\n\n---\n\n');
+  const instructionPrompt = composeLiveInstructionPrompt({
+    daemonSystemPrompt,
+    runtimeToolPrompt,
+    clientSystemPrompt: clientInstructionPrompt,
+    finalPromptOverride: null,
+  });
+  const composedPrompt = [
+    instructionPrompt
+      ? `# Instructions (read first)\n\n${formOverride}${instructionPrompt}${cwdReference}${linkedDirectoryReferences}${echoGuard}\n\n---\n`
+      : cwdReference
+        ? `# Instructions\n\n${formOverride}${cwdReference}${linkedDirectoryReferences}${echoGuard}\n\n---\n`
+        : linkedDirectoryReferences
+          ? `# Instructions\n\n${formOverride}${linkedDirectoryReferences}${echoGuard}\n\n---\n`
+          : formOverride
+            ? `# Instructions\n\n${formOverride}${echoGuard}\n\n---\n`
+            : '',
+    `# User request\n\n${requestOrStageText}${projectAttachmentReferences}${commentAttachmentReferences}`,
+    imageReferences ? `\n\n${imageReferences}` : '',
+  ].join('');
+
+  return {
+    composedPrompt,
+    clientInstructionPrompt,
+    instructionPrompt,
+  };
+}
+
 export function resolveResearchCommandContract(
   research: { enabled?: boolean; query?: string; maxSources?: number } | null | undefined,
   message: string,
@@ -107,208 +323,23 @@ export function resolveResearchCommandContract(
   });
 }
 
-export function resolveCodexGeneratedImagesDir(
-  agentId: string | null | undefined,
-  metadata: CodexImagegenProjectMetadata,
-  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
-  homeDir = os.homedir(),
-  mediaExecution: MediaExecutionLike | null | undefined = undefined,
-) {
-  if (!shouldAllowCodexImagegenForMediaPolicy(metadata, mediaExecution)) return null;
-  if (!shouldRenderCodexImagegenOverride(agentId, metadata)) return null;
-  const rawCodexHome =
-    typeof env?.CODEX_HOME === 'string' && env.CODEX_HOME.trim().length > 0
-      ? env.CODEX_HOME.trim()
-      : path.join(homeDir, '.codex');
-  const codexHome = rawCodexHome.startsWith('~/')
-    ? path.join(homeDir, rawCodexHome.slice(2))
-    : rawCodexHome;
-  return path.resolve(codexHome, 'generated_images');
-}
-
-type DirectoryStat = {
-  isDirectory(): boolean;
-  isSymbolicLink(): boolean;
-};
-
-type CodexGeneratedImagesDirValidationOptions = {
-  protectedDirs?: Array<string | null | undefined>;
-  mkdirSync?: (target: string, options: { recursive: true }) => string | undefined | void;
-  lstatSync?: (target: string) => DirectoryStat;
-  statSync?: (target: string) => DirectoryStat;
-  realpathSync?: (target: string) => string;
-  warn?: (message: string) => void;
-};
-
-function isMissingPathError(err: unknown): boolean {
-  return (
-    err !== null &&
-    typeof err === 'object' &&
-    'code' in err &&
-    err.code === 'ENOENT'
-  );
-}
-
-function collectProtectedDirRoots(
-  protectedDirs: Array<string | null | undefined>,
-  {
-    realpathSync,
-    statSync,
-  }: {
-    realpathSync: (target: string) => string;
-    statSync: (target: string) => DirectoryStat;
-  },
-): string[] {
-  const roots: string[] = [];
-  for (const raw of Array.isArray(protectedDirs) ? protectedDirs : []) {
-    if (typeof raw !== 'string' || raw.trim().length === 0) continue;
-    const resolved = path.resolve(raw);
-    roots.push(resolved);
-    try {
-      const canonical = realpathSync(resolved);
-      try {
-        if (statSync(canonical).isDirectory()) roots.push(canonical);
-      } catch {
-        roots.push(canonical);
-      }
-    } catch {
-      // A missing protected root cannot be the canonical target of a symlink.
-    }
-  }
-  return Array.from(new Set(roots));
-}
-
-function findContainingProtectedRoot(
-  candidate: string,
-  protectedRoots: string[],
-): string | null {
-  return protectedRoots.find((root) => isPathWithin(root, candidate)) ?? null;
-}
-
-export function validateCodexGeneratedImagesDir(
-  codexGeneratedImagesDir: string | null | undefined,
-  {
-    protectedDirs = [],
-    mkdirSync = fs.mkdirSync,
-    lstatSync = fs.lstatSync,
-    statSync = fs.statSync,
-    realpathSync = fs.realpathSync.native,
-    warn = console.warn,
-  }: CodexGeneratedImagesDirValidationOptions = {},
-): string | null {
-  if (
-    typeof codexGeneratedImagesDir !== 'string' ||
-    codexGeneratedImagesDir.trim().length === 0
-  ) {
-    return null;
-  }
-
-  const resolved = path.resolve(codexGeneratedImagesDir);
-  const protectedRoots = collectProtectedDirRoots(protectedDirs, {
-    realpathSync,
-    statSync,
-  });
-  const warnSkipped = (reason: string) =>
-    warn(`[od] codex generated_images allowlist skipped: ${reason}`);
-
-  const protectedRoot = findContainingProtectedRoot(resolved, protectedRoots);
-  if (protectedRoot) {
-    warnSkipped(`${resolved} is inside protected root ${protectedRoot}`);
-    return null;
-  }
-
-  try {
-    let existingTargetStat: DirectoryStat | null = null;
-    try {
-      existingTargetStat = lstatSync(resolved);
-    } catch (err) {
-      if (!isMissingPathError(err)) throw err;
-    }
-    if (existingTargetStat?.isSymbolicLink()) {
-      warnSkipped(`${resolved} is a symlink`);
-      return null;
-    }
-    if (existingTargetStat && !existingTargetStat.isDirectory()) {
-      warnSkipped(`${resolved} is not a directory`);
-      return null;
-    }
-
-    const parent = path.dirname(resolved);
-    const protectedParentRoot = findContainingProtectedRoot(
-      parent,
-      protectedRoots,
-    );
-    if (protectedParentRoot) {
-      warnSkipped(`${parent} is inside protected root ${protectedParentRoot}`);
-      return null;
-    }
-
-    mkdirSync(parent, { recursive: true });
-    const canonicalParent = realpathSync(parent);
-    const canonicalCandidate = path.join(
-      canonicalParent,
-      path.basename(resolved),
-    );
-    const protectedCanonicalParentRoot = findContainingProtectedRoot(
-      canonicalCandidate,
-      protectedRoots,
-    );
-    if (protectedCanonicalParentRoot) {
-      warnSkipped(
-        `${canonicalCandidate} resolves inside protected root ${protectedCanonicalParentRoot}`,
-      );
-      return null;
-    }
-
-    mkdirSync(resolved, { recursive: true });
-    if (lstatSync(resolved).isSymbolicLink()) {
-      warnSkipped(`${resolved} is a symlink`);
-      return null;
-    }
-    if (!statSync(resolved).isDirectory()) {
-      warnSkipped(`${resolved} is not a directory`);
-      return null;
-    }
-    const canonicalDir = realpathSync(resolved);
-    const protectedCanonicalRoot = findContainingProtectedRoot(
-      canonicalDir,
-      protectedRoots,
-    );
-    if (protectedCanonicalRoot) {
-      warnSkipped(
-        `${canonicalDir} resolves inside protected root ${protectedCanonicalRoot}`,
-      );
-      return null;
-    }
-
-    return canonicalDir;
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : String(err ?? 'unknown error');
-    warn(`[od] codex generated_images allowlist mkdir failed: ${message}`);
-    return null;
-  }
-}
-
 export function resolveChatExtraAllowedDirs({
   agentId,
   skillsDir,
   designSystemsDir,
   linkedDirs = [],
-  codexGeneratedImagesDir,
   existsSync = fs.existsSync,
 }: {
   agentId?: string | null;
   skillsDir?: string | null;
   designSystemsDir?: string | null;
   linkedDirs?: Array<string | null | undefined>;
-  codexGeneratedImagesDir?: string | null;
   existsSync?: (path: string) => boolean;
 }): string[] {
   const isCodex =
     typeof agentId === 'string' && agentId.trim().toLowerCase() === 'codex';
   const candidates = isCodex
-    ? [codexGeneratedImagesDir]
+    ? []
     : [
         skillsDir,
         designSystemsDir,
@@ -342,12 +373,14 @@ export function resolveEffectiveDesignSystemSelection({
   pluginDesignSystemId,
   projectDesignSystemId,
   appDefaultDesignSystemId,
+  disabledDesignSystemIds,
   allowAppDefault = true,
 }: {
   requestDesignSystemId?: InputValue;
   pluginDesignSystemId?: InputValue;
   projectDesignSystemId?: InputValue;
   appDefaultDesignSystemId?: InputValue;
+  disabledDesignSystemIds?: InputValue;
   allowAppDefault?: boolean;
 }): { id: string | null; source: DesignSystemSelectionSource } {
   const requestId = normalizedDesignSystemId(requestDesignSystemId);
@@ -356,8 +389,15 @@ export function resolveEffectiveDesignSystemSelection({
   const pluginId = normalizedDesignSystemId(pluginDesignSystemId);
   if (pluginId) return { id: pluginId, source: 'plugin' };
 
+  const disabledIds = Array.isArray(disabledDesignSystemIds)
+    ? disabledDesignSystemIds
+        .map((value) => normalizedDesignSystemId(value))
+        .filter((value): value is string => value !== null)
+    : [];
   const projectId = normalizedDesignSystemId(projectDesignSystemId);
-  if (projectId) return { id: projectId, source: 'project' };
+  if (projectId && !disabledIds.includes(projectId)) {
+    return { id: projectId, source: 'project' };
+  }
 
   if (allowAppDefault) {
     const appDefaultId = normalizedDesignSystemId(appDefaultDesignSystemId);
@@ -390,20 +430,26 @@ export function describeStablePromptCache({
   isResuming,
   storedStablePromptHash,
   currentStableHash,
+  storedStableSections,
+  currentStableSections,
 }: {
   isResuming: boolean;
   storedStablePromptHash: string | null;
   currentStableHash: string;
+  storedStableSections?: StableSectionHashes | null;
+  currentStableSections?: StableSectionHashes | null;
 }): {
   stablePromptHash: string;
   hit: boolean;
   missReason: StablePromptCacheMissReason;
+  changedSections: StableChangedSection[] | null;
 } {
   if (!isResuming) {
     return {
       stablePromptHash: currentStableHash,
       hit: false,
       missReason: 'new-session',
+      changedSections: null,
     };
   }
   if (storedStablePromptHash === currentStableHash) {
@@ -411,67 +457,23 @@ export function describeStablePromptCache({
       stablePromptHash: currentStableHash,
       hit: true,
       missReason: null,
+      changedSections: null,
     };
   }
+  const missReason: StablePromptCacheMissReason = storedStablePromptHash === null
+    ? 'missing-stored-hash'
+    : 'stable-prompt-changed';
   return {
     stablePromptHash: currentStableHash,
     hit: false,
-    missReason: storedStablePromptHash === null
-      ? 'missing-stored-hash'
-      : 'stable-prompt-changed',
+    missReason,
+    // Attribute only real drift. `missing-stored-hash` is a legacy/again-seeded
+    // row with no baseline to diff against, so naming sections there would
+    // report the whole map as "changed" and drown the signal we care about.
+    changedSections: missReason === 'stable-prompt-changed' && currentStableSections
+      ? describeChangedStableSections(storedStableSections, currentStableSections)
+      : null,
   };
-}
-
-export function resolveGrantedCodexImagegenOverride({
-  agentId,
-  metadata,
-  codexGeneratedImagesDir,
-  extraAllowedDirs = [],
-  mediaExecution,
-}: {
-  agentId?: string | null;
-  metadata?: CodexImagegenProjectMetadata;
-  codexGeneratedImagesDir?: string | null;
-  extraAllowedDirs?: string[];
-  mediaExecution?: MediaExecutionLike | null;
-}): string | null {
-  if (!shouldAllowCodexImagegenForMediaPolicy(metadata, mediaExecution)) {
-    return null;
-  }
-  if (
-    typeof codexGeneratedImagesDir !== 'string' ||
-    codexGeneratedImagesDir.length === 0 ||
-    !Array.isArray(extraAllowedDirs) ||
-    !extraAllowedDirs.includes(codexGeneratedImagesDir)
-  ) {
-    return null;
-  }
-  return renderCodexImagegenOverride(agentId, metadata);
-}
-
-function shouldAllowCodexImagegenForMediaPolicy(
-  metadata: CodexImagegenProjectMetadata,
-  mediaExecution: MediaExecutionLike | null | undefined,
-) {
-  const mode = mediaExecution?.mode ?? 'enabled';
-  if (mode !== 'enabled') return false;
-  if (
-    Array.isArray(mediaExecution?.allowedSurfaces) &&
-    mediaExecution.allowedSurfaces.length > 0 &&
-    !mediaExecution.allowedSurfaces.includes('image')
-  ) {
-    return false;
-  }
-  const model = resolveCodexImagegenModelId(metadata);
-  if (
-    model &&
-    Array.isArray(mediaExecution?.allowedModels) &&
-    mediaExecution.allowedModels.length > 0 &&
-    !mediaExecution.allowedModels.includes(model)
-  ) {
-    return false;
-  }
-  return true;
 }
 
 export function normalizeCommentAttachments(input: readonly CommentAttachmentInput[] | null | undefined) {
@@ -496,7 +498,23 @@ export function normalizeCommentAttachments(input: readonly CommentAttachmentInp
         record.selectionKind === 'visual' ? 'visual' : record.selectionKind === 'pod' ? 'pod' : 'element';
       if (!filePath || !elementId) return null;
       if (selectionKind !== 'visual' && !selector) return null;
-      if (selectionKind === 'visual' && !screenshotPath) return null;
+      // Visual marks are kept even without a screenshot (#4084): when the
+      // preview capture fails (#4080) the structured location — file,
+      // pagePosition, markKind, currentText — is the only anchor the agent
+      // gets, so dropping the attachment here would silently strip the
+      // user's targeting from the prompt.
+      const pagePosition = normalizeAttachmentPosition(record.pagePosition);
+      if (selectionKind === 'visual' && !screenshotPath) {
+        // A screenshot-less visual mark is only actionable when it carries a
+        // concrete anchor: a positive-size pagePosition or a DOM selector.
+        // /api/runs accepts commentAttachments from any client, and
+        // normalizeAttachmentPosition() collapses missing/malformed positions
+        // to 0,0,0x0 — which identifies no region. Rendering such a payload
+        // would hard-scope the agent onto fields that point nowhere and steer
+        // it to edit an arbitrary part of the file, so drop it instead.
+        const hasUsablePosition = pagePosition.width > 0 && pagePosition.height > 0;
+        if (!hasUsablePosition && !selector) return null;
+      }
       const podMembers = selectionKind === 'pod' ? normalizeAttachmentPodMembers(record.podMembers) : [];
       const memberCount =
         selectionKind === 'pod'
@@ -517,16 +535,16 @@ export function normalizeCommentAttachments(input: readonly CommentAttachmentInp
         label,
         comment,
         currentText: compactString(record.currentText, 160),
-        pagePosition: normalizeAttachmentPosition(record.pagePosition),
+        pagePosition,
         htmlHint: compactString(record.htmlHint, 180),
         style: normalizeAnnotationStyle(record.style),
         selectionKind,
         memberCount,
         podMembers,
-        screenshotPath: selectionKind === 'visual' ? screenshotPath : undefined,
+        screenshotPath: selectionKind === 'visual' && screenshotPath ? screenshotPath : undefined,
         markKind: selectionKind === 'visual' ? markKind : undefined,
         intent: selectionKind === 'visual'
-          ? intent || visualAnnotationIntent(markKind)
+          ? intent || (screenshotPath ? visualAnnotationIntent(markKind) : visualAnnotationIntentWithoutScreenshot())
           : undefined,
         imageAttachments: imageAttachments.length > 0 ? imageAttachments : undefined,
         commentContext,
@@ -545,7 +563,7 @@ export function renderCommentAttachmentHint(
     '',
     '',
     '<attached-preview-comments>',
-    "Hard scope: change ONLY the elements identified below by selector / position / pod members. Do NOT modify sibling sub-pages, parent layout, global CSS, design tokens, or unrelated rules even if you notice issues there — surface those as a follow-up note in your reply instead of editing them. If the user's request cannot be satisfied without touching outside this scope, ask the user before proceeding. For visual marks, inspect the screenshot and modify the marked region first.",
+    "Hard scope: change ONLY the elements identified below by selector / position / pod members. Do NOT modify sibling sub-pages, parent layout, global CSS, design tokens, or unrelated rules even if you notice issues there — surface those as a follow-up note in your reply instead of editing them. If the user's request cannot be satisfied without touching outside this scope, ask the user before proceeding. For visual marks, inspect the screenshot when one is provided (otherwise locate the region from the structured fields) and modify the marked region first.",
   ];
   for (const item of commentAttachments) {
     const targetKind =
@@ -565,11 +583,20 @@ export function renderCommentAttachmentHint(
       lines.push(`comment: ${item.comment}`);
     }
     if (targetKind === 'visual') {
-      lines.push(
-        `screenshot: ${item.screenshotPath}`,
-        `markKind: ${item.markKind || 'stroke'}`,
-        `intent: ${item.intent || visualAnnotationIntent(item.markKind || 'stroke')}`,
-      );
+      if (item.screenshotPath) {
+        lines.push(
+          `screenshot: ${item.screenshotPath}`,
+          `markKind: ${item.markKind || 'stroke'}`,
+          `intent: ${item.intent || visualAnnotationIntent(item.markKind || 'stroke')}`,
+        );
+      } else {
+        // Screenshot capture failed (#4080) — no screenshot exists for this
+        // mark. Point the agent at the structured fields instead (#4084).
+        lines.push(
+          `markKind: ${item.markKind || 'stroke'}`,
+          `intent: ${item.intent || visualAnnotationIntentWithoutScreenshot()}`,
+        );
+      }
       if (item.selector) lines.push(`selector: ${item.selector}`);
     } else {
       lines.splice(lines.length - 4, 0, `selector: ${item.selector}`);
@@ -640,6 +667,13 @@ function visualAnnotationIntent(markKind: InputValue) {
     return 'The screenshot has a blue focus box and red strokes; together they identify the part the user wants changed.';
   }
   return 'The screenshot has red strokes that identify the visual region the user wants changed.';
+}
+
+// Screenshot-less variant (#4084): the capture failed (#4080), so the intent
+// must not reference a screenshot that does not exist. Mirrors the copy in
+// apps/web/src/comments.ts.
+function visualAnnotationIntentWithoutScreenshot() {
+  return 'The user marked a region of the live preview; no screenshot was captured, so locate the region using file, position, and currentText.';
 }
 
 function compactString(value: InputValue, max: number) {
@@ -845,7 +879,8 @@ export function formatDesignFilesWorkspaceHint(
     '',
     '',
     '## Design Files workspace',
-    `The Design Files panel is backed by your current working directory: \`${cwd}\`. Write project files relative to this directory (for example \`index.html\` or \`assets/x.png\`). The user can browse these files in real time.`,
+    `The Design Files panel is backed by your current working directory: \`${cwd}\`. Write project files relative to this directory (for example \`investor-pitch-deck.html\`, \`refund-dashboard.html\`, or \`assets/x.png\`). The user can browse these files in real time.`,
+    'For new user-facing deliverables, choose semantic filenames from the brief instead of defaulting to `index.html`. Preserve existing filenames when the task is an edit.',
     'The selected/attached files for a turn are only a shortcut for priority and ordering. If the user did not attach any file, do not assume there are no relevant Design Files.',
     'When the request refers to existing files, asks you to choose a file, says "current", "this design", "the deck", "the image", "the folder", or depends on project state, inspect/search/read this workspace before answering or editing. Prefer project-relative paths, use the active workspace context as the default target, and ask only if multiple plausible targets remain after inspection.',
     'For non-trivial inspection or edits, surface progress through visible planning/status/tool events instead of silently guessing.',
@@ -935,4 +970,13 @@ export function selectPromptImagePaths(
   amrStagedImages: string[],
 ) {
   return agentId === 'amr' ? amrStagedImages : safeImages;
+}
+
+export function excludeAcpImagePathsAlreadyDeliveredAsResources(
+  imagePaths: string[],
+  resourcePaths: string[],
+): string[] {
+  if (resourcePaths.length === 0) return imagePaths;
+  const delivered = new Set(resourcePaths);
+  return imagePaths.filter((imagePath) => !delivered.has(imagePath));
 }

@@ -5,14 +5,17 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type MutableRefObject,
   type ReactNode,
 } from "react";
 import { createPortal } from 'react-dom';
 import { Button } from '@open-design/components';
-import { useI18n, useT } from '../i18n';
+import { ThinkingOrb } from './composer/ThinkingOrb';
+import { useI18n } from '../i18n';
 import { localizePluginDescription, localizePluginTitle } from './plugins-home/localization';
 import type { Dict, Locale } from '../i18n/types';
 import {
@@ -23,23 +26,29 @@ import { useAnalytics } from '../analytics/provider';
 import {
   trackChatPanelClick,
   trackComposerBarClick,
-  trackComposerSessionModeClick,
+  trackContextLinkResult,
   trackDesignToolboxClick,
+  trackFigmaHelpModalSurfaceView,
   trackFileUploadResult,
+  trackProjectReferenceModalSurfaceView,
 } from '../analytics/events';
-import { sessionModeToTracking } from '@open-design/contracts/analytics';
 import type {
   ComposerBarClickProps,
   DesignToolboxClickProps,
 } from '@open-design/contracts/analytics';
 import { deriveUploadCohort } from '../analytics/upload-tracking';
-import { projectRawUrl, uploadProjectFiles, openFolderDialog, fetchRecentLinkedDirs, pushRecentLinkedDir, dirExists } from "../providers/registry";
-import { WorkingDirPicker } from './WorkingDirPicker';
-import { patchProject } from "../state/projects";
+import { notifyCompletionFeedbackGesture } from '../utils/notifications';
+import { projectRawUrl, uploadProjectFiles, openFolderDialog, fetchRecentLinkedDirs, pushRecentLinkedDir, dirExists, applyLibraryAsset, fetchLibraryAssetElementHtml } from "../providers/registry";
+import {
+  duplicatePluginAsProject,
+  patchProject,
+} from "../state/projects";
+import { navigate } from '../router';
 import { fetchMcpServers } from "../state/mcp";
 import type { McpServerConfig, McpTemplate } from "../state/mcp";
 import { listPlugins } from "../state/projects";
 import type { AppConfig, ChatAttachment, ChatCommentAttachment, Project, ProjectFile, ProjectMetadata, SkillSummary } from "../types";
+import { DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID } from '@open-design/contracts';
 import type {
   ContextItem,
   AppliedPluginSnapshot,
@@ -50,12 +59,22 @@ import type {
   PluginSourceKind,
   ResearchOptions,
   RunContextSelection,
+  WorkspaceCollabContext,
   WorkspaceContextItem,
 } from '@open-design/contracts';
 import { buildVisualAnnotationAttachment, commentTargetDisplayName } from '../comments';
 import { Icon, type IconName } from "./Icon";
-import { SessionModeToggle } from './SessionModeToggle';
-import { ComposerPlusMenu } from './ComposerPlusMenu';
+import { ChatCloseIcon, ChatFileIcon, ChatSendArrowIcon } from "./chat/primitives/icons";
+import { ComposerPlusMenu, PLUS_SUBMENU_RESOURCE_KIND, type PlusMenuSubmenu } from './ComposerPlusMenu';
+import { LibraryPicker } from './LibraryPicker';
+import { FigmaImportModal } from './FigmaImportModal';
+import { FigmaHelpModal } from './FigmaHelpModal';
+import {
+  ProjectReferenceModal,
+  type ProjectReferenceSelection,
+} from './ProjectReferenceModal';
+import { assetTitle, elementMetaOf } from './LibraryAssetMeta';
+import type { LibraryAsset, LibraryElementMeta } from '@open-design/contracts';
 import {
   DESIGN_TOOLBOX_ACTIONS,
   designToolboxActionBadge,
@@ -71,6 +90,7 @@ import {
 import { ComposerPluginPreview } from './ComposerPluginPreview';
 import { computeToolboxDetailPosition } from './composer-detail-position';
 import { PluginDetailsModal } from "./PluginDetailsModal";
+import { SkillDetailsModal } from './SkillDetailsModal';
 import { PluginsSection, type PluginsSectionHandle } from "./PluginsSection";
 import { BUILT_IN_PETS, CUSTOM_PET_ID } from "./pet/pets";
 import {
@@ -78,6 +98,8 @@ import {
   mentionTokenPresent,
   type InlineMentionEntity,
 } from '../utils/inlineMentions';
+import { workspaceContextLinkedDir, workspaceContextLinkedDirs } from './workspace-context';
+import { useProjectCollabContext } from '../collab/collab-context';
 import {
   LexicalComposerInput,
   type LexicalComposerInputHandle,
@@ -85,11 +107,117 @@ import {
 } from './composer/LexicalComposerInput';
 import { CaretFloatingLayer } from './composer/CaretFloatingLayer';
 import { ANNOTATION_EVENT, type AnnotationEventDetail } from "./PreviewDrawOverlay";
+import {
+  formatAttachmentSize,
+  middleTruncateFileName,
+  splitFileName,
+} from '../runtime/chat/attachment';
+import {
+  attachmentNavDelta,
+  attachmentNavState,
+  type AttachmentNavState,
+} from '../runtime/chat/attachment-nav';
+import {
+  buildStagedAttachmentCards,
+  looksLikeImageName,
+  runWithConcurrency,
+  STAGED_UPLOAD_CONCURRENCY,
+  type PendingUpload,
+  type StagedAttachmentCard,
+} from '../runtime/chat/staged-attachment';
+
+/**
+ * Window event for staging attachments that are ALREADY uploaded to the
+ * project (ChatAttachment shape, not File). Mirrors ANNOTATION_EVENT's
+ * pattern; used by surfaces that materialize files themselves — e.g. the
+ * design browser's hover "添加到对话" capture, which writes the PNG via
+ * writeProjectBase64File before notifying the composer.
+ */
+export const STAGE_ATTACHMENT_EVENT = 'opendesign:stage-attachment';
+export interface StageAttachmentEventDetail {
+  attachments: ChatAttachment[];
+}
 import { DesignSystemSwitchPicker } from "./DesignSystemSwitchPicker";
 import { listenForConnectorsChanged } from './connectors-events';
 import { fetchConnectorCatalogSnapshot } from './connectors-state';
+import { PlaceholderCarousel } from './home-hero/PlaceholderCarousel';
+import type { PlaceholderScenario } from './home-hero/placeholderScenarios';
+import { quotePromptPrefix, splitQuotedPrompt, type ChatQuote } from '../runtime/chat/quote-selection';
+import {
+  loadComposerDraftExtras,
+  sanitizeQuotes,
+  saveComposerDraftExtras,
+  type ComposerDraftContext,
+} from '../runtime/chat/composer-draft';
+import { QuotedRefs } from './chat/QuotedRefs';
 
 type TranslateFn = (key: keyof Dict, vars?: Record<string, string | number>) => string;
+
+interface TrackedWorkspaceLinkedDir {
+  dir: string;
+  previousLinkedDirs: string[];
+}
+
+/**
+ * 一批 id 落到当前已加载的列表上:能对上的变成对象,对不上的原样退回来。
+ *
+ * 两条恢复路径共用它 —— 队列里点「编辑」和刷新之后重建,拿的是同一套判据,
+ * 不会出现「队列那边认得这个技能、刷新这边不认」这种分叉。
+ *
+ * 「对不上」有两种截然不同的原因,这个函数**不区分**,由调用方决定怎么办:
+ *   · 真的没了(技能卸了 / MCP 删了)—— 该丢
+ *   · 列表还没拉回来(输入框的插件 / MCP / 连接器是**懒加载**的,首屏就是空的)
+ *     —— 这时候丢等于把用户挂上去的绑定无声吞掉,所以刷新那条路径要留着重试
+ */
+function resolveStagedById<T extends { id: string }>(
+  ids: string[] | undefined,
+  pool: T[],
+): { resolved: T[]; unresolved: string[] } {
+  const resolved: T[] = [];
+  const unresolved: string[] = [];
+  for (const id of ids ?? []) {
+    const hit = pool.find((item) => item.id === id);
+    if (hit) resolved.push(hit);
+    else unresolved.push(id);
+  }
+  return { resolved, unresolved };
+}
+
+/** 按 id 合并进已挂的一批,已经在里面的不重复添加(用户手动挂的优先保留)。 */
+function mergeStagedById<T extends { id: string }>(current: T[], incoming: T[]): T[] {
+  if (incoming.length === 0) return current;
+  const seen = new Set(current.map((item) => item.id));
+  const additions = incoming.filter((item) => !seen.has(item.id));
+  return additions.length > 0 ? [...current, ...additions] : current;
+}
+
+function dedupeWorkspaceContextItems(items: WorkspaceContextItem[]): WorkspaceContextItem[] {
+  const out: WorkspaceContextItem[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    const key = `${item.kind}:${item.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+function trackedWorkspaceLinkedDirsForContexts(
+  items: WorkspaceContextItem[],
+  linkedDirs: string[],
+): Record<string, TrackedWorkspaceLinkedDir> {
+  const out: Record<string, TrackedWorkspaceLinkedDir> = {};
+  for (const item of items) {
+    const dir = workspaceContextLinkedDir(item) ?? '';
+    if (!dir || !linkedDirs.includes(dir)) continue;
+    out[item.id] = {
+      dir,
+      previousLinkedDirs: linkedDirs.filter((linkedDir) => linkedDir !== dir),
+    };
+  }
+  return out;
+}
 
 type ToolsTab = 'plugins' | 'skills' | 'mcp' | 'import';
 
@@ -157,15 +285,46 @@ type DesignToolboxResource =
   | (DesignToolboxResourceBase & { kind: 'connector'; connector: ConnectorDetail })
   | (DesignToolboxResourceBase & { kind: 'file'; file: ProjectFile });
 
+export type ChatSendOutcome = void | 'restore-draft';
+
 interface Props {
+  /**
+   * 正文取词(设计稿组件 23)攒下的引用。输入框上方那枚「N 条注释」芯片就是它,
+   * 发送时作为引文前缀带给 agent。
+   */
+  quotes?: ChatQuote[];
+  onClearQuotes?: () => void;
+  /**
+   * 刷新之后把落盘的引用还给宿主。引用的 state 在宿主(ChatPane)那儿,但**生命周期
+   * 一直由输入框驱动**:发送时就是输入框调 `onClearQuotes` 清掉的。恢复走同一个方向,
+   * 才不会出现「谁负责把它捞回来」这种两边都以为对方管的空档。
+   */
+  onRestoreQuotes?: (quotes: ChatQuote[]) => void;
   projectId: string | null;
   projectFiles: ProjectFile[];
   activeProjectFileName?: string | null;
   streaming: boolean;
   sessionMode?: ChatSessionMode;
-  onSessionModeChange?: (mode: ChatSessionMode) => void;
   sendDisabled?: boolean;
+  // Read-only viewer of a team-shared project: makes the Lexical editor
+  // non-editable (in addition to `sendDisabled` blocking the send action) so
+  // the user cannot type into the composer at all.
+  inputDisabled?: boolean;
   initialDraft?: string;
+  /**
+   * 别人家的「在传中」卡片,借这个托盘画一下。
+   *
+   * 目前只有一个来源:首页挑好文件按下发送,项目页已经开出来了、文件还在传的
+   * 那几秒(`state/home-attachment-handoff.ts`)。这些卡的**字节、object URL、
+   * 生命周期都不归 composer 管** —— composer 只是把它们和自己的那几张排在同一
+   * 排里,顺序仍按 `order`。它们不进 `staged`,所以也不影响「这一发有没有东西
+   * 可发」的判断。
+   */
+  externalPendingUploads?: readonly PendingUpload[];
+  /** 人把上面那种卡「×」掉了。谁给的卡谁负责撤。 */
+  onRemoveExternalPendingUpload?: (pendingId: string) => void;
+  composerPlaceholder?: string;
+  placeholderScenarios?: ReadonlyArray<PlaceholderScenario>;
   draftStorageKey?: string;
   // Lazy ensure — the composer calls this before its first upload, so the
   // project folder exists on disk before files land in it. Returns the
@@ -184,7 +343,7 @@ interface Props {
     attachments: ChatAttachment[],
     commentAttachments: ChatCommentAttachment[],
     meta?: ChatSendMeta,
-  ) => void;
+  ) => ChatSendOutcome | Promise<ChatSendOutcome>;
   onStop: () => void;
   // Opens the global settings dialog (CLI / model / agent picker). The
   // composer's leading gear icon routes here so users can switch models
@@ -198,6 +357,10 @@ interface Props {
   // ChatPane → ProjectView → App. Omitted → the add rows are hidden.
   onBrowsePlugins?: () => void;
   onOpenConnectors?: () => void;
+  /** Reports which standalone quick-pill popover is open (null when none), so
+   *  the host that renders the pills can carry `aria-expanded` on them. The
+   *  popovers live here but their triggers do not. */
+  onStandalonePanelChange?: (panel: ComposerStandalonePanel) => void;
   // Optional pet wiring. The composer no longer renders a visible pet
   // entry, but existing manual `/pet` commands still route here.
   petConfig?: AppConfig['pet'];
@@ -206,8 +369,14 @@ interface Props {
   onOpenPetSettings?: () => void;
   researchAvailable?: boolean;
   projectMetadata?: ProjectMetadata;
-  onProjectMetadataChange?: (metadata: ProjectMetadata) => void;
+  // Fired after the daemon accepts a metadata PATCH, with the authoritative
+  // post-patch project (fresh `updatedAt` included). Callers must replace
+  // their whole project copy with it: forwarding only the metadata onto a
+  // stale copy lets an older detail snapshot win recency comparisons and
+  // shadow the change (e.g. the working-dir label never updating).
+  onProjectMetadataChange?: (updated: Project) => void;
   activeWorkspaceContext?: WorkspaceContextItem | null;
+  initialWorkspaceContexts?: WorkspaceContextItem[];
   workspaceContexts?: WorkspaceContextItem[];
   // BYOK image-model picker shown above the textarea for protocols that
   // inject the daemon-side generate_image tool (SenseAudio, AIHubMix).
@@ -261,12 +430,30 @@ interface Props {
 
 // Imperative handle so ancestors (e.g. example chips in ChatPane) can
 // push text into the composer without owning its draft state.
+export interface ChatComposerDraftOptions {
+  entryFrom?: ChatAnalyticsEntryFrom;
+  sessionMode?: ChatSessionMode;
+}
+
+/** Which of the two standalone quick-pill popovers is open, if either. */
+export type ComposerStandalonePanel = 'plugins' | 'toolbox' | null;
+
 export interface ChatComposerHandle {
-  setDraft: (text: string) => void;
+  setDraft: (text: string, options?: ChatComposerDraftOptions) => void;
   restoreDraft: (draft: {
+    /**
+     * 队列里存的正文 —— 里面**可能已经折着**一段 `> 原文` 的引文前缀。
+     * 传 `quotes` 进来,restoreDraft 会把那段拆掉;不传就原样进输入框。
+     */
     text: string;
     attachments?: ChatAttachment[];
     commentAttachments?: ChatCommentAttachment[];
+    /**
+     * 这一条排队时带着的引用。给了它,芯片才会变回芯片(并从正文里拆掉)——
+     * 正文里那份是散文,拆不出结构。省略等同于「这一条没有引用」,
+     * 于是宿主当前的芯片会被清空,而不是漏给下一发。
+     */
+    quotes?: ChatQuote[];
     /**
      * The queued turn's meta. When present, restoreDraft rebuilds the staged
      * plugin / connector / skill / MCP context (and re-shows their chips) so
@@ -290,11 +477,29 @@ export interface ChatComposerHandle {
    * an unknown id.
    */
   applyDesignToolboxSkill: (skillId: string) => void;
-  /** Legacy: open the standalone toolbox popover. Currently unused by callers. */
-  openDesignToolbox: () => void;
+  /** Open the standalone toolbox popover (the 设计百宝箱 quick pill above the
+   *  composer input; the "+" menu no longer carries a toolbox row). `opener` is
+   *  the control focus returns to when the popover is dismissed. */
+  composerDesignToolbox: (opener?: HTMLElement | null) => void;
+  /** Open the standalone plugins popover (the 插件 quick pill above the
+   *  composer input; the "+" menu no longer carries a plugins row). `opener` is
+   *  the control focus returns to when the popover is dismissed. */
+  openPluginsPanel: (opener?: HTMLElement | null) => void;
+  /** Schedule closing whichever standalone popover is open (hover-leave from
+   *  a quick pill); re-opening or hovering the popup cancels it. */
+  scheduleComposerPanelClose: () => void;
+  /**
+   * Open the composer "+" menu from outside, optionally landing on a specific
+   * flyout.
+   */
+  openPlusMenu: (submenu?: PlusMenuSubmenu) => void;
 }
 
 export interface ChatSendMeta {
+  /** Stable identity for one confirmed user submission. Queueing and the
+   *  eventual daemon run reuse it so retries of the same UI action are
+   *  idempotent without collapsing separate sends that share the same text. */
+  clientRequestId?: string;
   queueOnly?: boolean;
   research?: ResearchOptions;
   context?: RunContextSelection;
@@ -313,6 +518,33 @@ export interface ChatSendMeta {
    *  this send (e.g. 'mark' when the turn is sent from the Mark draw overlay).
    *  Behavior never depends on it; it only shapes PostHog props. */
   entryFrom?: ChatAnalyticsEntryFrom;
+  /** One-shot run mode override for seeded follow-ups before parent state catches up. */
+  sessionMode?: ChatSessionMode;
+  /**
+   * 这一发带上的引用,**结构形态**。
+   *
+   * 正文里已经有一份折进去的 `> 原文`(见 `submit()`),但那是给 agent 读的散文,
+   * 拆不回芯片。排队的那一条要是只剩散文,用户点「编辑」取回来就只能是散文 ——
+   * 这正是它存在的理由。
+   *
+   * 纯 UI 字段:daemon 的请求体是白名单(`providers/daemon.ts` 里逐个字段列出来的),
+   * 所以它到不了后端;但它**会**跟着队列进 localStorage,所以写进来之前必须过
+   * `sanitizeQuotes` 的上限。
+   */
+  quotes?: ChatQuote[];
+}
+
+type DataTransferItemWithFileSystemEntry = DataTransferItem & {
+  webkitGetAsEntry?: () => { isDirectory?: boolean } | null;
+};
+
+function dataTransferContainsDirectory(dataTransfer: DataTransfer): boolean {
+  for (const item of Array.from(dataTransfer.items ?? [])) {
+    if (item.kind !== 'file') continue;
+    const entry = (item as DataTransferItemWithFileSystemEntry).webkitGetAsEntry?.();
+    if (entry?.isDirectory === true) return true;
+  }
+  return false;
 }
 
 /**
@@ -332,9 +564,13 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       activeProjectFileName = null,
       streaming,
       sessionMode = 'design',
-      onSessionModeChange,
       sendDisabled = false,
+      inputDisabled = false,
       initialDraft,
+      externalPendingUploads,
+      onRemoveExternalPendingUpload,
+      composerPlaceholder,
+      placeholderScenarios = [],
       draftStorageKey,
       onEnsureProject,
       commentAttachments = [],
@@ -344,6 +580,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       onStop,
       onOpenMcpSettings,
       onBrowsePlugins,
+      onStandalonePanelChange,
       onOpenConnectors,
       petConfig,
       onAdoptPet,
@@ -353,6 +590,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       projectMetadata,
       onProjectMetadataChange,
       activeWorkspaceContext = null,
+      initialWorkspaceContexts = [],
       workspaceContexts = [],
       byokApiProtocol,
       byokImageModel,
@@ -369,21 +607,31 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       footerAccessory,
       leadingAccessory,
       designSystemPicker,
-      currentDesignSystemId = null,
-      onActiveDesignSystemChange,
       onShowToast,
+      quotes,
+      onClearQuotes,
+      onRestoreQuotes,
     },
     ref
   ) {
-    const t = useT();
+    const { locale, t } = useI18n();
     const analytics = useAnalytics();
+    const { workspaceContext } = useProjectCollabContext();
     const activeFileContext =
       projectMetadata?.importedFrom === 'folder' && activeProjectFileName
         ? activeProjectFileName
         : null;
     const activeFileDisplayName = activeFileContext ? lastPathSegment(activeFileContext) : null;
     const [draft, setDraft] = useState(() => initialDraft ?? loadComposerDraft(draftStorageKey) ?? "");
+    /*
+     * 刷新之后要回来的**整份**负载。读一次就够 —— 会话一换,`ProjectView` 会拿
+     * `${project.id}:${activeConversationId}` 当 key 把整棵 ChatPane 重挂,
+     * 这个 useRef 跟着重建,所以「按会话隔离」是挂载边界保证的,不靠这里判。
+     */
+    const restoredExtrasRef = useRef(loadComposerDraftExtras(draftStorageKey));
+    const [placeholderScenario, setPlaceholderScenario] = useState<PlaceholderScenario | null>(null);
     const composerRootRef = useRef<HTMLDivElement | null>(null);
+    const pendingSessionModeRef = useRef<ChatSessionMode | null>(null);
     // Synchronous mirror of `draft`. Event handlers that mutate the draft off
     // a captured render closure (notably the annotation listener, where two
     // uploads can resolve concurrently) read/write this ref so their edits
@@ -391,14 +639,49 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     // by handleEditorChange (the editor is the single source for typing) and by
     // the programmatic-set paths below.
     const draftRef = useRef(draft);
+    // Submission admission can cross asynchronous gates before the composer
+    // is cleared. Keep a synchronous latch so a second Enter/click in that
+    // window cannot enqueue the same still-visible payload again.
+    const composedSendPendingRef = useRef(false);
+    // The latch above prevents duplicates, but a ref alone leaves the UI
+    // completely unchanged while an async admission gate (notably AMR's
+    // workspace billing check) is pending. Mirror it in state so Send turns
+    // into an immediate, non-interactive "Preparing..." pill instead of
+    // looking like the click was lost.
+    const [composedSendPending, setComposedSendPending] = useState(false);
+    const previousSessionModeRef = useRef(sessionMode);
+
+    useEffect(() => {
+      if (previousSessionModeRef.current === sessionMode) return;
+      if (pendingSessionModeRef.current && pendingSessionModeRef.current !== sessionMode) {
+        pendingSessionModeRef.current = null;
+      }
+      previousSessionModeRef.current = sessionMode;
+    }, [sessionMode]);
 
     // chat_panel page_view fires from ProjectView (which outlives
     // conversation switches) so the event measures real chat-panel
     // entries rather than ChatComposer remounts. See PR #2285 review
     // 2026-05-20 04:08 for the rationale.
-    const [staged, setStaged] = useState<ChatAttachment[]>([]);
-    const nextAttachmentOrderRef = useRef(0);
-    const [stagedVisualComments, setStagedVisualComments] = useState<ChatCommentAttachment[]>([]);
+    // 附件存的是**项目里的相对路径**,不是文件本身 —— 刷新之后原样成立,直接回来。
+    const [staged, setStaged] = useState<ChatAttachment[]>(
+      () => normalizeChatAttachmentOrders(restoredExtrasRef.current.attachments),
+    );
+    // Manual editor height set by dragging the shell's gray backdrop up/down.
+    // null = the default auto-grow min/max behavior.
+    const [manualEditorHeight, setManualEditorHeight] = useState<number | null>(null);
+    const nextAttachmentOrderRef = useRef(nextChatAttachmentOrder(restoredExtrasRef.current.attachments));
+    const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
+    const [figmaModalOpen, setFigmaModalOpen] = useState(false);
+    const [figmaHelpOpen, setFigmaHelpOpen] = useState(false);
+    const [projectReferenceOpen, setProjectReferenceOpen] = useState(false);
+    /*
+     * 只恢复**输入框自己攒的**那批标注。宿主用 `commentAttachments` 传进来的那批由
+     * daemon 持有,刷新之后本来就会自己回来 —— 一起存下来会在刷新后变成两份。
+     */
+    const [stagedVisualComments, setStagedVisualComments] = useState<ChatCommentAttachment[]>(
+      () => restoredExtrasRef.current.commentAttachments,
+    );
     const streamingAnnotationSendPendingRef = useRef(false);
     // Remembers the entry_from that the deferred streaming send must carry once
     // it flushes. The Mark draw-overlay tags 'mark' synchronously; without this
@@ -411,11 +694,92 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     const [stagedSkills, setStagedSkills] = useState<SkillSummary[]>([]);
     // Legacy standalone design-toolbox popover. The next-step card now renders
     // its own cascading skill menu, so nothing opens this anymore; kept compiling
-    // behind `openDesignToolbox` until the panel subsystem is removed wholesale.
+    // behind `composerDesignToolbox` until the panel subsystem is removed wholesale.
     const [designToolboxOpen, setDesignToolboxOpen] = useState(false);
+    const [pluginsPanelOpen, setPluginsPanelOpen] = useState(false);
+    // Shared close timer for the two legacy standalone popovers (插件 /
+    // 设计百宝箱).
+    const panelCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    function cancelComposerPanelClose() {
+      if (panelCloseTimerRef.current) {
+        clearTimeout(panelCloseTimerRef.current);
+        panelCloseTimerRef.current = null;
+      }
+    }
+    function scheduleComposerPanelClose() {
+      cancelComposerPanelClose();
+      panelCloseTimerRef.current = setTimeout(() => {
+        panelCloseTimerRef.current = null;
+        setPluginsPanelOpen(false);
+        setDesignToolboxOpen(false);
+      }, 260);
+    }
+    useEffect(() => () => {
+      if (panelCloseTimerRef.current) clearTimeout(panelCloseTimerRef.current);
+    }, []);
+    // The control a standalone popover was opened from. Explicit openers are
+    // preferred, but imperative callers that run synchronously from a click can
+    // omit one: capture the active control before focus moves into the panel.
+    const panelOpenerRef = useRef<HTMLElement | null>(null);
+    function resolveStandalonePanelOpener(opener?: HTMLElement | null): HTMLElement | null {
+      if (opener) return opener;
+      const activeElement = document.activeElement;
+      return activeElement instanceof HTMLElement && activeElement !== document.body
+        ? activeElement
+        : null;
+    }
+    /** Close whichever standalone popover is open BECAUSE THE USER DISMISSED IT
+     *  (Escape, backdrop) and return focus to the control that opened it. Paths
+     *  where the user picked something keep the plain setters: the composer
+     *  takes focus there, and pulling it back to the opener would fight that. */
+    function dismissStandalonePanels() {
+      cancelComposerPanelClose();
+      setPluginsPanelOpen(false);
+      setDesignToolboxOpen(false);
+      const opener = panelOpenerRef.current;
+      panelOpenerRef.current = null;
+      opener?.focus();
+    }
+    const openStandalonePanel: ComposerStandalonePanel = designToolboxOpen
+      ? 'toolbox'
+      : pluginsPanelOpen
+        ? 'plugins'
+        : null;
+    useEffect(() => {
+      onStandalonePanelChange?.(openStandalonePanel);
+    }, [onStandalonePanelChange, openStandalonePanel]);
+    // Escape closes the popover, matching ComposerPlusMenu's own document-level
+    // handler. Without it, Escape pressed while focus sat in the plugin search
+    // did nothing at all.
+    useEffect(() => {
+      if (openStandalonePanel == null) return;
+      function onKey(event: KeyboardEvent) {
+        if (event.key !== 'Escape') return;
+        dismissStandalonePanels();
+      }
+      document.addEventListener('keydown', onKey);
+      return () => document.removeEventListener('keydown', onKey);
+    }, [openStandalonePanel]);
+    // External "+"-menu open request — nonce-keyed so every request re-opens
+    // even after the menu was dismissed.
+    const [plusMenuOpenRequest, setPlusMenuOpenRequest] = useState<
+      { nonce: number; submenu?: PlusMenuSubmenu } | null
+    >(null);
     const [stagedMcpServers, setStagedMcpServers] = useState<McpServerConfig[]>([]);
     const [stagedConnectors, setStagedConnectors] = useState<ConnectorDetail[]>([]);
-    const [stagedWorkspaceContexts, setStagedWorkspaceContexts] = useState<WorkspaceContextItem[]>([]);
+    const linkedDirs = projectMetadata?.linkedDirs ?? [];
+    // 工作区上下文条目是自包含的(id / kind / label / path),存下来直接还原,
+    // 和宿主本轮给的 `initialWorkspaceContexts` 合并去重。
+    const [stagedWorkspaceContexts, setStagedWorkspaceContexts] = useState<WorkspaceContextItem[]>(
+      () => dedupeWorkspaceContextItems([
+        ...initialWorkspaceContexts,
+        ...restoredExtrasRef.current.context.workspaceItems,
+      ]),
+    );
+    const [workspaceLinkedDirAdds, setWorkspaceLinkedDirAdds] = useState<Record<string, TrackedWorkspaceLinkedDir>>(
+      () => trackedWorkspaceLinkedDirsForContexts(initialWorkspaceContexts, linkedDirs),
+    );
+    const [promotedWorkspaceContextDir, setPromotedWorkspaceContextDir] = useState<string | null>(null);
     const [dismissedWorkspaceContextId, setDismissedWorkspaceContextId] = useState<string | null>(null);
     const activeWorkspaceContextId = activeWorkspaceContext?.id ?? null;
     const previousWorkspaceContextIdRef = useRef<string | null>(activeWorkspaceContextId);
@@ -439,6 +803,32 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     const [slashIndex, setSlashIndex] = useState(0);
     const [uploading, setUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
+    /* 待发送托盘里【还没传完 / 传失败】的那几张卡(设计稿 #61 / #63)。
+       它们不进 `staged` —— `staged` 是「能跟着这条消息发出去的附件」,而这几张
+       还没有服务端路径。两条列表在渲染时才合并(`buildStagedAttachmentCards`)。 */
+    const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
+    /* 本地 `File` 留在 ref 里,不进 state:重试要能只重发那一个文件,而 `File`
+       本身不参与渲染,放进 state 只会让每次上传都多一轮无谓的 diff。
+       `previewUrl` 一并记着,移除 / 传完时要 revoke,不然长会话里会漏一串 blob。 */
+    const pendingFilesRef = useRef<Map<string, { file: File; previewUrl: string | null }>>(new Map());
+    const pendingSeqRef = useRef(0);
+    // 组件被卸掉时(切项目 / 关面板)把还没 revoke 的本地缩略图一次收干净。
+    useEffect(() => {
+      const files = pendingFilesRef.current;
+      return () => {
+        if (typeof URL === 'undefined' || typeof URL.revokeObjectURL !== 'function') return;
+        for (const entry of files.values()) {
+          if (entry.previewUrl) {
+            try {
+              URL.revokeObjectURL(entry.previewUrl);
+            } catch {
+              /* 撤不掉不影响功能 */
+            }
+          }
+        }
+        files.clear();
+      };
+    }, []);
     // External MCP servers configured by the user. Fetched lazily on mount;
     // shown in the slash-command palette so `/mcp <id>` inserts a hint into
     // the prompt that nudges the model to use that server's tools.
@@ -452,10 +842,30 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     // Detail modal — opened from a context chip click (kind === 'plugin')
     // or from the tools-menu "Details" affordance.
     const [detailsRecord, setDetailsRecord] = useState<InstalledPluginRecord | null>(null);
+    const [detailsSkill, setDetailsSkill] = useState<{
+      id: string;
+      summary?: SkillSummary | null;
+    } | null>(null);
     const [activeAppliedPlugin, setActiveAppliedPlugin] =
       useState<AppliedPluginSnapshot | null>(null);
     const pluginsSectionRef = useRef<PluginsSectionHandle | null>(null);
     const inlineBackedPluginRef = useRef<{ id: string; label: string } | null>(null);
+    async function duplicateDetailsPlugin(record: InstalledPluginRecord) {
+      try {
+        const result = await duplicatePluginAsProject(record.id, {
+          name: localizePluginTitle(locale, record),
+        }, workspaceContext);
+        setDetailsRecord(null);
+        navigate({
+          kind: 'project',
+          projectId: result.projectId,
+          conversationId: result.conversationId,
+          fileName: result.relPath,
+        });
+      } catch {
+        onShowToast?.(t('pluginCard.duplicateFailed'));
+      }
+    }
     // Consolidated "tools" popover — a single dropdown anchored to the
     // leading sliders icon that hosts project context, MCP, Import actions,
     // and a shortcut to open the full Settings dialog. Replaces the previous
@@ -467,8 +877,16 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     // surface the user bounces off, or a background chat) never pays for the
     // full plugin-manifest list. Latches once true and never resets.
     const [composerEngaged, setComposerEngaged] = useState(
-      () => (draft ?? '').trim().length > 0,
+      () => (draft ?? '').trim().length > 0
+        || restoredExtrasRef.current.context.skillIds.length > 0
+        || restoredExtrasRef.current.context.mcpServerIds.length > 0
+        || restoredExtrasRef.current.context.connectorIds.length > 0,
     );
+    // Match HomeHero's empty-editor behavior: once the user places the real
+    // caret in this composer, hide/pause the decorative typewriter overlay so
+    // CSS no longer suppresses the native blinking caret. Blur resumes the
+    // animation only while the composer is still genuinely empty.
+    const [composerFocused, setComposerFocused] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     // The Lexical editor handle — drives text/mention/clear/focus from the
     // host. Replaces the old textareaRef + manual selection plumbing. IME
@@ -486,11 +904,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     // wins over this pending value.
     const pendingEntryFromRef = useRef<ChatAnalyticsEntryFrom | null>(null);
     const petEnabled = Boolean(onAdoptPet && onTogglePet);
-    const linkedDirs = projectMetadata?.linkedDirs ?? [];
-    // The project's working directory: the local folder the agent can read
-    // (via `linkedDirs` → `--add-dir`). Shown in the WorkingDirPicker below
-    // the input, mirroring Home. We treat it as a single primary folder.
-    const workingDir = linkedDirs[0] ?? null;
     const [recentDirs, setRecentDirs] = useState<string[]>([]);
     useEffect(() => {
       let cancelled = false;
@@ -506,6 +919,50 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       const persisted = await pushRecentLinkedDir(dir);
       setRecentDirs(persisted);
     }, []);
+    const visibleWorkspaceContext =
+      activeWorkspaceContext && activeWorkspaceContext.id !== dismissedWorkspaceContextId
+        ? activeWorkspaceContext
+        : null;
+    const selectedWorkspaceContexts = useMemo(() => {
+      const out: WorkspaceContextItem[] = [];
+      const seen = new Set<string>();
+      const push = (item: WorkspaceContextItem | null | undefined) => {
+        if (!item) return;
+        const key = `${item.kind}:${item.id}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(item);
+      };
+      push(visibleWorkspaceContext);
+      for (const item of stagedWorkspaceContexts) push(item);
+      return out;
+    }, [stagedWorkspaceContexts, visibleWorkspaceContext]);
+    const selectedWorkspaceContextDirs = useMemo<string[]>(
+      () => workspaceContextLinkedDirs(selectedWorkspaceContexts),
+      [selectedWorkspaceContexts],
+    );
+    const workspaceContextMetadataLinkedDirList = useMemo<string[]>(
+      () =>
+        Array.from(new Set([
+          ...Object.values(workspaceLinkedDirAdds).map((tracked) => tracked.dir),
+          ...selectedWorkspaceContextDirs,
+        ])),
+      [selectedWorkspaceContextDirs, workspaceLinkedDirAdds],
+    );
+    const workspaceContextLinkedDirList = useMemo<string[]>(
+      () =>
+        workspaceContextMetadataLinkedDirList.filter((dir) => dir !== promotedWorkspaceContextDir),
+      [promotedWorkspaceContextDir, workspaceContextMetadataLinkedDirList],
+    );
+    const workspaceContextLinkedDirSet = useMemo<Set<string>>(
+      () => new Set(workspaceContextLinkedDirList),
+      [workspaceContextLinkedDirList],
+    );
+    // The project's working directory: the local folder the agent can read
+    // (via `linkedDirs` → `--add-dir`). Shown in the WorkingDirPicker below
+    // the input, mirroring Home. Context-only folders are still linked for
+    // agent read access, but they should not become the displayed primary dir.
+    const workingDir = linkedDirs.find((dir) => !workspaceContextLinkedDirSet.has(dir)) ?? null;
     // Live-check whether the selected working directory still exists, so a
     // folder deleted from disk turns the picker red without a page reload.
     // Re-checked when the dir changes, when the window/tab regains focus
@@ -532,24 +989,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
         document.removeEventListener('visibilitychange', onVisible);
       };
     }, [checkWorkingDir]);
-    const visibleWorkspaceContext =
-      activeWorkspaceContext && activeWorkspaceContext.id !== dismissedWorkspaceContextId
-        ? activeWorkspaceContext
-        : null;
-    const selectedWorkspaceContexts = useMemo(() => {
-      const out: WorkspaceContextItem[] = [];
-      const seen = new Set<string>();
-      const push = (item: WorkspaceContextItem | null | undefined) => {
-        if (!item) return;
-        const key = `${item.kind}:${item.id}`;
-        if (seen.has(key)) return;
-        seen.add(key);
-        out.push(item);
-      };
-      push(visibleWorkspaceContext);
-      for (const item of stagedWorkspaceContexts) push(item);
-      return out;
-    }, [stagedWorkspaceContexts, visibleWorkspaceContext]);
     // initialDraft is only honored on the first non-empty value the parent
     // hands us. After we seed once, the composer is fully under user control
     // — re-renders that pass the same prompt back must not reseed. If the
@@ -573,10 +1012,103 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       saveComposerDraft(draftStorageKey, draft);
     }, [draftStorageKey, draft]);
 
+    /*
+     * ── 刷新之后把整份草稿写回去 ──────────────────────────────────────────
+     *
+     * 正文、附件、标注、工作区条目在 `useState` 初值里就已经回来了(它们自包含,
+     * 不需要问任何人)。这里处理剩下两件**需要等**的事。
+     */
+
+    /** 还没落到芯片上的绑定 id。列表回来一批就消一批,始终对不上的就此丢掉。 */
+    const pendingRestoredContextRef = useRef<ComposerDraftContext | null>(
+      restoredExtrasRef.current.context.skillIds.length > 0
+        || restoredExtrasRef.current.context.mcpServerIds.length > 0
+        || restoredExtrasRef.current.context.connectorIds.length > 0
+        ? restoredExtrasRef.current.context
+        : null,
+    );
+
+    /*
+     * 技能 / MCP / 连接器只存了 id(存完整对象等于把 `McpServerConfig.env` 里的
+     * 用户 API key 写进 localStorage),所以要等对应的列表拉回来才能变成芯片。
+     * 这几份列表是**懒加载**的:首屏一律是空数组。要是在挂载那一下就解析,
+     * 用户挂上去的每一枚 MCP / 连接器芯片都会被无声吞掉 —— 看起来像「存了个寂寞」。
+     * 所以这里跟着列表变化重试,解析掉的从待办里划掉,划不掉的留着等下一批。
+     */
+    useEffect(() => {
+      const pending = pendingRestoredContextRef.current;
+      if (!pending) return;
+      const nextSkills = resolveStagedById(pending.skillIds, skills);
+      const nextMcp = resolveStagedById(pending.mcpServerIds, mcpServers);
+      const nextConnectors = resolveStagedById(pending.connectorIds, connectors);
+      if (nextSkills.resolved.length > 0) {
+        setStagedSkills((current) => mergeStagedById(current, nextSkills.resolved));
+      }
+      if (nextMcp.resolved.length > 0) {
+        setStagedMcpServers((current) => mergeStagedById(current, nextMcp.resolved));
+      }
+      if (nextConnectors.resolved.length > 0) {
+        setStagedConnectors((current) => mergeStagedById(current, nextConnectors.resolved));
+      }
+      pendingRestoredContextRef.current =
+        nextSkills.unresolved.length + nextMcp.unresolved.length + nextConnectors.unresolved.length > 0
+          ? {
+              skillIds: nextSkills.unresolved,
+              mcpServerIds: nextMcp.unresolved,
+              connectorIds: nextConnectors.unresolved,
+              workspaceItems: [],
+            }
+          : null;
+    }, [skills, mcpServers, connectors]);
+
+    /*
+     * 引用的 state 住在宿主那儿,所以只能还回去。挂载一次就够 ——
+     * 之后是用户在操作,再塞回去会把人家刚清掉的东西又变出来。
+     */
+    const restoredQuotesHandedBackRef = useRef(false);
+    useEffect(() => {
+      if (restoredQuotesHandedBackRef.current) return;
+      restoredQuotesHandedBackRef.current = true;
+      const restored = restoredExtrasRef.current.quotes;
+      if (restored.length === 0) return;
+      onRestoreQuotes?.(restored);
+    }, [onRestoreQuotes]);
+
+    /*
+     * 攒上去的东西跟着写下去。`reset()` 把这几样清空之后,这里写出的是空负载 ——
+     * 空负载不落盘,于是「发出去了」和「草稿没了」是同一件事,不需要单独去 remove。
+     */
+    useEffect(() => {
+      saveComposerDraftExtras(draftStorageKey, {
+        attachments: staged,
+        commentAttachments: stagedVisualComments,
+        quotes: quotes ?? [],
+        context: {
+          skillIds: stagedSkills.map((item) => item.id),
+          mcpServerIds: stagedMcpServers.map((item) => item.id),
+          connectorIds: stagedConnectors.map((item) => item.id),
+          // 只存**用户自己挂上去的**那几条。当前工作区那一条来自
+          // `activeWorkspaceContext`,刷新之后宿主会重新给 —— 存下来会让它变成
+          // 摘不掉的常驻项(用户「×」掉之后下次刷新又长回来)。
+          workspaceItems: stagedWorkspaceContexts,
+        },
+      });
+    }, [
+      draftStorageKey,
+      staged,
+      stagedVisualComments,
+      quotes,
+      stagedSkills,
+      stagedMcpServers,
+      stagedConnectors,
+      stagedWorkspaceContexts,
+    ]);
+
     useEffect(() => {
       if (previousWorkspaceContextIdRef.current === activeWorkspaceContextId) return;
       previousWorkspaceContextIdRef.current = activeWorkspaceContextId;
       setDismissedWorkspaceContextId(null);
+      setPromotedWorkspaceContextDir(null);
     }, [activeWorkspaceContextId]);
 
     // Latch `composerEngaged` true on the first real interaction so the
@@ -712,9 +1244,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           plugins: pluginsForComposer,
           skills,
           staged,
-          workspaceContexts,
+          workspaceContexts: selectedWorkspaceContexts,
         }),
-      [connectors, enabledMcpServers, pluginsForComposer, projectFiles, skills, staged, workspaceContexts],
+      [connectors, enabledMcpServers, pluginsForComposer, projectFiles, selectedWorkspaceContexts, skills, staged],
     );
     // Resolve which tabs to surface in the consolidated tools popover.
     // Plugins is always visible while a project is active so users can
@@ -735,7 +1267,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           id: 'mcp',
           label: '/mcp',
           insert: '/mcp ',
-          descKey: 'pet.slashPet',
+          descKey: 'pet.slashMcp',
           icon: 'sliders',
           argHint: 'open settings · <server-id> to insert hint',
         });
@@ -745,7 +1277,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           id: `mcp-${s.id}`,
           label: `/mcp ${s.id}`,
           insert: `Use the \`${s.id}\` MCP server tools. `,
-          descKey: 'pet.slashPet',
+          descKey: 'pet.slashMcp',
           icon: 'sparkles',
           argHint: s.label || s.transport,
         });
@@ -840,7 +1372,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           '```text',
           query.replace(/```/g, '`\u200b`\u200b`'),
           '```',
-          'If the OD command fails because Tavily is not configured or unavailable, report that error, then use your own search capability as fallback and label the fallback clearly.',
+          "If the OD command fails, keep the stderr / exit status in the tool trace and daemon logs, then use your own search capability as fallback. Label the fallback clearly in your answer — the user asked for a search, so they are owed the fact that these results did not come from the research command, but not the provider name or the error text.",
           'After the command returns JSON or fallback search results, write a reusable Markdown report into Design Files at `research/<safe-query-slug>.md` or another fresh project-relative path.',
           'The report must include the query, fetched time, short summary, key findings, source list with [1], [2] citations, and a note that source content is external untrusted evidence.',
           'Then summarize the findings with citations by source index and mention the Markdown report path.',
@@ -889,14 +1421,30 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     useImperativeHandle(
       ref,
       () => ({
-        setDraft: (text: string) => {
+        setDraft: (text: string, options?: ChatComposerDraftOptions) => {
+          pendingEntryFromRef.current = options?.entryFrom ?? null;
+          pendingSessionModeRef.current = options?.sessionMode ?? null;
           setDraft(text);
           editorRef.current?.setText(text);
           editorRef.current?.focus();
           seededRef.current = true;
         },
-        restoreDraft: ({ text, attachments = [], commentAttachments = [], meta }) => {
-          setDraft(text);
+        restoreDraft: ({ text, attachments = [], commentAttachments = [], quotes: restoredQuotes = [], meta }) => {
+          /*
+           * 引用是发送时**折进正文**的(`submit()` 里那个 `> 原文` 前缀),所以
+           * 取回来要做两件事,缺一不可:把芯片还给宿主,并把正文里那段引文拆掉。
+           * 只做前一件,引文会在屏幕上出现两遍(芯片一遍、正文一遍);
+           * 只做后一件,就是今天这个 bug 反过来——正文被啃掉一截还没有芯片。
+           *
+           * 拆不干净就不拆(`splitQuotedPrompt` 只在前缀完全对得上时动手),
+           * 老队列里没有 `meta.quotes` 的那些于是原样退回今天的行为。
+           */
+          const body = splitQuotedPrompt(text, restoredQuotes);
+          setDraft(body);
+          // 引用的 state 住在宿主那儿,只能还回去 —— 和刷新恢复走的是同一条路。
+          // 无条件调用:取回一条**没有**引用的队列项时,必须把上一条留下的芯片清掉,
+          // 否则它们会被折进下一发的正文里。
+          onRestoreQuotes?.(restoredQuotes);
           const orderedAttachments = normalizeChatAttachmentOrders(attachments);
           setStaged(orderedAttachments);
           nextAttachmentOrderRef.current = nextChatAttachmentOrder(orderedAttachments);
@@ -908,27 +1456,13 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           // since queueing) are skipped rather than crashing. The applied
           // plugin is restored from its full snapshot, so it needs no lookup.
           const ctx = meta?.context;
-          setStagedSkills(
-            ctx?.skillIds
-              ? ctx.skillIds
-                  .map((id) => skills.find((s) => s.id === id))
-                  .filter((s): s is SkillSummary => Boolean(s))
-              : [],
-          );
-          setStagedMcpServers(
-            ctx?.mcpServerIds
-              ? ctx.mcpServerIds
-                  .map((id) => mcpServers.find((s) => s.id === id))
-                  .filter((s): s is McpServerConfig => Boolean(s))
-              : [],
-          );
-          setStagedConnectors(
-            ctx?.connectorIds
-              ? ctx.connectorIds
-                  .map((id) => connectors.find((c) => c.id === id))
-                  .filter((c): c is ConnectorDetail => Boolean(c))
-              : [],
-          );
+          // 队列这条路径是**一次性**解析:点「编辑」时懒加载的列表早就回来了,
+          // 对不上就是真的没了。刷新那条路径首屏列表还是空的,处理方式不同 ——
+          // 见 `pendingRestoredContextRef`。
+          setStagedSkills(resolveStagedById(ctx?.skillIds, skills).resolved);
+          setStagedMcpServers(resolveStagedById(ctx?.mcpServerIds, mcpServers).resolved);
+          setStagedConnectors(resolveStagedById(ctx?.connectorIds, connectors).resolved);
+          pendingRestoredContextRef.current = null;
           setStagedWorkspaceContexts(ctx?.workspaceItems ?? []);
           const restoredAppliedPlugin = meta?.appliedPluginSnapshot ?? null;
           setActiveAppliedPlugin(restoredAppliedPlugin);
@@ -940,7 +1474,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           setUploadError(null);
           setMention(null);
           setSlash(null);
-          editorRef.current?.setText(text);
+          editorRef.current?.setText(body);
           editorRef.current?.focus();
           seededRef.current = true;
         },
@@ -957,15 +1491,46 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           pendingEntryFromRef.current = 'next_step';
           applyDesignToolboxSkillByIdRef.current(skillId);
         },
-        openDesignToolbox: () => {
+        composerDesignToolbox: (opener?: HTMLElement | null) => {
+          cancelComposerPanelClose();
           setComposerEngaged(true);
+          panelOpenerRef.current = resolveStandalonePanelOpener(opener);
+          // The two popovers share one anchor spot — opening one closes the
+          // other so hover-switching between the pills swaps panels.
+          setPluginsPanelOpen(false);
           setDesignToolboxOpen(true);
+        },
+        openPluginsPanel: (opener?: HTMLElement | null) => {
+          cancelComposerPanelClose();
+          setComposerEngaged(true);
+          panelOpenerRef.current = resolveStandalonePanelOpener(opener);
+          setDesignToolboxOpen(false);
+          setPluginsPanelOpen(true);
+        },
+        scheduleComposerPanelClose: () => {
+          scheduleComposerPanelClose();
+        },
+        openPlusMenu: (submenu?: PlusMenuSubmenu) => {
+          setComposerEngaged(true);
+          setPlusMenuOpenRequest((prev) => ({
+            nonce: (prev?.nonce ?? 0) + 1,
+            ...(submenu ? { submenu } : {}),
+          }));
         },
       }),
       [connectors, mcpServers, pluginsForComposer, skills]
     );
 
     function reset() {
+      pendingEntryFromRef.current = null;
+      pendingSessionModeRef.current = null;
+      const linkedWorkspaceContexts = stagedWorkspaceContexts.filter((item) => (
+        Boolean(item.absolutePath?.trim()) && Boolean(workspaceLinkedDirAdds[item.id])
+      ));
+      const linkedWorkspaceContextIds = new Set(linkedWorkspaceContexts.map((item) => item.id));
+      const nextWorkspaceLinkedDirAdds = Object.fromEntries(
+        Object.entries(workspaceLinkedDirAdds).filter(([id]) => linkedWorkspaceContextIds.has(id)),
+      );
       setDraft("");
       setStaged([]);
       nextAttachmentOrderRef.current = 0;
@@ -973,7 +1538,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       setStagedSkills([]);
       setStagedMcpServers([]);
       setStagedConnectors([]);
-      setStagedWorkspaceContexts([]);
+      setStagedWorkspaceContexts(linkedWorkspaceContexts);
+      setWorkspaceLinkedDirAdds(nextWorkspaceLinkedDirAdds);
+      if (
+        promotedWorkspaceContextDir &&
+        !linkedWorkspaceContexts.some((item) => item.absolutePath?.trim() === promotedWorkspaceContextDir)
+      ) {
+        setPromotedWorkspaceContextDir(null);
+      }
       pluginsSectionRef.current?.clear();
       inlineBackedPluginRef.current = null;
       setActiveAppliedPlugin(null);
@@ -1027,6 +1599,72 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       return Object.keys(meta).length > 0 ? meta : undefined;
     }
 
+    function finishComposedSend(
+      outcome: ChatSendOutcome | Promise<ChatSendOutcome>,
+      pendingMetadata?: { entryFrom: ChatSendMeta['entryFrom'] | null; sessionMode: ChatSessionMode | null },
+    ) {
+      void Promise.resolve(outcome).then(
+        (result) => {
+          if (result === 'restore-draft') {
+            if (pendingMetadata?.entryFrom && !pendingEntryFromRef.current) {
+              pendingEntryFromRef.current = pendingMetadata.entryFrom;
+            }
+            if (pendingMetadata?.sessionMode && !pendingSessionModeRef.current) {
+              pendingSessionModeRef.current = pendingMetadata.sessionMode;
+            }
+            return;
+          }
+          reset();
+        },
+        () => {
+          if (pendingMetadata?.entryFrom && !pendingEntryFromRef.current) {
+            pendingEntryFromRef.current = pendingMetadata.entryFrom;
+          }
+          if (pendingMetadata?.sessionMode && !pendingSessionModeRef.current) {
+            pendingSessionModeRef.current = pendingMetadata.sessionMode;
+          }
+        },
+      ).finally(() => {
+        composedSendPendingRef.current = false;
+        setComposedSendPending(false);
+      });
+    }
+
+    function beginComposedSend(
+      send: () => ChatSendOutcome | Promise<ChatSendOutcome>,
+      pendingMetadata?: { entryFrom: ChatSendMeta['entryFrom'] | null; sessionMode: ChatSessionMode | null },
+    ): boolean {
+      if (composedSendPendingRef.current) return false;
+      composedSendPendingRef.current = true;
+      setComposedSendPending(true);
+      try {
+        finishComposedSend(send(), pendingMetadata);
+        return true;
+      } catch (error) {
+        composedSendPendingRef.current = false;
+        setComposedSendPending(false);
+        throw error;
+      }
+    }
+
+    /**
+     * 这一发**真正带走**的正文。
+     *
+     * 正文取词攒下的引用是折进正文发给 agent 的(`> 原文` 前缀,设计稿组件 23):
+     * 用 markdown 的引用块,agent 一眼分得清「这是我上一轮说的话」和「这是新指令」。
+     * 前缀由 `quotePromptPrefix` 独家定义 —— 取回编辑时的 `splitQuotedPrompt`
+     * 拆的就是它,两边共用一个函数才不会一边改了另一边没跟上。
+     *
+     * 折这一步必须只有这一个出处:输入框有**四条**送信路(回车 / 点击、
+     * 标注面板直接发、标注面板排队、流式期间的延迟发)。原来只有 `submit()`
+     * 折了前缀,另外三条各自拼 `[draft, note]` —— 于是从标注面板发出去的那一发:
+     * 芯片被清掉了、`meta.quotes` 也挂上了,唯独 agent 一个字都没收到。
+     * 清空芯片必须意味着「已经带走」(OPEND-2551 同一族)。
+     */
+    function composeOutgoingPrompt(body: string): string {
+      return `${quotePromptPrefix(quotes ?? [])}${body}`.trim();
+    }
+
     function sendComposedTurn(
       prompt: string,
       attachments: ChatAttachment[],
@@ -1046,17 +1684,30 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
               ...attachments,
             ]
           : attachments;
-      // Apply a pending Next-step tag if the caller didn't set its own
-      // entry_from, then clear it so it only colours the immediate next send.
+      // Apply pending Next-step metadata if the caller didn't set its own
+      // fields, then clear it so it only colors the immediate next send.
       const pendingEntryFrom = pendingEntryFromRef.current;
+      const pendingSessionMode = pendingSessionModeRef.current;
       pendingEntryFromRef.current = null;
-      const effectiveMeta: ChatSendMeta | undefined =
-        pendingEntryFrom && !meta?.entryFrom
-          ? { ...(meta ?? {}), entryFrom: pendingEntryFrom }
-          : meta;
-      onSend(prompt, nextAttachments, nextCommentAttachments, effectiveMeta);
-      reset();
-      return true;
+      pendingSessionModeRef.current = null;
+      // 引用同时走两条路:折进正文给 agent 读,和**原样**挂在 meta 上给队列存。
+      // 后者是「点编辑取回来还是芯片」的唯一依据 —— 正文那份拆不出结构。
+      // 过一道 sanitize 是因为队列会原样落进 localStorage,那一层不设防。
+      const outgoingQuotes = sanitizeQuotes(quotes ?? []);
+      const effectiveMetaShape: ChatSendMeta = {
+        ...(meta ?? {}),
+        ...(pendingEntryFrom && !meta?.entryFrom ? { entryFrom: pendingEntryFrom } : {}),
+        ...(pendingSessionMode && !meta?.sessionMode ? { sessionMode: pendingSessionMode } : {}),
+        ...(outgoingQuotes.length > 0 ? { quotes: outgoingQuotes } : {}),
+      };
+      const effectiveMeta =
+        Object.keys(effectiveMetaShape).length > 0 ? effectiveMetaShape : undefined;
+      // 引用是这一条消息的上下文,发出去就该清掉 —— 它不是长期状态
+      onClearQuotes?.();
+      return beginComposedSend(
+        () => onSend(prompt, nextAttachments, nextCommentAttachments, effectiveMeta),
+        { entryFrom: pendingEntryFrom, sessionMode: pendingSessionMode },
+      );
     }
 
     function queueMeta(meta?: ChatSendMeta): ChatSendMeta {
@@ -1105,6 +1756,161 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       draftRef.current = text;
       setDraft(text);
       editorRef.current?.setText(text);
+    }
+
+    function insertInlineMentionSeparator() {
+      const current = editorRef.current?.getText() ?? draftRef.current;
+      if (current.trim() && !/\s$/.test(current)) {
+        editorRef.current?.insertText(' ');
+      }
+    }
+
+    function appendWorkspacePrompt(item: WorkspaceContextItem) {
+      setStagedWorkspaceContexts((current) =>
+        current.some((candidate) => candidate.id === item.id)
+          ? current
+          : [...current, item],
+      );
+      insertInlineMentionSeparator();
+      editorRef.current?.insertMention({
+        token: inlineMentionToken(item.label),
+        entity: { id: item.id, kind: 'workspace', label: item.label },
+      });
+      setMention(null);
+      setSlash(null);
+      setComposerEngaged(true);
+    }
+
+    async function addLinkedDirs(dirs: string[]): Promise<Map<string, TrackedWorkspaceLinkedDir | null> | false> {
+      if (!projectId) return false;
+      const trimmedDirs = Array.from(new Set(dirs.map((dir) => dir.trim()).filter(Boolean)));
+      if (trimmedDirs.length === 0) return new Map();
+      const base = projectMetadata ?? { kind: 'prototype' as const };
+      const existing = base.linkedDirs ?? [];
+      const nextLinkedDirs = [...existing];
+      const trackedByDir = new Map<string, TrackedWorkspaceLinkedDir | null>();
+      let changed = false;
+      for (const trimmed of trimmedDirs) {
+        if (nextLinkedDirs.includes(trimmed)) {
+          const ownedByWorkspaceContext = Object.values(workspaceLinkedDirAdds).some(
+            (tracked) => tracked.dir === trimmed,
+          );
+          trackedByDir.set(trimmed, ownedByWorkspaceContext ? { dir: trimmed, previousLinkedDirs: existing } : null);
+          continue;
+        }
+        nextLinkedDirs.push(trimmed);
+        trackedByDir.set(trimmed, { dir: trimmed, previousLinkedDirs: existing });
+        changed = true;
+      }
+      if (changed) {
+        const metadata: ProjectMetadata = { ...base, linkedDirs: nextLinkedDirs };
+        const result = await patchProject(projectId, { metadata }, workspaceContext);
+        if (!result?.metadata) {
+          onShowToast?.(t('homeWorkingDir.applyFailed'));
+          return false;
+        }
+        onProjectMetadataChange?.(result);
+        for (const trimmed of trimmedDirs) void rememberRecentDir(trimmed);
+      }
+      return trackedByDir;
+    }
+
+    async function addLinkedDir(dir: string): Promise<TrackedWorkspaceLinkedDir | null | false> {
+      const trackedByDir = await addLinkedDirs([dir]);
+      if (trackedByDir === false) return false;
+      return trackedByDir.get(dir.trim()) ?? null;
+    }
+
+    async function handleReferenceProjects(selections: ProjectReferenceSelection[]) {
+      const items = selections.map(({ project, resolvedDir }) => {
+        const path = resolvedDir.trim();
+        return {
+          id: `project:${project.id}`,
+          kind: 'project',
+          label: project.name || project.id,
+          title: project.name || project.id,
+          path: project.id,
+          ...(path ? { absolutePath: path } : {}),
+        } satisfies WorkspaceContextItem;
+      });
+      const trackedByDir = await addLinkedDirs(items.map((item) => workspaceContextLinkedDir(item) ?? ''));
+      if (trackedByDir === false) {
+        trackContextLinkResult(analytics.track, {
+          page_name: 'chat_panel',
+          area: 'chat_composer',
+          context_kind: 'project',
+          result: 'failed',
+          count: items.length,
+          ...(projectId ? { project_id: projectId } : {}),
+        });
+        return;
+      }
+      for (const item of items) {
+        appendWorkspacePrompt(item);
+      }
+      setProjectReferenceOpen(false);
+      trackContextLinkResult(analytics.track, {
+        page_name: 'chat_panel',
+        area: 'chat_composer',
+        context_kind: 'project',
+        result: 'success',
+        count: items.length,
+        ...(projectId ? { project_id: projectId } : {}),
+      });
+      const trackedAdds: Record<string, TrackedWorkspaceLinkedDir> = {};
+      for (const item of items) {
+        const path = workspaceContextLinkedDir(item);
+        const trackedLinkedDir = path ? trackedByDir.get(path) ?? null : null;
+        if (trackedLinkedDir) trackedAdds[item.id] = trackedLinkedDir;
+      }
+      if (Object.keys(trackedAdds).length > 0) {
+        setWorkspaceLinkedDirAdds((current) => ({ ...current, ...trackedAdds }));
+      }
+    }
+
+    async function handleLinkLocalCodeContext() {
+      const selected = await openFolderDialog();
+      if (!selected) {
+        trackContextLinkResult(analytics.track, {
+          page_name: 'chat_panel',
+          area: 'chat_composer',
+          context_kind: 'local_code',
+          result: 'cancelled',
+          ...(projectId ? { project_id: projectId } : {}),
+        });
+        return;
+      }
+      const trackedLinkedDir = await addLinkedDir(selected);
+      if (trackedLinkedDir === false) {
+        trackContextLinkResult(analytics.track, {
+          page_name: 'chat_panel',
+          area: 'chat_composer',
+          context_kind: 'local_code',
+          result: 'failed',
+          ...(projectId ? { project_id: projectId } : {}),
+        });
+        return;
+      }
+      const label = selected.split(/[/\\]/).filter(Boolean).pop() || selected;
+      const item: WorkspaceContextItem = {
+        id: `local-code:${selected}`,
+        kind: 'local-code',
+        label,
+        title: label,
+        absolutePath: selected,
+      };
+      appendWorkspacePrompt(item);
+      if (trackedLinkedDir) {
+        setWorkspaceLinkedDirAdds((current) => ({ ...current, [item.id]: trackedLinkedDir }));
+      }
+      trackContextLinkResult(analytics.track, {
+        page_name: 'chat_panel',
+        area: 'chat_composer',
+        context_kind: 'local_code',
+        result: 'success',
+        count: 1,
+        ...(projectId ? { project_id: projectId } : {}),
+      });
     }
 
     async function insertSkillMention(skill: SkillSummary) {
@@ -1304,17 +2110,65 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       ]));
     }
 
-    function removeWorkspaceContext(id: string) {
+    function workspaceContextDirStillReferenced(id: string, dir: string): boolean {
+      return Object.entries(workspaceLinkedDirAdds).some(
+        ([candidateId, candidate]) => candidateId !== id && candidate.dir === dir,
+      ) || selectedWorkspaceContexts.some((item) => (
+        item.id !== id && workspaceContextLinkedDir(item) === dir
+      )) || workingDir === dir;
+    }
+
+    async function removeTrackedWorkspaceLinkedDir(
+      id: string,
+      tracked: TrackedWorkspaceLinkedDir,
+    ): Promise<boolean> {
+      if (!projectId) return true;
+      if (workspaceContextDirStillReferenced(id, tracked.dir)) {
+        setWorkspaceLinkedDirAdds((current) => {
+          const { [id]: _removed, ...rest } = current;
+          return rest;
+        });
+        return true;
+      }
+      const base = projectMetadata ?? { kind: 'prototype' as const };
+      const currentLinkedDirs = base.linkedDirs ?? [...tracked.previousLinkedDirs, tracked.dir];
+      const nextLinkedDirs = currentLinkedDirs.filter((dir) => dir !== tracked.dir);
+      const metadata: ProjectMetadata = { ...base, linkedDirs: nextLinkedDirs };
+      const result = await patchProject(projectId, { metadata }, workspaceContext);
+      if (!result?.metadata) {
+        onShowToast?.(t('homeWorkingDir.applyFailed'));
+        return false;
+      }
+      onProjectMetadataChange?.(result);
+      setWorkspaceLinkedDirAdds((current) => {
+        const { [id]: _removed, ...rest } = current;
+        return rest;
+      });
+      return true;
+    }
+
+    async function removeWorkspaceContext(id: string) {
       trackComposerBar({ element: 'context_remove', resource_kind: 'workspace', resource_id: id });
-      if (visibleWorkspaceContext?.id === id) setDismissedWorkspaceContextId(id);
       const workspaceItem = selectedWorkspaceContexts.find((item) => item.id === id) ?? null;
+      const trackedLinkedDir = workspaceLinkedDirAdds[id] ?? null;
+      if (trackedLinkedDir && !(await removeTrackedWorkspaceLinkedDir(id, trackedLinkedDir))) {
+        return;
+      }
+      if (visibleWorkspaceContext?.id === id) setDismissedWorkspaceContextId(id);
       setStagedWorkspaceContexts((prev) => prev.filter((item) => item.id !== id));
+      if (!trackedLinkedDir) {
+        setWorkspaceLinkedDirAdds((current) => {
+          const { [id]: _removed, ...rest } = current;
+          return rest;
+        });
+      }
       if (workspaceItem) {
-        replaceEditorDraft(stripInlineMentionLabels(draft, [
+        replaceEditorDraft(stripInlineMentionLabels(draftRef.current, [
           workspaceItem.label,
           workspaceItem.id,
           workspaceItem.title ?? '',
           workspaceItem.path ?? '',
+          workspaceItem.absolutePath ?? '',
           workspaceItem.url ?? '',
         ]));
       }
@@ -1323,6 +2177,118 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     async function ensureProject(): Promise<string | null> {
       if (projectId) return projectId;
       return onEnsureProject();
+    }
+
+    /* ── 逐文件上传(设计稿 #61 / #63)────────────────────────────────
+     *
+     * 原来这里是**原子**的:一次 `uploadProjectFiles(id, files)` 打包发,成功之后
+     * 芯片才出现。于是上传的那几秒界面上一张卡都没有,失败也只有一行全局提示 ——
+     * 哪个文件没传上去、能不能只重发那一个,都说不出来。
+     *
+     * 现在**一个文件一个请求**。`uploadProjectFiles` 本来就收 `File[]`,给它一个
+     * 长度为 1 的数组走的是同一个端点、同一份契约 —— 后端和 `packages/contracts`
+     * 都不用动,换来的是失败能落到具体那张卡上(原来只有 `failed[].name`,
+     * 同名文件根本对不回去)。
+     *
+     * 代价是请求数从 ⌈N/12⌉ 变成 N,所以并发限到 `STAGED_UPLOAD_CONCURRENCY`。
+     */
+    function stageOnePendingUpload(file: File, order: number): PendingUpload {
+      pendingSeqRef.current += 1;
+      const id = `pu-${pendingSeqRef.current}`;
+      const kind = looksLikeImageName(file.name, file.type) ? 'image' as const : 'file' as const;
+      // 本地缩略图只为上传的那几秒服务;拿不到(jsdom / 老浏览器)就退回灰底占位。
+      let previewUrl: string | null = null;
+      if (kind === 'image' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+        try {
+          previewUrl = URL.createObjectURL(file);
+        } catch {
+          previewUrl = null;
+        }
+      }
+      pendingFilesRef.current.set(id, { file, previewUrl });
+      return {
+        id,
+        name: file.name,
+        kind,
+        ...(Number.isFinite(file.size) ? { size: file.size } : {}),
+        order,
+        state: 'uploading',
+        ...(previewUrl ? { previewUrl } : {}),
+      };
+    }
+
+    function releasePendingUpload(id: string) {
+      const entry = pendingFilesRef.current.get(id);
+      if (entry?.previewUrl && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+        try {
+          URL.revokeObjectURL(entry.previewUrl);
+        } catch {
+          /* 已经撤过或环境不支持 —— 撤不掉不影响功能 */
+        }
+      }
+      pendingFilesRef.current.delete(id);
+    }
+
+    function dropPendingUpload(id: string) {
+      releasePendingUpload(id);
+      setPendingUploads((current) => current.filter((item) => item.id !== id));
+    }
+
+    /**
+     * 传一个文件。传成功就把占位卡换成真附件(**同一个 `order`**,所以它落回
+     * 用户当初挑的那个位置,不因为先传完而插队);失败就把卡留在托盘里标红,
+     * 等人点重试或者「×」。
+     */
+    async function runOnePendingUpload(
+      projectIdForUpload: string,
+      entry: PendingUpload,
+    ): Promise<{ ok: boolean; error?: string }> {
+      const local = pendingFilesRef.current.get(entry.id);
+      // 人在这一轮里已经把卡「×」掉了 —— 别再把结果塞回托盘。
+      if (!local) return { ok: true };
+      try {
+        const result = await uploadProjectFiles(
+          projectIdForUpload,
+          [local.file],
+          undefined,
+          workspaceContext,
+        );
+        const uploaded = result.uploaded[0];
+        // 人在等结果的这几秒里把卡撤了,结果就地丢掉(文件本身已经落到项目里,
+        // 和「传完再点×」是同一个语义 —— 不进待发列表,也不回删)。
+        if (!pendingFilesRef.current.has(entry.id)) return { ok: Boolean(uploaded) };
+        if (uploaded) {
+          appendOrderedStagedAttachments([{ ...uploaded, order: entry.order }]);
+          dropPendingUpload(entry.id);
+          return { ok: true };
+        }
+        const detail = result.error ?? result.failed[0]?.error;
+        setPendingUploads((current) =>
+          current.map((item) => (item.id === entry.id ? { ...item, state: 'failed' } : item)),
+        );
+        return { ok: false, ...(detail ? { error: detail } : {}) };
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        if (pendingFilesRef.current.has(entry.id)) {
+          setPendingUploads((current) =>
+            current.map((item) => (item.id === entry.id ? { ...item, state: 'failed' } : item)),
+          );
+        }
+        return { ok: false, error: detail };
+      }
+    }
+
+    /** 只重发这一个文件。本地 `File` 还在 `pendingFilesRef` 里,失败时没有清掉。 */
+    async function retryPendingUpload(pendingId: string) {
+      const target = pendingUploads.find((item) => item.id === pendingId);
+      if (!target || !pendingFilesRef.current.has(pendingId)) return;
+      const id = await ensureProject();
+      if (!id) return;
+      setUploadError(null);
+      setPendingUploads((current) =>
+        current.map((item) => (item.id === pendingId ? { ...item, state: 'uploading' } : item)),
+      );
+      await runOnePendingUpload(id, { ...target, state: 'uploading' });
     }
 
     async function uploadFiles(files: File[]) {
@@ -1338,34 +2304,44 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       const cohort = deriveUploadCohort(files);
       const orderStart = reserveAttachmentOrders(files.length);
       try {
-        const result = await uploadProjectFiles(id, files);
-        if (result.uploaded.length > 0) {
-          const orderedUploaded = assignChatAttachmentOrders(result.uploaded, orderStart);
-          appendOrderedStagedAttachments(orderedUploaded);
-        }
-        const partial = result.failed.length > 0;
+        const entries = files.map((file, index) => stageOnePendingUpload(file, orderStart + index));
+        setPendingUploads((current) => [...current, ...entries]);
+        const outcomes = await runWithConcurrency(
+          entries,
+          STAGED_UPLOAD_CONCURRENCY,
+          (entry) => runOnePendingUpload(id, entry),
+        );
+        const failures = outcomes.filter((outcome) => !outcome.ok);
+        const partial = failures.length > 0;
         if (partial) {
-          const failedCount = result.failed.length;
-          const uploadedCount = result.uploaded.length;
-          const detail = result.error ? ` (${result.error})` : '';
+          // 全局那一行提示【保留】。稿子里没有它 —— 稿子把失败全交给卡片上的
+          // 「重试」,可那一格只画了图卡(S13:文档宽卡的失败态没画,「重试」放哪
+          // 没说)。在设计补上那一态之前,文档卡失败就只剩这一行能说话,
+          // 收掉它等于让「.txt 传失败」变成完全无声。
+          const failedCount = failures.length;
+          const uploadedCount = outcomes.length - failedCount;
+          const firstFailure = failures.find((outcome) => outcome.error)?.error;
+          const detail = firstFailure ? ` (${firstFailure})` : '';
           setUploadError(
             uploadedCount > 0
-              ? `Attached ${uploadedCount} file(s), but ${failedCount} failed${detail}.`
-              : `Attachment upload failed for ${failedCount} file(s)${detail}.`,
+              ? t('questions.uploadPartialFailed', { uploaded: uploadedCount, failed: failedCount }) + detail
+              : t('questions.uploadFailed', { failed: failedCount }) + detail,
           );
-          console.warn('Some attachments failed to upload', result.failed);
+          console.warn('Some attachments failed to upload', failures);
         }
+        // 埋点仍然是**一次挑文件一条事件**(v2 文档的口径),不随请求数变成 N 条。
+        const firstError = failures.find((outcome) => outcome.error)?.error;
         trackFileUploadResult(analytics.track, {
           page_name: 'chat_panel',
           area: 'chat_composer',
           project_id: id,
           ...cohort,
           result: partial ? 'failed' : 'success',
-          ...(partial && result.error ? { error_code: result.error } : {}),
+          ...(partial && firstError ? { error_code: firstError } : {}),
         });
       } catch (err) {
         const detail = err instanceof Error ? err.message : String(err);
-        setUploadError(`Attachment upload failed (${detail}).`);
+        setUploadError(`${t('chat.annotationUploadFailed')} (${detail})`);
         trackFileUploadResult(analytics.track, {
           page_name: 'chat_panel',
           area: 'chat_composer',
@@ -1374,6 +2350,71 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           result: 'failed',
           error_code: detail,
         });
+      } finally {
+        setUploading(false);
+      }
+    }
+
+    // "Select from library" (资源库): copy each chosen asset into the project's
+    // design files and stage it as an attachment chip, mirroring how the native
+    // file picker materializes uploads into the project on attach. The apply
+    // call records a provenance back-link so the registry knows the asset was
+    // consumed.
+    async function addAssetsFromLibrary(assets: LibraryAsset[]) {
+      if (assets.length === 0) return;
+      const id = await ensureProject();
+      if (!id) return;
+      setUploading(true);
+      setUploadError(null);
+      const orderStart = reserveAttachmentOrders(assets.length);
+      try {
+        const applied: ChatAttachment[] = [];
+        // Element-pick captures carry their picked node's markup; collect it so
+        // we can drop the HTML straight into the composer input (the image still
+        // attaches as a normal reference).
+        const elementBlocks: string[] = [];
+        let failed = 0;
+        for (const asset of assets) {
+          const res = await applyLibraryAsset(
+            asset.id,
+            id,
+            undefined,
+            undefined,
+            workspaceContext,
+          );
+          if (!res?.relPath) {
+            failed += 1;
+            continue;
+          }
+          applied.push({
+            path: res.relPath,
+            name: assetTitle(asset),
+            kind: asset.kind === 'image' ? 'image' : 'file',
+          });
+          const element = elementMetaOf(asset);
+          if (element?.hasHtml) {
+            const html = await fetchLibraryAssetElementHtml(asset.id);
+            if (html) elementBlocks.push(formatElementHtmlBlock(asset, element, html));
+          }
+        }
+        if (applied.length > 0) {
+          appendOrderedStagedAttachments(assignChatAttachmentOrders(applied, orderStart));
+        }
+        if (elementBlocks.length > 0) {
+          const existing = editorRef.current?.getText() ?? '';
+          editorRef.current?.insertText((existing.trim() ? '\n\n' : '') + elementBlocks.join('\n\n'));
+          editorRef.current?.focus();
+        }
+        if (failed > 0) {
+          setUploadError(
+            applied.length > 0
+              ? `Added ${applied.length} item(s), but ${failed} failed.`
+              : `Could not add ${failed} item(s) from the library.`,
+          );
+        }
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        setUploadError(`Could not add from library (${detail}).`);
       } finally {
         setUploading(false);
       }
@@ -1431,43 +2472,50 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 return;
               }
               setUploading(true);
-              const result = await uploadProjectFiles(id, annotationFiles);
+              const result = await uploadProjectFiles(id, annotationFiles, undefined, workspaceContext);
               if (result.uploaded.length > 0) {
                 uploaded = assignChatAttachmentOrders(result.uploaded, orderStart);
-                const screenshot = detail.file ? uploaded[0] : null;
-                if (screenshot && detail.markKind && detail.bounds) {
-                  visualAttachmentInput = {
-                    order: isFiniteAttachmentOrder(screenshot.order) ? screenshot.order : orderStart,
-                    idSeed: screenshot.path,
-                    screenshotPath: screenshot.path,
-                    markKind: detail.markKind,
-                    note: detail.note,
-                    bounds: detail.bounds,
-                    target: detail.target
-                      ? {
-                          filePath: detail.target.filePath || detail.filePath || screenshot.path,
-                          elementId: detail.target.elementId,
-                          selector: detail.target.selector,
-                          label: detail.target.label,
-                          text: detail.target.text,
-                          position: detail.target.position,
-                          htmlHint: detail.target.htmlHint,
-                        }
-                      : {
-                          filePath: detail.filePath || screenshot.path,
-                          position: detail.bounds,
-                        },
-                  };
-                }
               }
               if (result.failed.length > 0) {
                 const detailText = result.error ? ` (${result.error})` : '';
-                setUploadError(`Attachment upload failed for ${result.failed.length} file(s)${detailText}.`);
+                setUploadError(t('questions.uploadFailed', { failed: result.failed.length }) + detailText);
                 if (uploaded.length === 0) {
                   ack({ ok: false, message: t('chat.annotationUploadFailed') });
                   return;
                 }
               }
+            }
+            // The structured visual comment is built whenever the mark has a
+            // location, with or without the screenshot upload. When the
+            // preview capture failed (#4080) the screenshot is absent, but
+            // file/bounds/markKind still anchor the marked region for the
+            // agent (#4084) — dropping them would reduce the send to bare
+            // prose and force the agent to guess what "this part" means.
+            if (detail.markKind && detail.bounds) {
+              const screenshot = detail.file && uploaded.length > 0 ? uploaded[0] : null;
+              visualAttachmentInput = {
+                order: screenshot && isFiniteAttachmentOrder(screenshot.order) ? screenshot.order : 1,
+                idSeed: screenshot?.path
+                  ?? `${detail.filePath || 'preview'}-${detail.markKind}-${Math.round(detail.bounds.x * 1000)}-${Math.round(detail.bounds.y * 1000)}`,
+                ...(screenshot ? { screenshotPath: screenshot.path } : {}),
+                markKind: detail.markKind,
+                note: detail.note,
+                bounds: detail.bounds,
+                target: detail.target
+                  ? {
+                      filePath: detail.target.filePath || detail.filePath || screenshot?.path || '',
+                      elementId: detail.target.elementId,
+                      selector: detail.target.selector,
+                      label: detail.target.label,
+                      text: detail.target.text,
+                      position: detail.target.position,
+                      htmlHint: detail.target.htmlHint,
+                    }
+                  : {
+                      filePath: detail.filePath || screenshot?.path || '',
+                      position: detail.bounds,
+                    },
+              };
             }
             setUploading(false);
 
@@ -1506,7 +2554,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                   ...visualAttachmentInput,
                 });
               }
-              const prompt = [draft.trim(), detail.note].filter(Boolean).join('\n');
+              // 引文前缀走共用的那一处 —— 标注面板发出去的这一发同样会清掉芯片,
+              // 不折进去就是「清空了但没带走」(OPEND-2551)。
+              const prompt = composeOutgoingPrompt([draft.trim(), detail.note].filter(Boolean).join('\n'));
               const attachments = sortChatAttachmentsByOrder([...staged, ...uploaded]);
               const nextCommentAttachments = currentCommentAttachments(visualAttachment ? [visualAttachment] : []);
               // Mark draw-overlay → run: tag entry_from='mark' so the dashboard
@@ -1532,7 +2582,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                   ...visualAttachmentInput,
                 });
               }
-              const prompt = [draft.trim(), detail.note].filter(Boolean).join('\n');
+              // 引文前缀走共用的那一处 —— 标注面板发出去的这一发同样会清掉芯片,
+              // 不折进去就是「清空了但没带走」(OPEND-2551)。
+              const prompt = composeOutgoingPrompt([draft.trim(), detail.note].filter(Boolean).join('\n'));
               const attachments = sortChatAttachmentsByOrder([...staged, ...uploaded]);
               const nextCommentAttachments = currentCommentAttachments(visualAttachment ? [visualAttachment] : []);
               // Mark draw-overlay → run: tag entry_from='mark' so the dashboard
@@ -1565,6 +2617,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       draft,
       onSend,
       projectId,
+      // 引用要折进这条路发出去的正文,闭包必须拿到当下这一份。
+      quotes,
       selectedWorkspaceContexts,
       staged,
       stagedConnectors,
@@ -1575,13 +2629,32 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       t,
     ]);
 
+    // Stages attachments that a surface already uploaded to the project itself
+    // (ChatAttachment shape, not File) — e.g. the design browser's hover
+    // "添加到对话" capture, which writes the PNG via writeProjectBase64File
+    // before notifying the composer. Mirrors ANNOTATION_EVENT's pattern above.
+    useEffect(() => {
+      function onStageAttachment(e: Event) {
+        const detail = (e as CustomEvent<StageAttachmentEventDetail>).detail;
+        const attachments = detail?.attachments?.filter(
+          (item): item is ChatAttachment => Boolean(item && item.path && item.name),
+        );
+        if (!attachments || attachments.length === 0) return;
+        const orderStart = reserveAttachmentOrders(attachments.length);
+        appendOrderedStagedAttachments(assignChatAttachmentOrders(attachments, orderStart));
+        editorRef.current?.focus();
+      }
+      window.addEventListener(STAGE_ATTACHMENT_EVENT, onStageAttachment);
+      return () => window.removeEventListener(STAGE_ATTACHMENT_EVENT, onStageAttachment);
+    }, [staged]);
+
     useEffect(() => {
       if (!streamingAnnotationSendPending || !streamingAnnotationSendPendingRef.current) return;
       if (streaming || sendDisabled) return;
       // Read the ref, not the closed-over `draft`: the accumulating annotation
       // handler writes draftRef synchronously, so the ref is authoritative even
       // if this effect's render closure predates the last accumulation.
-      const prompt = draftRef.current.trim();
+      const prompt = composeOutgoingPrompt(draftRef.current.trim());
       // Consume the entry_from captured when the send was deferred (Mark
       // draw-overlay sets 'mark'); clear it so a later plain send is unaffected.
       const pendingEntryFrom = streamingAnnotationSendEntryFromRef.current;
@@ -1593,6 +2666,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       commentAttachments,
       draft,
       onSend,
+      // 同上:延迟发的那一发也要带上此刻的引用。
+      quotes,
       selectedWorkspaceContexts,
       sendDisabled,
       staged,
@@ -1619,31 +2694,81 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     function handleDrop(e: React.DragEvent<HTMLDivElement>) {
       e.preventDefault();
       setDragActive(false);
+      // Chromium exposes dropped directories as zero-byte `File` objects in
+      // `dataTransfer.files`. Appending one to FormData makes Electron try to
+      // read the directory as a file, which raises EISDIR in the main process
+      // before the renderer's fetch promise can report a normal upload error.
+      // Inspect the richer item entry first and never hand a directory to the
+      // multipart stack.
+      if (dataTransferContainsDirectory(e.dataTransfer)) {
+        setUploadError(t('chat.attachmentFolderUnsupported'));
+        return;
+      }
       const files = Array.from(e.dataTransfer.files ?? []);
       if (files.length > 0) void uploadFiles(files);
+    }
+
+    // Dragging the shell's gray backdrop (not its children) vertically
+    // resizes the editor: up = taller. Dragging back at/below the default
+    // height clears the override and returns to auto-grow.
+    function handleShellResizeMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+      if (e.target !== e.currentTarget) return;
+      if (e.button !== 0) return;
+      const editorEl = e.currentTarget.querySelector<HTMLElement>('.composer-input-editor');
+      if (!editorEl) return;
+      e.preventDefault();
+      const startY = e.clientY;
+      const startHeight = editorEl.getBoundingClientRect().height;
+      const DEFAULT_MIN = 72;
+      const onMove = (ev: MouseEvent) => {
+        const delta = startY - ev.clientY;
+        const max = Math.round(window.innerHeight * 0.6);
+        const next = Math.min(max, Math.max(DEFAULT_MIN, Math.round(startHeight + delta)));
+        setManualEditorHeight(next <= DEFAULT_MIN + 4 ? null : next);
+      };
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        document.body.style.removeProperty('cursor');
+        document.body.style.removeProperty('user-select');
+      };
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
     }
 
     async function handleLinkFolder() {
       if (!projectId) return;
       const selected = await openFolderDialog();
       if (!selected) return;
-      const base = projectMetadata ?? { kind: 'prototype' as const };
-      const existing = base.linkedDirs ?? [];
-      if (existing.includes(selected)) return;
-      const metadata: ProjectMetadata = { ...base, linkedDirs: [...existing, selected] };
-      const result = await patchProject(projectId, { metadata });
-      if (result?.metadata) onProjectMetadataChange?.(result.metadata);
+      await addLinkedDir(selected);
+    }
+
+    function linkedDirsWithWorkspaceContext(primaryDir: string | null): string[] {
+      const primary = primaryDir?.trim();
+      const contextDirs = primary
+        ? workspaceContextMetadataLinkedDirList.filter((dir) => dir !== primary)
+        : workspaceContextMetadataLinkedDirList;
+      return Array.from(new Set([
+        ...(primary ? [primary] : []),
+        ...contextDirs,
+      ]));
     }
 
     // The WorkingDirPicker treats the project's working directory as a single
-    // primary folder, so selecting one replaces `linkedDirs`. The folder is
-    // read-only awareness for the agent (→ `--add-dir`), not a Design Files
-    // import, and `baseDir` is never touched.
+    // primary folder, so selecting one replaces the primary `linkedDirs` entry
+    // while preserving staged workspace-context dirs. The folder is read-only
+    // awareness for the agent (→ `--add-dir`), not a Design Files import, and
+    // `baseDir` is never touched.
     async function setWorkingDirFolder(dir: string) {
       if (!projectId) return;
       const base = projectMetadata ?? { kind: 'prototype' as const };
-      const metadata: ProjectMetadata = { ...base, linkedDirs: [dir] };
-      const result = await patchProject(projectId, { metadata });
+      const metadata: ProjectMetadata = {
+        ...base,
+        linkedDirs: linkedDirsWithWorkspaceContext(dir),
+      };
+      const result = await patchProject(projectId, { metadata }, workspaceContext);
       // The daemon rejects stale/inaccessible/system dirs with
       // INVALID_LINKED_DIR (patchProject → null). Only commit the selection
       // and promote it in recents when the project accepted it; otherwise
@@ -1653,7 +2778,19 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
         onShowToast?.(t('homeWorkingDir.applyFailed'));
         return;
       }
-      onProjectMetadataChange?.(result.metadata);
+      onProjectMetadataChange?.(result);
+      const promotedDir = dir.trim();
+      setPromotedWorkspaceContextDir(
+        selectedWorkspaceContextDirs.includes(promotedDir) ? promotedDir : null,
+      );
+      setWorkspaceLinkedDirAdds((current) => {
+        const nextEntries = Object.entries(current).filter(([, tracked]) => (
+          tracked.dir !== promotedDir
+        ));
+        return nextEntries.length === Object.keys(current).length
+          ? current
+          : Object.fromEntries(nextEntries);
+      });
       void rememberRecentDir(dir);
     }
     async function handlePickWorkingDir() {
@@ -1663,34 +2800,16 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     async function clearWorkingDir() {
       if (!projectId) return;
       const base = projectMetadata ?? { kind: 'prototype' as const };
-      const metadata: ProjectMetadata = { ...base, linkedDirs: [] };
-      const result = await patchProject(projectId, { metadata });
-      if (result?.metadata) onProjectMetadataChange?.(result.metadata);
-    }
-
-    async function handleSwitchDesignSystem(
-      designSystemId: string | null,
-      title: string | null,
-    ): Promise<boolean> {
-      if (!projectId) return false;
-      if (designSystemId === currentDesignSystemId) return true;
-      const result = await patchProject(projectId, { designSystemId });
-      if (!result) {
-        onShowToast?.(t('chat.importDesignSystemFailed'));
-        return false;
+      const metadata: ProjectMetadata = {
+        ...base,
+        linkedDirs: linkedDirsWithWorkspaceContext(null),
+      };
+      const result = await patchProject(projectId, { metadata }, workspaceContext);
+      if (result?.metadata) {
+        setPromotedWorkspaceContextDir(null);
+        onProjectMetadataChange?.(result);
       }
-      trackComposerBar({
-        element: 'design_system_switch',
-        ...(designSystemId ? { design_system_id: designSystemId } : {}),
-      });
-      onActiveDesignSystemChange?.(result);
-      const switchedTitle = designSystemId === null
-        ? t('chat.importDesignSystemNone')
-        : title ?? designSystemId;
-      onShowToast?.(t('chat.importDesignSystemSwitched', { title: switchedTitle }));
-      return true;
     }
-
 
     // Lexical drives every text change through this callback. `present` is the
     // entity list the editor's text currently references (MentionNodes plus
@@ -1698,8 +2817,10 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     // kind:id). We prune the staged skill/mcp/connector chips to whatever the
     // text still references — generalizing the old skill-only regex prune so a
     // hand-deleted token also drops its chip and never leaks into the run
-    // context. `staged` (files) is intentionally NOT pruned: users attach
-    // files via the upload button without leaving an `@<path>` token.
+    // context. Workspace contexts that added linked dirs are kept visible until
+    // the chip remove button clears the matching metadata access. `staged`
+    // (files) is intentionally NOT pruned: users attach files via the upload
+    // button without leaving an `@<path>` token.
     function handleEditorChange(text: string, present: InlineMentionEntity[]) {
       draftRef.current = text;
       setDraft(text);
@@ -1719,7 +2840,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
         prev.filter((c) => set.has(`connector:${c.id}`)),
       );
       setStagedWorkspaceContexts((prev) =>
-        prev.filter((item) => set.has(`workspace:${item.id}`)),
+        prev.filter((item) => set.has(`workspace:${item.id}`) || Boolean(workspaceLinkedDirAdds[item.id])),
       );
     }
 
@@ -1930,7 +3051,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
 
     async function applyProjectSkill(skill: SkillSummary): Promise<boolean> {
       if (!projectId) return false;
-      const result = await patchProject(projectId, { skillId: skill.id });
+      const result = await patchProject(projectId, { skillId: skill.id }, workspaceContext);
       if (!result) return false;
       onProjectSkillChange?.(result.skillId ?? skill.id);
       return true;
@@ -1953,8 +3074,11 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
     }
 
     async function submit() {
-      const prompt = draft.trim();
-      if (sendDisabled) return;
+      const prompt = composeOutgoingPrompt(draft.trim());
+      // 「这一发能不能走」只问 `canSend` 这一处 —— 见它的注释(OPEND-2551)。
+      // 位置在最前面是有意的:下面的 `/hatch`、`/search` 两条支路会绕过后续流程,
+      // 判据留在它们后面的话,那两条支路等于又多了一套自己的答案。
+      if (!canSend) return;
       // Intercept `/pet …` and `/mcp` before sending so the slash command
       // never hits the agent — these are local UX hooks, not model prompts.
       if (tryHandlePetSlash()) return;
@@ -1969,22 +3093,24 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
       if (hatched) {
         if (streaming) return;
         setStreamingAnnotationSendPending(false);
-        onSend(hatched, staged, nextCommentAttachments, contextMeta);
-        reset();
+        notifyCompletionFeedbackGesture();
+        beginComposedSend(() => onSend(hatched, staged, nextCommentAttachments, contextMeta));
         return;
       }
       const search = researchAvailable ? expandSearchCommand(prompt) : null;
       if (search) {
         if (streaming) return;
         setStreamingAnnotationSendPending(false);
-        onSend(search.prompt, staged, nextCommentAttachments, {
-          ...contextMeta,
-          research: { enabled: true, query: search.query },
-        });
-        reset();
+        notifyCompletionFeedbackGesture();
+        beginComposedSend(
+          () => onSend(search.prompt, staged, nextCommentAttachments, {
+            ...contextMeta,
+            research: { enabled: true, query: search.query },
+          }),
+        );
         return;
       }
-      if (!prompt && staged.length === 0 && nextCommentAttachments.length === 0) return;
+      notifyCompletionFeedbackGesture();
       sendComposedTurn(prompt, staged, nextCommentAttachments, contextMeta);
     }
 
@@ -2097,10 +3223,91 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
         .filter((s) => skillMatchesQuery(s, mentionQuery))
         .sort((a, b) => skillMentionRank(a, mentionQuery) - skillMentionRank(b, mentionQuery));
     }, [mention, mentionQuery, skills, stagedSkills]);
+    const liveCommentAttachments = currentCommentAttachments();
+    const placeholderCarouselActive =
+      !streaming
+      && !sendDisabled
+      && !activeFileContext
+      && placeholderScenarios.length > 0
+      && draft.trim().length === 0
+      && staged.length === 0
+      && liveCommentAttachments.length === 0
+      && !mention
+      && !slash;
+    // Deliberately does NOT include the placeholder carousel's rotating
+    // scenario text: that ghost text stands in for the editor's own
+    // placeholder while the composer is genuinely empty, and must never make
+    // Send (or Enter) submittable on its own — see the emptiness guard in
+    // `submit()` above (recvqaj7eKpxH6).
     const hasComposerPayload =
-      draft.trim().length > 0 || staged.length > 0 || currentCommentAttachments().length > 0;
+      draft.trim().length > 0
+      || staged.length > 0
+      || liveCommentAttachments.length > 0
+      || sanitizeQuotes(quotes ?? []).length > 0;
+    /**
+     * 「这一发能不能走」的**唯一**判据。
+     *
+     * 发送按钮的 disabled、回车走的 `submit()`,读的都必须是它。
+     * OPEND-2551 报的就是这件事被问出了两个答案:芯片(输入框上方那排「N 条注释」)
+     * 已经挂着、输入框本身是空的,按钮灰着 —— 可回车发得出去。当时按钮问的是
+     * `hasComposerPayload`(它不数引用),而 `submit()` 问的是「折好的正文空不空」,
+     * 而引用**是折进正文的**,所以同一时刻它非空。同一个问题、两处各算各的,
+     * 早晚会分叉;分叉之后症状出现在离原因最远的地方(用户看到的是「按钮坏了」)。
+     */
+    const canSend = !sendDisabled && hasComposerPayload;
+    /**
+     * 摆到台面上的那枚「已应用插件」芯片(OPEND-2412)。
+     *
+     * 首页自由输入、以及「用这套设计系统创建」都会给这一发绑上 `od-default`
+     * 这枚**兜底路由**。它不是用户挑的插件,只是「这一发还没选场景」的内部说法 ——
+     * 摆成一枚可见芯片,读起来就像用户自己挂了个叫 “Default design router” 的东西,
+     * 旁边还给一颗移除按钮。产品裁决:**界面不展示,底层照旧**。
+     *
+     * 所以过滤只发生在**呈现**这一层。`activeAppliedPlugin` 一个字都不能动 ——
+     * 它还在喂 `pinnedPluginId`、`currentRunContextMeta()`(落库 + 重试都读它)
+     * 和 daemon 侧的 snapshot 绑定;把 state 本身清掉是静默的功能回退。
+     */
+    const visibleAppliedPlugin =
+      activeAppliedPlugin && activeAppliedPlugin.pluginId !== DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID
+        ? activeAppliedPlugin
+        : null;
+    const showAdmissionPendingButton = composedSendPending && !streaming;
     const showStopButton = streaming && !hasComposerPayload;
-    const showSendButton = !streaming || hasComposerPayload;
+    const showSendButton = (!streaming || hasComposerPayload) && !showAdmissionPendingButton;
+    /* 托盘里要摆的那一排卡:已传好的 `staged` 与还在传 / 传失败的 `pendingUploads`
+       合成一排,顺序按用户当初挑文件的顺序(合并规则是纯函数,单测在
+       `tests/runtime/chat/staged-attachment.test.ts`)。
+       ⚠️ **只有 `state === 'ready'` 的卡进得了 `hasComposerPayload`** —— 上面那个
+       判断读的是 `staged`,没读这里,所以「在传的文件算不算 payload」的语义没被这次
+       改动动过(那条已知 bug 属于另一个 PR,见规格 §4-A 末尾)。 */
+    const stagedAttachmentCards = useMemo(
+      () => buildStagedAttachmentCards(
+        staged,
+        externalPendingUploads && externalPendingUploads.length > 0
+          ? [...externalPendingUploads, ...pendingUploads]
+          : pendingUploads,
+      ),
+      [staged, pendingUploads, externalPendingUploads],
+    );
+    /** 「×」按卡的归属分流:自己的走本地,别人寄放的还给它的主人。 */
+    const removePendingCard = (pendingId: string) => {
+      if (pendingFilesRef.current.has(pendingId)) {
+        dropPendingUpload(pendingId);
+        return;
+      }
+      onRemoveExternalPendingUpload?.(pendingId);
+    };
+
+    const composerDesignSystemPicker = () => {
+      const trigger = composerRootRef.current?.querySelector<HTMLButtonElement>(
+        '[data-testid="project-ds-picker-trigger"]',
+      );
+      if (!trigger || trigger.disabled) return;
+      window.requestAnimationFrame(() => {
+        if (trigger.getAttribute('aria-expanded') !== 'true') trigger.click();
+        trigger.focus({ preventScroll: true });
+      });
+    };
 
     return (
       <div
@@ -2108,17 +3315,125 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
           'composer',
           dragActive ? 'drag-active' : '',
           activeFileContext ? 'composer-active-file-mode' : '',
+          inputDisabled ? 'composer-readonly' : '',
         ].filter(Boolean).join(' ')}
         data-testid="chat-composer"
         ref={composerRootRef}
         onDragOver={(e) => {
+          if (inputDisabled) return;
           e.preventDefault();
           setDragActive(true);
         }}
         onDragLeave={() => setDragActive(false)}
-        onDrop={handleDrop}
+        onDrop={inputDisabled ? undefined : handleDrop}
       >
-        <div className="composer-shell">
+        {designToolboxOpen ? (
+          <div className="composer-toolbox-standalone">
+            {/* Click-catcher backdrop. A <div> (not a <button>) so it never
+                inherits the app's global button:hover fill, which otherwise
+                painted the whole screen when the cursor crossed it. */}
+            <div
+              className="composer-toolbox-standalone-backdrop"
+              aria-hidden="true"
+              onClick={dismissStandalonePanels}
+            />
+            <div
+              className="plus-menu__popup composer-toolbox-standalone-popup"
+              role="menu"
+              onMouseEnter={cancelComposerPanelClose}
+              onMouseLeave={scheduleComposerPanelClose}
+            >
+              <DesignToolboxPanel
+                workspaceContext={workspaceContext}
+                actions={DESIGN_TOOLBOX_ACTIONS}
+                skills={skills}
+                plugins={pluginsForComposer}
+                mcpServers={enabledMcpServers}
+                mcpTemplates={mcpTemplates}
+                connectors={connectors}
+                projectFiles={projectFiles}
+                activeSkillIds={stagedSkills.map((skill) => skill.id)}
+                activePluginId={activeAppliedPlugin?.pluginId ?? pinnedPluginId ?? null}
+                activeMcpServerIds={stagedMcpServers.map((server) => server.id)}
+                activeConnectorIds={stagedConnectors.map((connector) => connector.id)}
+                activeFilePaths={staged.map((item) => item.path)}
+                onOpened={() => trackDesignToolbox({ element: 'design_toolbox_open' })}
+                onPickAction={(action) => {
+                  trackDesignToolbox({
+                    element: 'design_toolbox_action',
+                    toolbox_action_id: action.id,
+                  });
+                  applyDesignToolboxAction(action);
+                  setDesignToolboxOpen(false);
+                }}
+                onPickSkill={(skill) => {
+                  trackDesignToolbox({
+                    element: 'design_toolbox_resource',
+                    resource_kind: 'skill',
+                    resource_id: skill.id,
+                  });
+                  applyDesignToolboxSkill(skill);
+                  setDesignToolboxOpen(false);
+                }}
+                onPickResource={(resource) => {
+                  trackDesignToolbox({
+                    element: 'design_toolbox_resource',
+                    ...designToolboxResourceTracking(resource),
+                  });
+                  applyDesignToolboxResource(resource);
+                  setDesignToolboxOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        ) : null}
+        {/* Standalone plugins popover — the 插件 quick pill's surface, now
+            that the "+" menu no longer carries a plugins row. Same anchor
+            and backdrop pattern as the toolbox popover above. */}
+        {pluginsPanelOpen ? (
+          <div className="composer-toolbox-standalone">
+            <div
+              className="composer-toolbox-standalone-backdrop"
+              aria-hidden="true"
+              onClick={dismissStandalonePanels}
+            />
+            <div
+              className="plus-menu__popup composer-toolbox-standalone-popup composer-plugins-standalone-popup"
+              data-testid="composer-plugins-popup"
+              role="menu"
+              onMouseEnter={cancelComposerPanelClose}
+              onMouseLeave={scheduleComposerPanelClose}
+            >
+              <StandalonePluginsPane
+                workspaceContext={workspaceContext}
+                plugins={pluginsForComposer}
+                onPick={(record) => {
+                  trackComposerBar({
+                    element: 'plus_pick',
+                    resource_kind: 'plugin',
+                    resource_id: record.id,
+                  });
+                  void insertPluginMention(record);
+                  setPluginsPanelOpen(false);
+                }}
+                onAdd={onBrowsePlugins ? () => {
+                  trackComposerBar({ element: 'plus_add', resource_kind: 'plugin' });
+                  setPluginsPanelOpen(false);
+                  onBrowsePlugins();
+                } : undefined}
+              />
+            </div>
+          </div>
+        ) : null}
+        <div
+          className={`composer-shell${manualEditorHeight != null ? ' composer-shell--manual-height' : ''}`}
+          style={
+            manualEditorHeight != null
+              ? ({ '--composer-manual-h': `${manualEditorHeight}px` } as React.CSSProperties)
+              : undefined
+          }
+          onMouseDown={handleShellResizeMouseDown}
+        >
           {/*
             Spec §8.4 — context bar above the composer input. The
             section now behaves as a pure context bar: it renders the
@@ -2148,35 +3463,39 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 setActiveAppliedPlugin(null);
               }}
               onChipDetails={(item: ContextItem) => {
-                if (item.kind !== 'plugin') return;
-                const record = installedPlugins.find((p) => p.id === item.id);
-                if (record) setDetailsRecord(record);
+                if (item.kind === 'plugin') {
+                  const record = installedPlugins.find((p) => p.id === item.id);
+                  if (record) setDetailsRecord(record);
+                  return;
+                }
+                if (item.kind === 'skill') {
+                  setDetailsSkill({
+                    id: item.id,
+                    summary: skills.find((skill) => skill.id === item.id) ?? null,
+                  });
+                }
               }}
             />
           ) : null}
-          {designSystemPicker || selectedWorkspaceContexts.length > 0 || stagedSkills.length > 0 || stagedMcpServers.length > 0 || stagedConnectors.length > 0 || staged.length > 0 || activeAppliedPlugin ? (
+          {selectedWorkspaceContexts.length > 0 || stagedSkills.length > 0 || stagedMcpServers.length > 0 || stagedConnectors.length > 0 || visibleAppliedPlugin ? (
             <StagedRunContexts
-              designSystemPicker={designSystemPicker}
               workspaceItems={selectedWorkspaceContexts}
               currentWorkspaceContextId={visibleWorkspaceContext?.id ?? null}
               skills={stagedSkills}
               mcpServers={stagedMcpServers}
               connectors={stagedConnectors}
-              attachments={staged}
               pluginChip={
-                activeAppliedPlugin
+                visibleAppliedPlugin
                   ? {
-                      id: activeAppliedPlugin.pluginId,
-                      title: activeAppliedPlugin.pluginTitle ?? activeAppliedPlugin.pluginId,
+                      id: visibleAppliedPlugin.pluginId,
+                      title: visibleAppliedPlugin.pluginTitle ?? visibleAppliedPlugin.pluginId,
                     }
                   : null
               }
-              projectId={projectId}
               onRemoveWorkspace={removeWorkspaceContext}
               onRemoveSkill={removeStagedSkill}
               onRemoveMcp={removeStagedMcpServer}
               onRemoveConnector={removeStagedConnector}
-              onRemoveAttachment={removeStaged}
               onRemovePlugin={() => {
                 pluginsSectionRef.current?.clear();
                 setActiveAppliedPlugin(null);
@@ -2185,6 +3504,26 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 const record = installedPlugins.find((plugin) => plugin.id === id);
                 if (record) setDetailsRecord(record);
               }}
+              onSkillDetails={(id) => {
+                setDetailsSkill({
+                  id,
+                  summary: stagedSkills.find((skill) => skill.id === id)
+                    ?? skills.find((skill) => skill.id === id)
+                    ?? null,
+                });
+              }}
+              t={t}
+            />
+          ) : null}
+          {/* 待发送附件自己占一个托盘,不和 plugin / skill / MCP 芯片挤在同一行:
+              稿子的 `.composer > .tray` 只装附件(盘点 #60 第 5 条)。 */}
+          {stagedAttachmentCards.length > 0 ? (
+            <StagedAttachmentTray
+              cards={stagedAttachmentCards}
+              projectId={projectId}
+              onRemoveStaged={removeStaged}
+              onRemovePending={removePendingCard}
+              onRetryPending={(id) => void retryPendingUpload(id)}
               t={t}
             />
           ) : null}
@@ -2212,19 +3551,33 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
               this only drops the per-composer override UI. The byok* props and
               handlers are intentionally retained as the plumbing the unified
               picker will reuse. */}
+          {/* 稿子第 67 格:引用芯片在输入框**上方**,不占写字的地方 */}
+          {quotes && quotes.length > 0 ? (
+            <QuotedRefs quotes={quotes} onClear={() => onClearQuotes?.()} />
+          ) : null}
           <div
             className="composer-input-wrap"
-            onFocus={() => setComposerEngaged(true)}
+            onFocus={() => {
+              setComposerEngaged(true);
+              setComposerFocused(true);
+            }}
+            onBlur={(event) => {
+              if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+              setComposerFocused(false);
+            }}
           >
             <LexicalComposerInput
               ref={editorRef}
               draft={draft}
+              inputDisabled={inputDisabled}
               placeholder={
                 activeFileDisplayName
                   ? t('chat.activeFilePlaceholder', { file: activeFileDisplayName })
-                  : t('chat.composerPlaceholder')
+                  : placeholderCarouselActive
+                    ? ''
+                    : composerPlaceholder ?? t('chat.composerPlaceholder')
               }
-              title={activeFileDisplayName ?? t('chat.composerPlaceholder')}
+              title={activeFileDisplayName ?? composerPlaceholder ?? t('chat.composerPlaceholder')}
               knownEntities={composerMentionEntities}
               onChange={handleEditorChange}
               onTrigger={handleEditorTrigger}
@@ -2237,6 +3590,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 activeId: mention ? `mention-opt-${mentionIndex}` : null,
               }}
             />
+            {placeholderScenarios.length > 0 ? (
+              <PlaceholderCarousel
+                scenarios={placeholderScenarios}
+                active={placeholderCarouselActive}
+                paused={composerFocused}
+                onScenarioChange={setPlaceholderScenario}
+              />
+            ) : null}
           </div>
           <CaretFloatingLayer
             caret={caretRect}
@@ -2257,7 +3618,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 setMentionIndex(0);
               }}
               activeIndex={mentionIndex}
-              currentSkillId={currentSkillId}
+              stagedSkillIds={new Set(stagedSkills.map((skill) => skill.id))}
               onPickFile={insertMention}
               onPickWorkspaceContext={insertWorkspaceMention}
               onPickPlugin={(record) => void insertPluginMention(record)}
@@ -2293,10 +3654,31 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
               }}
             />
             <ComposerPlusMenu
+              workspaceContext={workspaceContext}
               triggerTestId="chat-plus-trigger"
+              // 聊天面板走稿子那枚描边加号;home hero 不传这个,保持共享 Icon
+              // 的实心 remix 字形(产品裁决 2026-09-03:不动全站)。
+              strokeGlyph
+              placementPreference="up"
+              openRequest={plusMenuOpenRequest}
               onOpen={() => {
                 trackComposerBar({ element: 'plus_menu_open' });
                 setComposerEngaged(true);
+              }}
+              onSubmenuOpen={(submenu) => {
+                // The toolbox flyout tracks its own open (design_toolbox_open);
+                // the working-dir flyout carries actions, not a resource list.
+                if (submenu === 'toolbox' || submenu === 'workingDir') return;
+                trackComposerBar({
+                  element: 'plus_submenu_open',
+                  resource_kind: PLUS_SUBMENU_RESOURCE_KIND[submenu],
+                });
+              }}
+              onSearchUsed={(submenu) => {
+                trackComposerBar({
+                  element: 'plus_search',
+                  resource_kind: PLUS_SUBMENU_RESOURCE_KIND[submenu],
+                });
               }}
               connectors={connectors}
               onPickConnector={(connector) => {
@@ -2324,6 +3706,15 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 trackComposerBar({ element: 'plus_add', resource_kind: 'plugin' });
                 onBrowsePlugins?.();
               }}
+              skills={skills}
+              onPickSkill={(skill) => {
+                trackComposerBar({
+                  element: 'plus_pick',
+                  resource_kind: 'skill',
+                  resource_id: skill.id,
+                });
+                void insertSkillMention(skill);
+              }}
               mcpServers={enabledMcpServers}
               onPickMcp={(server) => {
                 trackComposerBar({
@@ -2345,10 +3736,74 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 });
                 fileInputRef.current?.click();
               }}
+              onReferenceProject={() => {
+                trackComposerBar({ element: 'plus_pick', resource_kind: 'workspace', resource_id: 'reference-project' });
+                trackProjectReferenceModalSurfaceView(analytics.track, {
+                  page_name: 'chat_panel',
+                  area: 'project_reference_modal',
+                  ...(projectId ? { project_id: projectId } : {}),
+                });
+                setProjectReferenceOpen(true);
+              }}
+              onLinkLocalCode={() => {
+                trackComposerBar({ element: 'plus_pick', resource_kind: 'workspace', resource_id: 'local-code' });
+                void handleLinkLocalCodeContext();
+              }}
+              workingDir={workingDir}
+              recentWorkingDirs={recentDirs}
+              onPickWorkingDir={() => {
+                trackComposerBar({ element: 'plus_pick', resource_kind: 'workspace', resource_id: 'working-dir' });
+                void handlePickWorkingDir();
+              }}
+              onSelectRecentWorkingDir={(dir) => {
+                trackComposerBar({ element: 'plus_pick', resource_kind: 'workspace', resource_id: 'working-dir-recent' });
+                void setWorkingDirFolder(dir);
+              }}
+              onClearWorkingDir={() => {
+                trackComposerBar({ element: 'plus_pick', resource_kind: 'workspace', resource_id: 'working-dir-clear' });
+                void clearWorkingDir();
+              }}
               attachLoading={uploading}
+              onSelectFromLibrary={() => {
+                trackChatPanelClick(analytics.track, {
+                  page_name: 'chat_panel',
+                  area: 'chat_panel',
+                  element: 'library',
+                });
+                setLibraryPickerOpen(true);
+              }}
+              onImportFigma={projectId ? () => {
+                trackChatPanelClick(analytics.track, {
+                  page_name: 'chat_panel',
+                  area: 'chat_panel',
+                  element: 'figma_import',
+                });
+                setFigmaModalOpen(true);
+              } : undefined}
+              onShowFigmaHelp={() => {
+                trackChatPanelClick(analytics.track, {
+                  page_name: 'chat_panel',
+                  area: 'chat_panel',
+                  element: 'figma_help',
+                });
+                trackFigmaHelpModalSurfaceView(analytics.track, {
+                  page_name: 'chat_panel',
+                  area: 'figma_help_modal',
+                  ...(projectId ? { project_id: projectId } : {}),
+                });
+                setFigmaHelpOpen(true);
+              }}
+              onComposerDesignSystems={projectId && designSystemPicker ? () => {
+                trackComposerBar({ element: 'design_system_open' });
+                composerDesignSystemPicker();
+              } : undefined}
+              // 插件 and 设计百宝箱 live inside the "+" menu (right below
+              // 工作目录) as hover-expand submenus. The toolbox flyout reuses
+              // the same DesignToolboxPanel the standalone popover renders.
               toolboxLabel={t('chat.designToolbox.title')}
               renderToolbox={(close) => (
                 <DesignToolboxPanel
+                  workspaceContext={workspaceContext}
                   actions={DESIGN_TOOLBOX_ACTIONS}
                   skills={skills}
                   plugins={pluginsForComposer}
@@ -2390,93 +3845,56 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                 />
               )}
             />
-            {designToolboxOpen ? (
-              <div className="composer-toolbox-standalone">
-                {/* Click-catcher backdrop. A <div> (not a <button>) so it never
-                    inherits the app's global button:hover fill, which otherwise
-                    painted the whole screen when the cursor crossed it. */}
-                <div
-                  className="composer-toolbox-standalone-backdrop"
-                  aria-hidden="true"
-                  onClick={() => setDesignToolboxOpen(false)}
-                />
-                <div
-                  className="plus-menu__popup composer-toolbox-standalone-popup"
-                  role="menu"
-                >
-                  <DesignToolboxPanel
-                    actions={DESIGN_TOOLBOX_ACTIONS}
-                    skills={skills}
-                    plugins={pluginsForComposer}
-                    mcpServers={enabledMcpServers}
-                    mcpTemplates={mcpTemplates}
-                    connectors={connectors}
-                    projectFiles={projectFiles}
-                    activeSkillIds={stagedSkills.map((skill) => skill.id)}
-                    activePluginId={activeAppliedPlugin?.pluginId ?? pinnedPluginId ?? null}
-                    activeMcpServerIds={stagedMcpServers.map((server) => server.id)}
-                    activeConnectorIds={stagedConnectors.map((connector) => connector.id)}
-                    activeFilePaths={staged.map((item) => item.path)}
-                    onOpened={() => trackDesignToolbox({ element: 'design_toolbox_open' })}
-                    onPickAction={(action) => {
-                      trackDesignToolbox({
-                        element: 'design_toolbox_action',
-                        toolbox_action_id: action.id,
-                      });
-                      applyDesignToolboxAction(action);
-                      setDesignToolboxOpen(false);
-                    }}
-                    onPickSkill={(skill) => {
-                      trackDesignToolbox({
-                        element: 'design_toolbox_resource',
-                        resource_kind: 'skill',
-                        resource_id: skill.id,
-                      });
-                      applyDesignToolboxSkill(skill);
-                      setDesignToolboxOpen(false);
-                    }}
-                    onPickResource={(resource) => {
-                      trackDesignToolbox({
-                        element: 'design_toolbox_resource',
-                        ...designToolboxResourceTracking(resource),
-                      });
-                      applyDesignToolboxResource(resource);
-                      setDesignToolboxOpen(false);
-                    }}
-                  />
-                </div>
-              </div>
-            ) : null}
+            {/* #5517: the design-system picker sits inline in the composer's
+                icon row (palette icon) instead of the staged-context bar. */}
+            {designSystemPicker}
             {leadingAccessory}
             <span className="composer-spacer" />
+            {/* No mode picker in the composer (2026-08-19, product): the row
+                carried a 规划/设计/提问 chooser that every run defaulted past.
+                `sessionMode` still flows through this component — a
+                conversation keeps its stored mode and next-step actions still
+                switch it (ChatPane.handleNextStepPromptAction) — it just is
+                not chosen from here any more. */}
             {footerAccessory}
-            <SessionModeToggle
-              mode={sessionMode}
-              onChange={(next) => {
-                if (next !== sessionMode) {
-                  trackComposerSessionModeClick(analytics.track, {
-                    page_name: 'chat_panel',
-                    area: 'chat_composer',
-                    element: 'session_mode_toggle',
-                    mode_before: sessionModeToTracking(sessionMode),
-                    mode_after: sessionModeToTracking(next),
-                    ...(projectId ? { project_id: projectId } : {}),
-                  });
-                }
-                onSessionModeChange?.(next);
-              }}
-            />
+            {showAdmissionPendingButton ? (
+              <button
+                type="button"
+                className="composer-send stop admission-pending"
+                data-testid="chat-send-pending"
+                disabled
+                aria-busy="true"
+                aria-label={t('assistant.statusPreparing')}
+              >
+                {/* 预检那一档是本分支独有的(main 没有 admission-pending)。
+                    合并 main 时几何取了它的 32px 方框,那里装不下文字,所以这里
+                    只留球 —— 「正在准备」仍然由 `aria-label` + `aria-busy` 说给
+                    读屏,视觉上和运行态一样靠球表达「有事在发生」。按钮本身保留:
+                    它要挡住预检期间的第二次点击。 */}
+                <ComposerRunIcon className="composer-run-glyph" />
+              </button>
+            ) : null}
             {showStopButton ? (
               <button
                 type="button"
                 className="composer-send stop od-tooltip"
                 onClick={onStop}
+                aria-label={t('chat.stop')}
                 title={t('chat.stop')}
                 data-tooltip={t('chat.stop')}
-                aria-label={t('chat.stop')}
               >
-                <Icon name="stop" size={13} />
-                <span>{t('chat.stop')}</span>
+                {/* Executing = the send mark's own box (底.svg: the 32px
+                    near-black squircle, no arrow) carrying one of two green
+                    glyphs. At rest it is the matrix loader; on hover/focus it
+                    is the stop square (Group 2147224570.svg), so the button
+                    shows what clicking it does. Both render and CSS swaps
+                    which one is visible, so nothing reflows mid-run.
+                    The button used to widen into a labelled pill — dot-matrix
+                    + 思考中, swapping to 停止 on hover — but a 32px square has
+                    no room for that copy, so 停止 moved to the hover tooltip;
+                    the aria-label already carried it. */}
+                <ComposerRunIcon className="composer-run-glyph" />
+                <ComposerStopIcon className="composer-stop-glyph" />
               </button>
             ) : null}
             {showSendButton ? (
@@ -2492,54 +3910,107 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(
                   });
                   void submit();
                 }}
-                disabled={sendDisabled || !hasComposerPayload}
+                disabled={!canSend}
                 aria-label={t('chat.send')}
                 title={t('chat.send')}
                 data-tooltip={t('chat.send')}
               >
-                <Icon name="send" size={13} />
-                <span>{t('chat.send')}</span>
+                {/* Home's send mark: the glyph fills half of its own box, so
+                    it renders at the button's full 32px rather than inset.
+
+                    合并 main 时产品拍板取这一版(2026-09-05):本分支 09-04 曾按
+                    交付稿 `729fa43ce7` 把它改成「盒子 28 / 图标 16」,而 main 的
+                    `2e4c1a753b`(#7635 / OPEND-2553)在 7 小时后带着自己那份设计
+                    上线,明确覆盖了项目输入区。两份设计撞在同一颗控件上,取已上线
+                    的那份 —— 在合并里悄悄撤销别人已上线的工作,不该由做合并的人
+                    代劳。稿子那一格的 28/16 就此作废。
+
+                    2026-09-07 再次合并 main 时这里又冲突了一次:main 把 #7635 的
+                    首页改版整体 revert 掉了(#7843),等 `feat/home-entry-refresh`
+                    整期做完再回来,于是 main 侧回到了 `arrow-up` / 18。**这一格仍
+                    然保 32**——项目输入区(聊天面板)不许回退是这次合并的红线,
+                    判据是 `w134-composer-send-geometry.test.tsx`:它把两张样式表按
+                    index.css 的顺序装进 jsdom,量出这颗按钮必须是 32×32、无描边、
+                    无阴影。首页那一侧的对应改动照 revert 走,两边就此分开。 */}
+                <Icon name="arrow-up-fill" size={32} />
               </button>
             ) : null}
           </div>
         </div>
-        {projectId ? (
-          <div className="composer-workdir-row">
-            <WorkingDirPicker
-              placement="up"
-              workingDir={workingDir}
-              invalid={workingDirMissing}
-              recentDirs={recentDirs}
-              onOpen={() => void checkWorkingDir()}
-              onPickDirectory={() => {
-                // Fire on the click itself (intent), matching the home
-                // composer's working_dir* elements so one dashboard counts the
-                // action across both surfaces.
-                trackComposerBar({ element: 'working_dir' });
-                void handlePickWorkingDir();
-              }}
-              onSelectRecent={(dir) => {
-                trackComposerBar({ element: 'working_dir_recent' });
-                void setWorkingDirFolder(dir);
-              }}
-              onClear={() => {
-                trackComposerBar({ element: 'working_dir_clear' });
-                void clearWorkingDir();
-              }}
-            />
-          </div>
-        ) : null}
+        {/* #5517 renders no working-dir row inside a project — its ChatComposer
+            imports WorkingDirPicker but never mounts it. Product chose full
+            alignment (2026-07-21) over keeping this as the only mid-project
+            re-bind entry. Home still picks a working directory for NEW projects. */}
         {uploadError ? <span className="composer-hint">{uploadError}</span> : null}
         {detailsRecord ? (
           <PluginDetailsModal
             record={detailsRecord}
+            workspaceContext={workspaceContext}
             onClose={() => setDetailsRecord(null)}
             onUse={async (record) => {
               inlineBackedPluginRef.current = null;
               await pluginsSectionRef.current?.applyById(record.id, record);
               setDetailsRecord(null);
             }}
+            onDuplicate={(record) => void duplicateDetailsPlugin(record)}
             hideUseAction
+          />
+        ) : null}
+        {detailsSkill ? (
+          <SkillDetailsModal
+            skillId={detailsSkill.id}
+            summary={detailsSkill.summary}
+            onClose={() => setDetailsSkill(null)}
+          />
+        ) : null}
+        {libraryPickerOpen ? (
+          <LibraryPicker
+            onClose={() => setLibraryPickerOpen(false)}
+            onConfirm={(assets) => addAssetsFromLibrary(assets)}
+          />
+        ) : null}
+        {figmaModalOpen && projectId ? (
+          <FigmaImportModal
+            onClose={() => setFigmaModalOpen(false)}
+            resolveProjectId={async () => projectId}
+            workspaceContext={workspaceContext}
+            onImported={(result) => {
+              // Prefill the composer with the reshape prompt; the user reviews
+              // and sends to build the page from the decoded snapshot.
+              setDraft(result.suggestedPrompt);
+              editorRef.current?.setText(result.suggestedPrompt);
+              editorRef.current?.focus();
+            }}
+            onFigmaUrl={(url, notes) => {
+              const prompt = `Migrate the Figma file at ${url} into a responsive webpage using its design system.${notes ? ` ${notes}` : ''}`;
+              setDraft(prompt);
+              editorRef.current?.setText(prompt);
+              editorRef.current?.focus();
+              setFigmaModalOpen(false);
+            }}
+          />
+        ) : null}
+        {figmaHelpOpen ? (
+          <FigmaHelpModal onClose={() => setFigmaHelpOpen(false)} />
+        ) : null}
+        {projectReferenceOpen ? (
+          <ProjectReferenceModal
+            currentProjectId={projectId}
+            workspaceContext={workspaceContext}
+            onClose={() => {
+              // Only the dismiss paths (X / backdrop / Escape / Cancel) land
+              // here — a confirmed pick closes via handleReferenceProjects,
+              // which reports 'success' / 'failed'.
+              trackContextLinkResult(analytics.track, {
+                page_name: 'chat_panel',
+                area: 'chat_composer',
+                context_kind: 'project',
+                result: 'cancelled',
+                ...(projectId ? { project_id: projectId } : {}),
+              });
+              setProjectReferenceOpen(false);
+            }}
+            onSelect={(items) => void handleReferenceProjects(items)}
           />
         ) : null}
       </div>
@@ -2674,6 +4145,31 @@ function isFiniteAttachmentOrder(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
+// Upper bound on element markup folded into the composer input so a huge node's
+// outerHTML can't swamp the prompt; the screenshot still attaches in full.
+const MAX_ELEMENT_HTML_CHARS = 8000;
+
+/**
+ * Render a captured element's markup as a composer-input block: a one-line
+ * descriptor (selector + rendered size) followed by a fenced HTML code block.
+ * Used when an element-pick library asset is pulled into the chat so the user
+ * sees — and can edit — the element's HTML inline before sending.
+ */
+function formatElementHtmlBlock(
+  asset: LibraryAsset,
+  element: LibraryElementMeta,
+  html: string,
+): string {
+  const descriptor = element.selector || element.tag || assetTitle(asset);
+  const size = element.width && element.height ? ` · ${element.width}×${element.height}` : '';
+  const trimmed = html.trim();
+  const body =
+    trimmed.length > MAX_ELEMENT_HTML_CHARS
+      ? `${trimmed.slice(0, MAX_ELEMENT_HTML_CHARS)}\n<!-- …truncated -->`
+      : trimmed;
+  return `Captured element ${descriptor}${size}\n\n\`\`\`html\n${body}\n\`\`\``;
+}
+
 function normalizeChatAttachmentOrders(attachments: ChatAttachment[]): ChatAttachment[] {
   let fallbackOrder = 0;
   return attachments.map((attachment) => {
@@ -2729,18 +4225,70 @@ function sortChatCommentAttachmentsByOrder(attachments: ChatCommentAttachment[])
     .map((entry) => entry.attachment);
 }
 
+/* 5×5 dot-matrix "cross expand" glyph shown inside the black send button while
+   a run is executing: a plus shape blooms outward from the center in Manhattan
+   steps (delay = 220ms × Manhattan distance from the middle dot); the faint
+   base grid stays static. Dots use currentColor so the glyph adapts to the
+   button's light-on-dark (and dark-mode inverted) fill. */
+/* Running glyph: the `thinking-orbs` solving orb (vendored in
+   composer/ThinkingOrb.tsx) — the bands of a dotted sphere scramble in quarter
+   turns, then click back. It draws to a <canvas> and parks itself when the tab
+   is hidden or the element scrolls out of view, and honours
+   prefers-reduced-motion by holding a single frame.
+
+   The vendored copy is fixed at the package's 20px preset (the two sizes it
+   ships are separately tuned designs, not a scale factor) — the mark's own ink
+   box is ~14px, and the extra 6px still clear the 32px disc — and PINNED to
+   the dark palette: this disc is #202020 in BOTH app themes, so an auto theme
+   would paint dark ink onto the dark disc under a light app and vanish. Dark =
+   light ink, which the CSS filter on `.composer-run-glyph` then carries to the
+   mark's green. */
+function ComposerRunIcon({ className }: { className?: string }) {
+  return (
+    <ThinkingOrb
+      className={className}
+      // The orb labels itself (role="img" + "Solving…"); the button it sits in
+      // is already labelled 停止, so keep it out of the a11y tree.
+      aria-hidden
+    />
+  );
+}
+
+/* Stop mark shown while the run button is hovered/focused (Group
+   2147224570.svg): a 14px rounded square centred in the send mark's own 32
+   box. Kept at the source's 32 viewBox and rendered at 32px — like the send
+   arrow — so it lands exactly where the file draws it, and `currentColor`
+   picks the button's green up from `--send-ground`. */
+function ComposerStopIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="32"
+      height="32"
+      viewBox="0 0 32 32"
+      fill="currentColor"
+      aria-hidden
+      focusable="false"
+    >
+      <path d="M18 9.00004C20.7614 9.00005 23 11.2386 23 14V18C23 20.7614 20.7614 22.9999 18 23L14 23C11.2386 23 9 20.7614 9 18V14C9 11.2386 11.2386 9.00001 14 9.00002L18 9.00004Z" />
+    </svg>
+  );
+}
+
 function workspaceContextIcon(item: WorkspaceContextItem): IconName {
   if (item.kind === 'browser') return 'globe';
   if (item.kind === 'folder' || item.kind === 'design-files') return 'folder';
+  if (item.kind === 'project') return 'folder';
+  if (item.kind === 'local-code') return 'terminal';
   if (item.kind === 'terminal') return 'terminal';
   if (item.kind === 'side-chat') return 'comment';
   if (item.kind === 'design-system') return 'blocks';
   return 'file';
 }
 
-function workspaceContextTitle(item: WorkspaceContextItem): string {
+function workspaceContextTitle(item: WorkspaceContextItem, t: TranslateFn): string {
   return [
-    workspaceContextKindLabel(item.kind),
+    workspaceContextKindLabel(item.kind, t),
     item.path ? `path: ${item.path}` : null,
     item.absolutePath ? `absolute: ${item.absolutePath}` : null,
     item.url ? `url: ${item.url}` : null,
@@ -2748,9 +4296,11 @@ function workspaceContextTitle(item: WorkspaceContextItem): string {
   ].filter(Boolean).join(' | ');
 }
 
-function workspaceContextDescription(item: WorkspaceContextItem): string {
-  if (item.kind === 'design-files') return item.path || 'Project files';
-  if (item.kind === 'terminal') return item.title || 'Terminal session';
+function workspaceContextDescription(item: WorkspaceContextItem, t: TranslateFn): string {
+  if (item.kind === 'design-files') return item.path || t('chat.designToolbox.context.designFiles');
+  if (item.kind === 'project') return item.absolutePath || item.path || item.title || item.id;
+  if (item.kind === 'local-code') return item.absolutePath || item.path || item.title || item.id;
+  if (item.kind === 'terminal') return item.title || t('chat.designToolbox.context.terminal');
   return item.url || item.path || item.absolutePath || item.title || item.tabId || item.id;
 }
 
@@ -2782,25 +4332,29 @@ function workspaceContextSearchText(item: WorkspaceContextItem): string {
   ].join(' ');
 }
 
-function workspaceContextKindLabel(kind: WorkspaceContextItem['kind']): string {
+function workspaceContextKindLabel(kind: WorkspaceContextItem['kind'], t: TranslateFn): string {
   switch (kind) {
     case 'browser':
-      return 'Browser';
+      return t('chat.designToolbox.context.browser');
     case 'design-files':
-      return 'Design files';
+      return t('chat.designToolbox.context.designFiles');
     case 'design-system':
-      return 'Design system';
+      return t('chat.designToolbox.context.designSystem');
     case 'folder':
-      return 'Folder';
+      return t('chat.designToolbox.context.folder');
+    case 'project':
+      return t('workspaceTabs.project');
+    case 'local-code':
+      return t('dsCreate.localCodeLabel');
     case 'terminal':
-      return 'Terminal';
+      return t('chat.designToolbox.context.terminal');
     case 'side-chat':
-      return 'Side chat';
+      return t('chat.designToolbox.context.sideChat');
     case 'live-artifact':
-      return 'Live artifact';
+      return t('chat.designToolbox.context.liveArtifact');
     case 'file':
     default:
-      return 'File';
+      return t('chat.designToolbox.context.file');
   }
 }
 
@@ -2811,16 +4365,14 @@ function StagedRunContexts({
   skills,
   mcpServers,
   connectors,
-  attachments,
   pluginChip,
-  projectId,
   onRemoveWorkspace,
   onRemoveSkill,
   onRemoveMcp,
   onRemoveConnector,
-  onRemoveAttachment,
   onRemovePlugin,
   onPluginDetails,
+  onSkillDetails,
   t,
 }: {
   designSystemPicker?: ReactNode;
@@ -2829,34 +4381,18 @@ function StagedRunContexts({
   skills: SkillSummary[];
   mcpServers: McpServerConfig[];
   connectors: ConnectorDetail[];
-  attachments: ChatAttachment[];
   pluginChip?: { id: string; title: string } | null;
-  projectId: string | null;
   onRemoveWorkspace: (id: string) => void;
   onRemoveSkill: (id: string) => void;
   onRemoveMcp: (id: string) => void;
   onRemoveConnector: (id: string) => void;
-  onRemoveAttachment: (path: string) => void;
   onRemovePlugin?: () => void;
   onPluginDetails?: (id: string) => void;
+  onSkillDetails?: (id: string) => void;
   t: TranslateFn;
 }) {
-  // Attachment thumbnails preview in a portal modal; keep that state here so the
-  // file chips can live in the same wrap row as the design-system picker and
-  // other run-context chips (so files flow to the picker's right, wrapping to a
-  // new line only when the row fills) instead of forcing a separate row below.
-  const [preview, setPreview] = useState<ChatAttachment | null>(null);
-  const previewUrl = preview && projectId ? projectRawUrl(projectId, preview.path) : null;
-  useEffect(() => {
-    if (!preview) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setPreview(null);
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [preview]);
+  const { workspaceContext } = useProjectCollabContext();
   return (
-    <>
     <div
       className="staged-row staged-context-row"
       data-testid="staged-contexts"
@@ -2867,7 +4403,7 @@ function StagedRunContexts({
         </div>
       ) : null}
       {pluginChip ? (
-        <div className="staged-chip staged-context staged-context--plugin">
+        <div className="staged-chip staged-context staged-context--plugin" data-staged-kind="plugin">
           {/* Two sibling controls — a details button (icon + name) and the
               remove button — rather than a role=button wrapper containing the
               remove button. Nested interactive controls break focus order and
@@ -2899,8 +4435,8 @@ function StagedRunContexts({
       {workspaceItems.map((workspaceItem) => {
         const kindLabel =
           workspaceItem.id === currentWorkspaceContextId
-            ? 'Current'
-            : workspaceContextKindLabel(workspaceItem.kind);
+            ? t('fileViewer.versions.current')
+            : workspaceContextKindLabel(workspaceItem.kind, t);
         return (
           <div
             key={workspaceItem.id}
@@ -2909,7 +4445,7 @@ function StagedRunContexts({
             <span className="staged-icon" aria-hidden>
               <Icon name={workspaceContextIcon(workspaceItem)} size={12} />
             </span>
-            <span className="staged-name" title={workspaceContextTitle(workspaceItem)}>
+            <span className="staged-name" title={workspaceContextTitle(workspaceItem, t)}>
               <span className="staged-context-kind">{kindLabel}</span>
               {workspaceItem.label}
             </span>
@@ -2931,12 +4467,15 @@ function StagedRunContexts({
           key={s.id}
           className={`staged-chip staged-context staged-context--skill staged-skill-${s.source ?? 'built-in'}`}
         >
-          <span className="staged-icon" aria-hidden>
-            <Icon name="sparkles" size={12} />
-          </span>
-          <span className="staged-name" title={s.description || s.name}>
-            @{s.name}
-          </span>
+          <button
+            type="button"
+            className="staged-context-open"
+            onClick={() => onSkillDetails?.(s.id)}
+            title={s.description || s.name}
+            aria-label={s.name}
+          >
+            <span className="staged-name">@{s.name}</span>
+          </button>
           <button
             type="button"
             className="staged-remove od-tooltip"
@@ -2998,80 +4537,357 @@ function StagedRunContexts({
           </button>
         </div>
       ))}
-      {attachments.map((a, index) => {
-        const canPreview = a.kind === 'image' && Boolean(projectId);
-        const imageUrl = canPreview ? projectRawUrl(projectId!, a.path) : null;
-        return (
-          <div key={a.path} className={`staged-chip staged-${a.kind}`}>
-            <span className="staged-order" aria-label={`Attachment ${index + 1}`}>
-              {index + 1}
-            </span>
-            {canPreview && imageUrl ? (
+    </div>
+  );
+}
+
+/* ── 待发送附件托盘(设计稿组件 21,第 60–64 格)──────────────────────────
+ *
+ * 与「已发送」那一侧(`ChatPane.tsx` 的 `UserAttachmentRow`)**共用同一张卡**:
+ * 同样 57px 方卡 / 180px 文档卡、同样的主名中间省略 + 后缀保留,靠 CSS 里
+ * `.composer-att` 与 `.msg.user` 共写一份选择器落实,不另抄一套模板。
+ * 稿子这条是有来历的:两侧长得不一样时,同一批文件在按下发送的那一瞬会整个
+ * 跳一下形状,而两套模板还会各自漂移 —— 线上那版就是这么裂的。
+ *
+ * 托盘只多两样东西:右上角一枚 hover 才出的「×」,和上传中 / 失败的叠加物。
+ * 托盘靠左(已发送那一侧要贴右,因为它压在用户气泡上方)。
+ */
+export function StagedAttachmentTray({
+  cards,
+  projectId,
+  onRemoveStaged,
+  onRemovePending,
+  onRetryPending,
+  t,
+}: {
+  cards: StagedAttachmentCard[];
+  projectId: string | null;
+  onRemoveStaged: (path: string) => void;
+  onRemovePending: (pendingId: string) => void;
+  onRetryPending: (pendingId: string) => void;
+  t: TranslateFn;
+}) {
+  const { workspaceContext } = useProjectCollabContext();
+  const rowRef = useRef<HTMLDivElement>(null);
+  const { prev, next, page } = useStagedTrayNav(rowRef, cards.length);
+  // 点缩略图看大图 —— 这是产品**已有**的能力,稿子那一格把卡画成了不可点的
+  // `<span>`。删掉一个人已经在用的入口要产品拍板,所以这里保留(报告里记着)。
+  const [preview, setPreview] = useState<StagedAttachmentCard | null>(null);
+  const previewUrl = preview
+    ? preview.previewUrl
+      ?? (preview.path && projectId ? projectRawUrl(projectId, preview.path, workspaceContext) : null)
+    : null;
+  useEffect(() => {
+    if (!preview) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setPreview(null);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [preview]);
+  const removeCard = (card: StagedAttachmentCard) => {
+    if (card.pendingId) onRemovePending(card.pendingId);
+    else if (card.path) onRemoveStaged(card.path);
+  };
+  return (
+    <>
+      {/* 壳子只为箭头存在:箭头要绝对定位压在这一行的两端,而滚动容器自己
+          不能 `position: relative` —— 那样绝对定位的孩子会跟着内容一起滚走。 */}
+      <div className={`composer-att-wrap${prev ? ' is-prev' : ''}${next ? ' is-next' : ''}`}>
+        <div className="composer-att" data-testid="staged-attachments" ref={rowRef}>
+          {cards.map((card) => {
+            const removeLabel = card.state === 'uploading'
+              ? t('chat.att.cancelUpload', { name: card.name })
+              : t('chat.removeAria', { name: card.name });
+            const del = (
               <button
                 type="button"
-                className="staged-preview-trigger"
-                onClick={() => setPreview(a)}
-                title={a.path}
-                aria-label={`Preview ${a.name}`}
+                className="msg-att-del"
+                onClick={() => removeCard(card)}
+                aria-label={removeLabel}
               >
-                <img src={imageUrl} alt="" aria-hidden />
-                <span className="staged-name">{a.name}</span>
+                <ChatCloseIcon size={10} />
               </button>
-            ) : (
-              <>
-                <span className="staged-icon" aria-hidden>
-                  <Icon name="file" size={13} />
+            );
+            const stateClass = card.state === 'uploading'
+              ? ' is-up'
+              : card.state === 'failed' ? ' is-fail' : '';
+            if (card.kind === 'file') {
+              return (
+                <StagedTrayDocCard
+                  key={card.key}
+                  card={card}
+                  stateClass={stateClass}
+                  del={del}
+                />
+              );
+            }
+            const thumbUrl = card.previewUrl
+              ?? (card.path && projectId ? projectRawUrl(projectId, card.path, workspaceContext) : null);
+            return (
+              <span key={card.key} className={`msg-att-img${stateClass}`} data-testid="staged-attachment-image">
+                <span className="msg-att-ph">
+                  {card.state === 'failed' ? (
+                    /* 失败卡里「重试」铺满整块缩略图 —— 57px 见方的卡横着放不下
+                       「↻ 重试」,竖排两行才落得进方块里。
+                       失败卡不描红框:红只留给【可以点的那一下】,不是「这张卡出事了」。 */
+                    <button
+                      type="button"
+                      className="msg-att-rt"
+                      data-testid="staged-att-retry"
+                      onClick={() => card.pendingId && onRetryPending(card.pendingId)}
+                      title={card.name}
+                    >
+                      <Icon name="refresh" size={14} />
+                      <span>{t('chat.att.retry')}</span>
+                    </button>
+                  ) : card.state === 'ready' && thumbUrl ? (
+                    <button
+                      type="button"
+                      className="msg-att-mini-btn"
+                      onClick={() => setPreview(card)}
+                      title={card.name}
+                      aria-label={t('chat.attachments.preview', { name: card.name })}
+                    >
+                      <img className="msg-att-mini" src={thumbUrl} alt="" aria-hidden />
+                    </button>
+                  ) : thumbUrl ? (
+                    /* 上传中:缩略图压暗(`.is-up .msg-att-mini { opacity: .45 }`),
+                       这几秒它不是一个可点的东西。 */
+                    <img className="msg-att-mini" src={thumbUrl} alt="" aria-hidden />
+                  ) : (
+                    <span className="msg-att-mini" aria-hidden />
+                  )}
                 </span>
-                <span className="staged-name" title={a.path}>
-                  {a.name}
-                </span>
-              </>
-            )}
-            <button
-              type="button"
-              className="staged-remove od-tooltip"
-              onClick={() => onRemoveAttachment(a.path)}
-              title={t('common.delete')}
-              data-tooltip={t('common.delete')}
-              aria-label={t('chat.removeAria', { name: a.name })}
-            >
-              <Icon name="close" size={11} />
-            </button>
-          </div>
-        );
-      })}
-    </div>
-    {preview && previewUrl ? createPortal(
-      <div
-        className="staged-preview-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={preview.name}
-        onMouseDown={(e) => {
-          if (e.target === e.currentTarget) setPreview(null);
-        }}
-      >
-        <div className="staged-preview-card">
-          <div className="staged-preview-head">
-            <span title={preview.path}>{preview.name}</span>
-            <button
-              type="button"
-              className="icon-only od-tooltip"
-              onClick={() => setPreview(null)}
-              aria-label={t('common.close')}
-              title={t('common.close')}
-              data-tooltip={t('common.close')}
-            >
-              <Icon name="close" size={14} />
-            </button>
-          </div>
-          <img src={previewUrl} alt={preview.name} />
+                {del}
+              </span>
+            );
+          })}
         </div>
-      </div>,
-      document.body
-    ) : null}
+        {/* 一枚朝下的箭头转 ±90 度当左右用,判据与已发送那一行同一份纯函数。
+            两颗**常驻**,出没交给壳上的 `is-prev` / `is-next`(稿子 `.att-wrap.is-prev > .att-nav.mod-prev`
+            就是这么写的);这也是本仓的约定 —— 条件显示的元素保持挂载、用 CSS 切,
+            React 卸载会把退场过渡整个跳过。 */}
+        <button
+          type="button"
+          className="msg-att-nav mod-prev"
+          data-testid="staged-att-nav-prev"
+          aria-label={t('chat.attachments.scrollPrev')}
+          onClick={() => page('prev')}
+        >
+          <i>
+            <Icon name="chevron-down" size={14} />
+          </i>
+        </button>
+        <button
+          type="button"
+          className="msg-att-nav mod-next"
+          data-testid="staged-att-nav-next"
+          aria-label={t('chat.attachments.scrollNext')}
+          onClick={() => page('next')}
+        >
+          <i>
+            <Icon name="chevron-down" size={14} />
+          </i>
+        </button>
+      </div>
+      {preview && previewUrl ? createPortal(
+        <div
+          className="staged-preview-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={preview.name}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setPreview(null);
+          }}
+        >
+          <div className="staged-preview-card" data-testid="staged-preview-card">
+            <div className="staged-preview-head" data-testid="staged-preview-head">
+              <span title={preview.path ?? preview.name}>{preview.name}</span>
+              <button
+                type="button"
+                className="icon-only od-tooltip"
+                onClick={() => setPreview(null)}
+                aria-label={t('common.close')}
+                title={t('common.close')}
+                data-tooltip={t('common.close')}
+              >
+                <Icon name="close" size={14} />
+              </button>
+            </div>
+            <img src={previewUrl} alt={preview.name} />
+          </div>
+        </div>,
+        document.body,
+      ) : null}
     </>
   );
+}
+
+/**
+ * 文档卡(#62)。名字是它唯一的身份,所以反过来【必须】挂名字;
+ * 主名中间省略、后缀永远完整,量法与已发送那一侧同一份纯函数。
+ *
+ * 托盘里它额外吃 `padding-inline-end: 28px` 给右上角的「×」让位,
+ * 而「×」自己的偏移是 5px(图卡是 4px)—— 两张卡的边框 / 内边距不同,
+ * 稿子给的就是两个值,别统一成一个。
+ */
+function StagedTrayDocCard({
+  card,
+  stateClass,
+  del,
+}: {
+  card: StagedAttachmentCard;
+  stateClass: string;
+  del: ReactNode;
+}) {
+  const { base, ext } = splitFileName(card.name);
+  const nameRef = useRef<HTMLSpanElement>(null);
+  const displayBase = useTrayTruncatedName(nameRef, base, ext);
+  const size = formatAttachmentSize(card.size);
+  return (
+    <span className={`msg-att-doc${stateClass}`} title={card.name}>
+      <ChatFileIcon size={15} className="msg-att-fi" />
+      <span className="msg-att-tx">
+        <span className="msg-att-nm" ref={nameRef}>
+          <span className="msg-att-base">{displayBase}</span>
+          {ext ? <span className="msg-att-ext">{ext}</span> : null}
+        </span>
+        {/* 拿不到体积就空着这一行,不写 `0 B` —— 但位置留着,
+            否则同一行里有体积和没体积的卡会差一行高。 */}
+        <span className="msg-att-meta">{size ?? ''}</span>
+      </span>
+      {del}
+    </span>
+  );
+}
+
+/** 量文字宽度用的离屏 canvas。一份就够,反复建会在长会话里堆出几百个。 */
+let trayMeasureCtx: CanvasRenderingContext2D | null | undefined;
+
+function trayTextMeasurerFor(el: HTMLElement | null): ((text: string) => number) | null {
+  if (!el || typeof document === 'undefined') return null;
+  if (trayMeasureCtx === undefined) {
+    try {
+      trayMeasureCtx = document.createElement('canvas').getContext('2d');
+    } catch {
+      // jsdom / 没有 canvas 的运行环境:量不到就不截,由 CSS overflow 兜底。
+      trayMeasureCtx = null;
+    }
+  }
+  const ctx = trayMeasureCtx;
+  if (!ctx) return null;
+  const cs = window.getComputedStyle(el);
+  if (!cs.fontSize) return null;
+  ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  return (text: string) => ctx.measureText(text).width;
+}
+
+/**
+ * 文件名中间省略(#59 的量法,#62 复用)。
+ *
+ * 量的是 `.msg-att-nm` 自己的可用宽度,而它在一张定宽 180px 的卡里、且被
+ * `.msg-att-tx { flex: 1 }` 钉住 —— 所以这个宽度是常量,不随名字长短变。
+ * 这是绕开「越截越短」棘轮的关键:**不能拿截过的名字再去量**。
+ */
+function useTrayTruncatedName(
+  ref: MutableRefObject<HTMLSpanElement | null>,
+  base: string,
+  ext: string,
+): string {
+  const [avail, setAvail] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let alive = true;
+    const measure = () => {
+      const node = ref.current;
+      if (!alive || !node) return;
+      if (!node.clientWidth) {
+        setAvail(0);
+        return;
+      }
+      const measurer = trayTextMeasurerFor(node);
+      const extWidth = measurer && ext ? measurer(ext) : 0;
+      setAvail(node.clientWidth - extWidth);
+    };
+    measure();
+    let observer: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(measure);
+      observer.observe(el);
+    }
+    const fonts = (document as Document & { fonts?: { ready?: Promise<unknown> } }).fonts;
+    fonts?.ready?.then(measure).catch(() => {});
+    return () => {
+      alive = false;
+      observer?.disconnect();
+    };
+  }, [ref, ext]);
+  return useMemo(
+    () => (avail > 0 ? middleTruncateFileName(base, avail, trayTextMeasurerFor(ref.current)) : base),
+    [ref, base, avail],
+  );
+}
+
+/**
+ * 托盘的翻页箭头(#64)。判据与已发送那一行**同一份纯函数**
+ * (`runtime/chat/attachment-nav.ts`),稿子里两处底色相同,所以渐变和箭头也共用。
+ *
+ * 四路重算,少一路就会看见错的箭头:`scroll`(滚动中两端的结论一直在翻)、
+ * `ResizeObserver`(面板宽度变了)、`resize`(容器定宽时窗口缩放不触发容器自身的
+ * resize)、`document.fonts.ready`(文档卡里的文字宽度要等字体到位才定下来)。
+ */
+function useStagedTrayNav(
+  ref: MutableRefObject<HTMLDivElement | null>,
+  count: number,
+): AttachmentNavState & { page: (direction: 'prev' | 'next') => void } {
+  const [state, setState] = useState<AttachmentNavState>({ prev: false, next: false });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let alive = true;
+    const sync = () => {
+      const node = ref.current;
+      if (!alive || !node) return;
+      const measured = attachmentNavState(node);
+      setState((current) =>
+        current.prev === measured.prev && current.next === measured.next ? current : measured,
+      );
+    };
+    sync();
+    el.addEventListener('scroll', sync, { passive: true });
+    window.addEventListener('resize', sync);
+    let observer: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(sync);
+      observer.observe(el);
+    }
+    const fonts = (document as Document & { fonts?: { ready?: Promise<unknown> } }).fonts;
+    fonts?.ready?.then(sync).catch(() => {});
+    return () => {
+      alive = false;
+      el.removeEventListener('scroll', sync);
+      window.removeEventListener('resize', sync);
+      observer?.disconnect();
+    };
+  }, [ref, count]);
+
+  const page = useCallback(
+    (direction: 'prev' | 'next') => {
+      const node = ref.current;
+      if (!node) return;
+      const rtl =
+        typeof window !== 'undefined' && window.getComputedStyle(node).direction === 'rtl';
+      const left = attachmentNavDelta(direction, node.clientWidth, rtl);
+      if (typeof node.scrollBy === 'function') node.scrollBy({ left, behavior: 'smooth' });
+      else node.scrollLeft += left;
+    },
+    [ref],
+  );
+
+  return { ...state, page };
 }
 
 function StagedCommentAttachments({
@@ -3112,6 +4928,97 @@ function StagedCommentAttachments({
   );
 }
 
+/**
+ * The 插件 quick pill's standalone popover content. Reuses the "+" menu
+ * plugins-flyout structure verbatim (plus-menu__plugin-pane: search + list
+ * column + hover preview column) so the surface keeps the exact look it had
+ * as a menu flyout — ToolsPluginsPanel's composer-tools-* layout collided
+ * with the plus-menu popup container.
+ */
+function StandalonePluginsPane({
+  plugins,
+  onPick,
+  onAdd,
+  workspaceContext,
+}: {
+  plugins: InstalledPluginRecord[];
+  onPick: (record: InstalledPluginRecord) => void;
+  onAdd?: () => void;
+  workspaceContext: WorkspaceCollabContext | null;
+}) {
+  const { locale, t } = useI18n();
+  const [query, setQuery] = useState('');
+  const [hoveredPluginId, setHoveredPluginId] = useState<string | null>(null);
+  const filteredPlugins = useMemo(
+    () => plugins.filter((p) => pluginMatchesQuery(p, query)),
+    [plugins, query],
+  );
+  // Mirror the "+" menu flyout: default the preview to the first filtered row
+  // so the panel is never blank while open.
+  const hoveredPlugin =
+    filteredPlugins.find((p) => p.id === hoveredPluginId) ?? filteredPlugins[0] ?? null;
+
+  return (
+    <div className="plus-menu__plugin-pane">
+      <div className="plus-menu__plugin-main">
+        <div className="plus-menu__search">
+          <Icon name="search" size={14} />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t('entry.navPlugins')}
+            aria-label={t('entry.navPlugins')}
+          />
+        </div>
+        <div className="plus-menu__list">
+          {filteredPlugins.length === 0 ? (
+            <div className="plus-menu__empty">{t('homeHero.noPlugins')}</div>
+          ) : (
+            filteredPlugins.map((plugin) => (
+              <button
+                key={plugin.id}
+                type="button"
+                role="menuitem"
+                className={`plus-menu__item${
+                  plugin.id === hoveredPlugin?.id ? ' is-previewed' : ''
+                }`}
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setHoveredPluginId(plugin.id)}
+                onFocus={() => setHoveredPluginId(plugin.id)}
+                onClick={() => onPick(plugin)}
+              >
+                <Icon name="sparkles" size={15} className="plus-menu__item-icon" />
+                <span>{localizePluginTitle(locale, plugin)}</span>
+              </button>
+            ))
+          )}
+        </div>
+        {onAdd ? (
+          <>
+            <div className="plus-menu__divider" />
+            <button
+              type="button"
+              role="menuitem"
+              className="plus-menu__item"
+              onClick={onAdd}
+            >
+              <Icon name="plus" size={15} className="plus-menu__item-icon" />
+              <span>{t('homeHero.addPlugin')}</span>
+            </button>
+          </>
+        ) : null}
+      </div>
+      {hoveredPlugin ? (
+        <ComposerPluginPreview
+          record={hoveredPlugin}
+          locale={locale}
+          workspaceContext={workspaceContext}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function ToolsPluginsPanel({
   plugins,
   activePluginId,
@@ -3123,7 +5030,7 @@ function ToolsPluginsPanel({
   onApply: (record: InstalledPluginRecord) => void | Promise<void>;
   onShowDetails: (record: InstalledPluginRecord) => void;
 }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [source, setSource] = useState<'community' | 'mine'>('community');
   const [query, setQuery] = useState('');
@@ -3144,16 +5051,16 @@ function ToolsPluginsPanel({
   return (
     <>
       <div className="composer-tools-filter">
-        <div className="composer-tools-segments" role="tablist" aria-label="Plugin source">
+        <div className="composer-tools-segments" role="tablist" aria-label={t('chat.plus.plugins')}>
           <button
             type="button"
             role="tab"
             aria-selected={source === 'community'}
             className={`composer-tools-segment${source === 'community' ? ' active' : ''}`}
             onClick={() => setSource('community')}
-            title={`${communityPlugins.length} installed official plugins`}
+            title={`${t('pluginsView.scope.official')} · ${communityPlugins.length}`}
           >
-            Official
+            {t('pluginsView.scope.official')}
           </button>
           <button
             type="button"
@@ -3161,30 +5068,31 @@ function ToolsPluginsPanel({
             aria-selected={source === 'mine'}
             className={`composer-tools-segment${source === 'mine' ? ' active' : ''}`}
             onClick={() => setSource('mine')}
-            title={`${userPlugins.length} installed user plugins`}
+            title={`${t('pluginsView.scope.personal')} · ${userPlugins.length}`}
           >
-            My plugins
+            {t('pluginsView.scope.personal')}
           </button>
         </div>
         <input
           className="composer-tools-search"
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
-          placeholder="Search plugins…"
-          aria-label="Search plugins"
+          placeholder={t('pluginsHome.searchPlaceholder')}
+          aria-label={t('pluginsHome.searchAria')}
         />
       </div>
       {visiblePlugins.length === 0 ? (
         <div className="composer-tools-empty">
           {plugins.length === 0 ? (
             <>
-              No plugins installed yet. Browse Official or add your own with{' '}
-              <code>od plugin install &lt;source&gt;</code>.
+              {t('pluginsHome.emptyCatalog')}
             </>
           ) : query ? (
-            <>No {source === 'community' ? 'Official' : 'My plugins'} results for “{query}”.</>
+            <>{t('pluginsView.emptyNoMatchTitle')} · {t('pluginsView.emptyNoMatchHint')}</>
           ) : (
-            <>No {source === 'community' ? 'Official' : 'My plugins'} plugins available.</>
+            <>{source === 'community'
+              ? t('pluginsView.emptyOfficialPluginsTitle')
+              : t('pluginsView.emptyPersonalPluginsTitle')}</>
           )}
         </div>
       ) : (
@@ -3227,7 +5135,7 @@ function ToolsPluginsPanel({
                   )}
                 </span>
                 {pendingId === p.id ? (
-                  <span className="composer-tools-row-pending">Applying…</span>
+                  <span className="composer-tools-row-pending">{t('pluginCard.applying')}</span>
                 ) : null}
               </button>
               <button
@@ -3235,8 +5143,8 @@ function ToolsPluginsPanel({
                 className="composer-tools-row-side"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => onShowDetails(p)}
-                title={`View details for ${pluginTitle}`}
-                aria-label={`View details for ${pluginTitle}`}
+                title={t('pluginCard.detailsAria', { title: pluginTitle })}
+                aria-label={t('pluginCard.detailsAria', { title: pluginTitle })}
               >
                 <Icon name="eye" size={12} />
               </button>
@@ -3260,6 +5168,7 @@ function ToolsMcpPanel({
   onInsert: (serverId: string) => void;
   onManage: () => void;
 }) {
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
   const visibleServers = useMemo(
     () => servers.filter((s) => mcpServerMatchesQuery(s, query)),
@@ -3277,19 +5186,19 @@ function ToolsMcpPanel({
           className="composer-tools-search"
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
-          placeholder="Search MCP…"
-          aria-label="Search MCP servers and templates"
+          placeholder={t('common.searchEllipsis')}
+          aria-label={t('mcpClient.title')}
         />
       </div>
       {visibleServers.length === 0 ? (
         <div className="composer-tools-empty">
           {servers.length === 0
-            ? 'No enabled MCP servers configured yet.'
-            : `No configured MCP results for “${query}”.`}
+            ? t('mcpClient.emptyTitle')
+            : t('pluginsView.emptyNoMatchTitle')}
         </div>
       ) : (
         <div className="composer-tools-list">
-          <div className="composer-tools-section-label">Configured</div>
+          <div className="composer-tools-section-label">{t('settings.mediaProviderConfigured')}</div>
           {visibleServers.map((s) => (
             <button
               key={s.id}
@@ -3298,7 +5207,7 @@ function ToolsMcpPanel({
               className="composer-tools-row"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => onInsert(s.id)}
-              title={`Insert a hint that nudges the model to use ${s.label || s.id}`}
+              title={s.label || s.id}
             >
               <Icon name="link" size={12} />
               <span className="composer-tools-row-body">
@@ -3311,7 +5220,7 @@ function ToolsMcpPanel({
       )}
       {visibleTemplates.length > 0 ? (
         <div className="composer-tools-list">
-          <div className="composer-tools-section-label">Templates</div>
+          <div className="composer-tools-section-label">{t('entry.tabTemplates')}</div>
           {visibleTemplates.map((tpl) => (
             <button
               key={tpl.id}
@@ -3320,7 +5229,7 @@ function ToolsMcpPanel({
               className="composer-tools-row"
               onMouseDown={(e) => e.preventDefault()}
               onClick={onManage}
-              title={`Add ${tpl.label} from Settings`}
+              title={tpl.label}
             >
               <Icon name="plus" size={12} />
               <span className="composer-tools-row-body">
@@ -3342,7 +5251,7 @@ function ToolsMcpPanel({
         onClick={onManage}
       >
         <Icon name="settings" size={12} />
-        <span>Manage MCP servers…</span>
+        <span>{t('mcpClient.addServer')}</span>
       </button>
     </>
   );
@@ -3365,6 +5274,7 @@ function DesignToolboxPanel({
   onPickSkill,
   onPickResource,
   onOpened,
+  workspaceContext,
 }: {
   actions: DesignToolboxAction[];
   skills: SkillSummary[];
@@ -3382,6 +5292,7 @@ function DesignToolboxPanel({
   onPickSkill: (skill: SkillSummary) => void;
   onPickResource: (resource: DesignToolboxResource) => void;
   onOpened?: () => void;
+  workspaceContext: WorkspaceCollabContext | null;
 }) {
   const { locale, t } = useI18n();
   const [query, setQuery] = useState('');
@@ -3558,7 +5469,11 @@ function DesignToolboxPanel({
                   // sandboxed example iframe + meta); every other kind keeps
                   // the compact text detail since it has no preview asset.
                   resource.kind === 'plugin' ? (
-                    <ComposerPluginPreview record={resource.plugin} locale={locale} />
+                    <ComposerPluginPreview
+                      record={resource.plugin}
+                      locale={locale}
+                      workspaceContext={workspaceContext}
+                    />
                   ) : (
                     <>
                       <div className="plus-menu__detail-title">{resource.title}</div>
@@ -3648,7 +5563,7 @@ function ToolboxItemRow({
         onMouseDown={(e) => e.preventDefault()}
         onClick={onPick}
       >
-        <Icon name={icon} size={15} className="plus-menu__item-icon" />
+        <Icon name={icon} size={14} className="plus-menu__item-icon" />
         <span>{name}</span>
       </button>
     </div>
@@ -3664,7 +5579,7 @@ function ToolsSkillsPanel({
   currentSkillId: string | null;
   onPick: (skill: SkillSummary) => void | Promise<void>;
 }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const [query, setQuery] = useState('');
   const [pendingId, setPendingId] = useState<string | null>(null);
   const visibleSkills = useMemo(
@@ -3678,13 +5593,15 @@ function ToolsSkillsPanel({
           className="composer-tools-search"
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
-          placeholder="Search skills…"
-          aria-label="Search skills"
+          placeholder={t('pluginsView.searchSkills')}
+          aria-label={t('pluginsView.searchSkills')}
         />
       </div>
       {visibleSkills.length === 0 ? (
         <div className="composer-tools-empty">
-          {skills.length === 0 ? 'No skills available yet.' : `No skills found for “${query}”.`}
+          {skills.length === 0
+            ? t('pluginsView.emptyOfficialSkillsTitle')
+            : t('pluginsView.emptyNoMatchTitle')}
         </div>
       ) : (
         <div className="composer-tools-list">
@@ -3717,7 +5634,7 @@ function ToolsSkillsPanel({
                   </span>
                 </span>
                 {pendingId === skill.id ? (
-                  <span className="composer-tools-row-pending">Applying…</span>
+                  <span className="composer-tools-row-pending">{t('pluginCard.applying')}</span>
                 ) : null}
               </button>
             );
@@ -4028,6 +5945,19 @@ function isDesignToolboxSkill(skill: SkillSummary): boolean {
     'anti slop',
     'anti ai',
     'image',
+    'asset',
+    'reference',
+    'icon',
+    'logo',
+    'chart',
+    'diagram',
+    'echarts',
+    'three',
+    'spline',
+    'rive',
+    'lottie',
+    'mapbox',
+    'deck.gl',
     'video',
     'frontend',
     'beautify',
@@ -4104,6 +6034,8 @@ function designToolboxWorkspaceKindLabel(
     case 'design-system':
       return t('chat.designToolbox.context.designSystem');
     case 'folder':
+    case 'project':
+    case 'local-code':
       return t('chat.designToolbox.context.folder');
     case 'terminal':
       return t('chat.designToolbox.context.terminal');
@@ -4154,6 +6086,26 @@ function designToolboxActionPrompt({
         t('chat.designToolbox.prompt.autoMatchStep3'),
         t('chat.designToolbox.prompt.autoMatchStep4'),
       ].join('\n');
+    case 'asset-search':
+      return [
+        ...base,
+        t('chat.designToolbox.prompt.assetSearch'),
+      ].join('\n');
+    case 'icon-workflow':
+      return [
+        ...base,
+        t('chat.designToolbox.prompt.iconWorkflow'),
+      ].join('\n');
+    case 'image-replace':
+      return [
+        ...base,
+        t('chat.designToolbox.prompt.imageReplace'),
+      ].join('\n');
+    case 'reference-extract':
+      return [
+        ...base,
+        t('chat.designToolbox.prompt.referenceExtract'),
+      ].join('\n');
     case 'motion':
       return [
         ...base,
@@ -4163,6 +6115,21 @@ function designToolboxActionPrompt({
       return [
         ...base,
         t('chat.designToolbox.prompt.motionPolish'),
+      ].join('\n');
+    case 'transition-motion':
+      return [
+        ...base,
+        t('chat.designToolbox.prompt.transitionMotion'),
+      ].join('\n');
+    case 'plan-outline':
+      return [
+        ...base,
+        t('chat.designToolbox.prompt.planOutline'),
+      ].join('\n');
+    case 'threejs-scene':
+      return [
+        ...base,
+        t('chat.designToolbox.prompt.threejsScene'),
       ].join('\n');
     case 'anti-ai-polish':
       return [
@@ -4179,12 +6146,27 @@ function designToolboxActionPrompt({
         ...base,
         t('chat.designToolbox.prompt.imageGen'),
       ].join('\n');
+    case 'chart-gen':
+      return [
+        ...base,
+        t('chat.designToolbox.prompt.chartGen'),
+      ].join('\n');
+    case 'logo-gen':
+      return [
+        ...base,
+        t('chat.designToolbox.prompt.logoGen'),
+      ].join('\n');
     case 'video-gen':
       return [
         ...base,
         t('chat.designToolbox.prompt.videoGen'),
       ].join('\n');
   }
+
+  return [
+    ...base,
+    t('chat.designToolbox.prompt.autoMatchIntro'),
+  ].join('\n');
 }
 
 function designToolboxSkillPrompt({
@@ -4460,50 +6442,55 @@ function SlashPopover({
   t: TranslateFn;
 }) {
   return (
-    <div
-      className="slash-popover"
-      data-testid="slash-popover"
-      role="listbox"
-      aria-label={t('pet.slashPopoverAria')}
-    >
+    <div className="slash-popover" data-testid="slash-popover">
       <div className="slash-popover-head">
         <span>{t('pet.slashPopoverTitle')}</span>
         <span className="slash-popover-hint">{t('pet.slashPopoverHint')}</span>
       </div>
-      {commands.map((cmd, idx) => {
-        const active = idx === activeIndex;
-        return (
-          <button
-            key={cmd.id}
-            id={`slash-opt-${idx}`}
-            type="button"
-            role="option"
-            aria-selected={active}
-            className={`slash-item${active ? ' active' : ''}`}
-            onMouseDown={(e) => {
-              // Prevent the textarea from losing focus before the click
-              // handler fires — otherwise selectionStart resets and the
-              // pick replacement targets the wrong substring.
-              e.preventDefault();
-            }}
-            onMouseEnter={() => onHover(idx)}
-            onClick={() => onPick(cmd)}
-          >
-            <span className="slash-item-icon" aria-hidden>
-              <Icon name={cmd.icon} size={13} />
-            </span>
-            <span className="slash-item-body">
-              <span className="slash-item-row">
-                <code className="slash-item-label">{cmd.label}</code>
-                {cmd.argHint ? (
-                  <span className="slash-item-arg">{cmd.argHint}</span>
-                ) : null}
+      {/* The rows live in their own scroll port, not directly in the
+          height-capped popover column — see `.slash-popover-list`. Carrying
+          `role="listbox"` down here also keeps the header out of the
+          listbox, whose only children may be options. */}
+      <div
+        className="slash-popover-list"
+        role="listbox"
+        aria-label={t('pet.slashPopoverAria')}
+      >
+        {commands.map((cmd, idx) => {
+          const active = idx === activeIndex;
+          return (
+            <button
+              key={cmd.id}
+              id={`slash-opt-${idx}`}
+              type="button"
+              role="option"
+              aria-selected={active}
+              className={`slash-item${active ? ' active' : ''}`}
+              onMouseDown={(e) => {
+                // Prevent the textarea from losing focus before the click
+                // handler fires — otherwise selectionStart resets and the
+                // pick replacement targets the wrong substring.
+                e.preventDefault();
+              }}
+              onMouseEnter={() => onHover(idx)}
+              onClick={() => onPick(cmd)}
+            >
+              <span className="slash-item-icon" aria-hidden>
+                <Icon name={cmd.icon} size={13} />
               </span>
-              <span className="slash-item-desc">{t(cmd.descKey)}</span>
-            </span>
-          </button>
-        );
-      })}
+              <span className="slash-item-body">
+                <span className="slash-item-row">
+                  <code className="slash-item-label">{cmd.label}</code>
+                  {cmd.argHint ? (
+                    <span className="slash-item-arg">{cmd.argHint}</span>
+                  ) : null}
+                </span>
+                <span className="slash-item-desc">{t(cmd.descKey)}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -4519,7 +6506,7 @@ function MentionPopover({
   tab,
   onTabChange,
   activeIndex,
-  currentSkillId,
+  stagedSkillIds,
   onPickFile,
   onPickWorkspaceContext,
   onPickPlugin,
@@ -4537,7 +6524,7 @@ function MentionPopover({
   tab: MentionTab;
   onTabChange: (tab: MentionTab) => void;
   activeIndex: number;
-  currentSkillId: string | null;
+  stagedSkillIds: Set<string>;
   onPickFile: (path: string) => void;
   onPickWorkspaceContext: (item: WorkspaceContextItem) => void;
   onPickPlugin: (record: InstalledPluginRecord) => void;
@@ -4602,7 +6589,7 @@ function MentionPopover({
         ) : null}
         {showFiles && files.length > 0 ? (
           <>
-            <div className="mention-section-label">{t('chat.mentionSectionFiles')}</div>
+            <div className="mention-section-label" data-testid="mention-section-label">{t('chat.mentionSectionFiles')}</div>
             {files.map((f) => {
               const key = f.path ?? f.name;
               const flat = optionIndex;
@@ -4621,7 +6608,7 @@ function MentionPopover({
                 >
                   <Icon name="file" size={12} />
                   <span className="mention-item-body">
-                    <strong>{projectFileMentionTitle(f, key)}</strong>
+                    <strong data-testid="mention-item-name">{projectFileMentionTitle(f, key)}</strong>
                     <span className="mention-meta mention-meta--desc mention-meta--path">
                       {projectFileMentionDescription(f, key)}
                     </span>
@@ -4636,7 +6623,7 @@ function MentionPopover({
         ) : null}
         {showTabs && workspaceContexts.length > 0 ? (
           <>
-            <div className="mention-section-label">{t('chat.mentionSectionTabs')}</div>
+            <div className="mention-section-label" data-testid="mention-section-label">{t('chat.mentionSectionTabs')}</div>
             {workspaceContexts.map((item) => {
               const flat = optionIndex;
               optionIndex += 1;
@@ -4651,16 +6638,16 @@ function MentionPopover({
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => onPickWorkspaceContext(item)}
-                  title={workspaceContextTitle(item)}
+                  title={workspaceContextTitle(item, t)}
                 >
                   <Icon name={workspaceContextIcon(item)} size={12} />
                   <span className="mention-item-body">
-                    <strong>{item.label}</strong>
+                    <strong data-testid="mention-item-name">{item.label}</strong>
                     <span className="mention-meta mention-meta--desc">
-                      {workspaceContextDescription(item)}
+                      {workspaceContextDescription(item, t)}
                     </span>
                   </span>
-                  <span className="mention-meta mention-item-kind">{workspaceContextKindLabel(item.kind)}</span>
+                  <span className="mention-meta mention-item-kind">{workspaceContextKindLabel(item.kind, t)}</span>
                 </button>
               );
             })}
@@ -4668,7 +6655,7 @@ function MentionPopover({
         ) : null}
         {showPlugins && plugins.length > 0 ? (
           <>
-            <div className="mention-section-label">{t('chat.mentionSectionPlugins')}</div>
+            <div className="mention-section-label" data-testid="mention-section-label">{t('chat.mentionSectionPlugins')}</div>
             {plugins.map((p) => {
               const flat = optionIndex;
               optionIndex += 1;
@@ -4689,7 +6676,7 @@ function MentionPopover({
                 >
                   <Icon name="sparkles" size={12} />
                   <span className="mention-item-body">
-                    <strong>{pluginTitle}</strong>
+                    <strong data-testid="mention-item-name">{pluginTitle}</strong>
                     <span className="mention-meta mention-meta--desc">
                       {pluginDescription || p.id}
                     </span>
@@ -4702,12 +6689,12 @@ function MentionPopover({
         ) : null}
         {showSkills && skills.length > 0 ? (
           <>
-            <div className="mention-section-label">{t('chat.mentionSectionSkills')}</div>
+            <div className="mention-section-label" data-testid="mention-section-label">{t('chat.mentionSectionSkills')}</div>
             {skills.map((skill) => {
               const flat = optionIndex;
               optionIndex += 1;
               const rowActive = flat === activeIndex;
-              const isCurrent = skill.id === currentSkillId;
+              const isStaged = stagedSkillIds.has(skill.id);
               return (
                 <button
                   key={`skill-${skill.id}`}
@@ -4720,14 +6707,14 @@ function MentionPopover({
                   onClick={() => onPickSkill(skill)}
                   title={localizeSkillDescription(locale, skill)}
                 >
-                  <Icon name={isCurrent ? 'check' : 'file'} size={12} />
+                  <Icon name={isStaged ? 'check' : 'file'} size={12} />
                   <span className="mention-item-body">
-                    <strong>{localizeSkillName(locale, skill)}</strong>
+                    <strong data-testid="mention-item-name">{localizeSkillName(locale, skill)}</strong>
                     <span className="mention-meta mention-meta--desc">
                       {localizeSkillDescription(locale, skill) || skill.id}
                     </span>
                   </span>
-                  <span className="mention-meta mention-item-kind">{isCurrent ? t('chat.mentionActiveSkill') : skill.mode}</span>
+                  <span className="mention-meta mention-item-kind">{isStaged ? t('chat.mentionActiveSkill') : skill.mode}</span>
                 </button>
               );
             })}
@@ -4735,7 +6722,7 @@ function MentionPopover({
         ) : null}
         {showMcp && mcpServers.length > 0 ? (
           <>
-            <div className="mention-section-label">{t('chat.mentionSectionMcp')}</div>
+            <div className="mention-section-label" data-testid="mention-section-label">{t('chat.mentionSectionMcp')}</div>
             {mcpServers.map((server) => {
               const flat = optionIndex;
               optionIndex += 1;
@@ -4754,7 +6741,7 @@ function MentionPopover({
                 >
                   <Icon name="link" size={12} />
                   <span className="mention-item-body">
-                    <strong>{server.label || server.id}</strong>
+                    <strong data-testid="mention-item-name">{server.label || server.id}</strong>
                     <span className="mention-meta mention-meta--desc">
                       {server.url || server.command || server.id}
                     </span>
@@ -4767,7 +6754,7 @@ function MentionPopover({
         ) : null}
         {showConnectors && connectors.length > 0 ? (
           <>
-            <div className="mention-section-label">{t('chat.mentionSectionConnectors')}</div>
+            <div className="mention-section-label" data-testid="mention-section-label">{t('chat.mentionSectionConnectors')}</div>
             {connectors.map((connector) => {
               const flat = optionIndex;
               optionIndex += 1;
@@ -4786,7 +6773,7 @@ function MentionPopover({
                 >
                   <Icon name="link" size={12} />
                   <span className="mention-item-body">
-                    <strong>{connector.name}</strong>
+                    <strong data-testid="mention-item-name">{connector.name}</strong>
                     <span className="mention-meta mention-meta--desc">
                       {connector.description || connector.provider || connector.id}
                     </span>

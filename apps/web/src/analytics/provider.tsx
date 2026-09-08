@@ -27,12 +27,14 @@ import {
   setAnalyticsUserId,
   setConfigureGlobals,
 } from './client';
+import { APP_VERSION_PLACEHOLDER } from './app-version';
 import { patchExceptionTrackingAppVersion } from './error-tracking';
 import type { AnalyticsConfigureGlobals } from '@open-design/contracts/analytics';
 import {
   detectClientType,
   getAnonymousId,
   getSessionId,
+  isFirstSession,
 } from './identity';
 import { randomUUID } from '../utils/uuid';
 
@@ -91,7 +93,6 @@ function isSameOriginApiCall(url: unknown): boolean {
   }
 }
 
-const APP_VERSION_PLACEHOLDER = '0.0.0';
 let runtimeAppVersion: string | null = null;
 let runtimeAppVersionPromise: Promise<string | null> | null = null;
 
@@ -166,6 +167,8 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       anonymousId: getAnonymousId(),
       sessionId: getSessionId(),
       clientType: detectClientType(),
+      // Pinned once per tab session (spec §11.1 common field).
+      isFirstSession: isFirstSession(),
     }),
     [],
   );
@@ -188,6 +191,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
         anonymousId: identity.anonymousId,
         sessionId: identity.sessionId,
         clientType: identity.clientType,
+        isFirstSession: identity.isFirstSession,
         locale,
         appVersion: resolvedAppVersion,
       });
@@ -195,6 +199,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
         anonymousId: identity.anonymousId,
         sessionId: identity.sessionId,
         clientType: identity.clientType,
+        isFirstSession: identity.isFirstSession,
         locale,
         appVersion: resolvedAppVersion,
       });
@@ -252,6 +257,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
         anonymousId: identity.anonymousId,
         sessionId: identity.sessionId,
         clientType: identity.clientType,
+        isFirstSession: identity.isFirstSession,
         locale: locale,
         appVersion: resolvedAppVersion,
       });
@@ -310,6 +316,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
           anonymousId: identity.anonymousId,
           sessionId: identity.sessionId,
           clientType: identity.clientType,
+          isFirstSession: identity.isFirstSession,
           locale: locale,
           appVersion: resolvedAppVersion,
         });
@@ -350,6 +357,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
               anonymousId: identity.anonymousId,
               sessionId: identity.sessionId,
               clientType: identity.clientType,
+              isFirstSession: identity.isFirstSession,
               locale,
               appVersion: resolvedAppVersion,
             });

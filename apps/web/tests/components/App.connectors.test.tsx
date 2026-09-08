@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useSyncExternalStore } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../../src/App';
@@ -24,11 +25,27 @@ import {
 } from '../../src/providers/registry';
 import { listProjects, listTemplates } from '../../src/state/projects';
 
-const useRouteMock = vi.fn(() => ({ kind: 'home' as const, view: 'home' as const }));
+// Settings is now a full-page route (`/settings`): App.openSettings navigates
+// instead of toggling a modal flag, so the router mock must feed navigate()
+// calls back into useRoute() (like the production useSyncExternalStore router)
+// for the settings surface to render at all.
+const homeRouteMock = { kind: 'home' as const, view: 'home' as const };
+const routeListeners = new Set<() => void>();
+const useRouteMock = vi.fn(() => homeRouteMock);
 
 vi.mock('../../src/router', () => ({
-  navigate: vi.fn(),
-  useRoute: () => useRouteMock(),
+  navigate: vi.fn((route: unknown) => {
+    useRouteMock.mockReturnValue(route as never);
+    routeListeners.forEach((notify) => notify());
+  }),
+  useRoute: () =>
+    useSyncExternalStore(
+      (onChange) => {
+        routeListeners.add(onChange);
+        return () => routeListeners.delete(onChange);
+      },
+      useRouteMock,
+    ),
 }));
 
 vi.mock('../../src/components/EntryView', () => ({
@@ -93,15 +110,28 @@ vi.mock('../../src/components/SettingsDialog', () => ({
   SettingsDialog: ({
     initial,
     initialSection,
+    onDraftChange,
     onPersistComposioKey,
   }: {
     initial: AppConfig;
     initialSection?: string;
+    onDraftChange?: (config: AppConfig) => void;
     onPersistComposioKey: (composio: AppConfig['composio']) => void;
   }) => (
     <div role="dialog" aria-label="Settings dialog">
       <div>Section: {initialSection}</div>
       <div>Composio tail: {initial.composio?.apiKeyTail ?? 'none'}</div>
+      <button
+        type="button"
+        onClick={() =>
+          onDraftChange?.({
+            ...initial,
+            model: 'claude-draft-before-autosave',
+          })
+        }
+      >
+        Edit settings draft
+      </button>
       <button
         type="button"
         onClick={() =>
@@ -207,8 +237,17 @@ const baseConfig: AppConfig = {
   agentCliEnv: {},
 };
 
+async function clickCurrentPrivacyChoice(name: string) {
+  // App bootstrap can rerender the banner while the async findByRole call is
+  // resolving. Re-query synchronously before dispatching the event so the
+  // click lands on the currently mounted button.
+  await screen.findByRole('button', { name });
+  fireEvent.click(screen.getByRole('button', { name }));
+}
+
 describe('App connectors settings flows', () => {
   beforeEach(() => {
+    useRouteMock.mockReturnValue(homeRouteMock);
     mockedDaemonIsLive.mockResolvedValue(true);
     mockedFetchAgentsStream.mockResolvedValue([]);
     mockedFetchSkills.mockResolvedValue([]);
@@ -250,6 +289,88 @@ describe('App connectors settings flows', () => {
     });
   });
 
+  it('does not send a destructive empty Composio write during bootstrap', async () => {
+    mockedLoadConfig.mockReturnValue({
+      ...baseConfig,
+      composio: {
+        apiKey: '',
+        apiKeyConfigured: false,
+        apiKeyTail: '',
+      },
+    });
+    mockedFetchComposioConfigFromDaemon.mockResolvedValue({
+      apiKey: '',
+      apiKeyConfigured: false,
+      apiKeyTail: '',
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mockedFetchComposioConfigFromDaemon).toHaveBeenCalledTimes(1);
+      expect(mockedSyncConfigToDaemon).toHaveBeenCalled();
+    });
+
+    // PUT { apiKey: '' } means "clear" at the daemon boundary. A bootstrap
+    // write can complete after the user's first explicit Save and erase the
+    // freshly stored key, so startup must stay read-only when there is no
+    // legacy plaintext key to migrate.
+    expect(mockedSyncComposioConfigToDaemon).not.toHaveBeenCalled();
+  });
+
+  it('removes a legacy plaintext Composio key only after migration succeeds', async () => {
+    mockedLoadConfig.mockReturnValue({
+      ...baseConfig,
+      composio: {
+        apiKey: 'cmp_legacy_secret',
+        apiKeyConfigured: false,
+        apiKeyTail: '',
+      },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mockedSyncComposioConfigToDaemon).toHaveBeenCalledWith(
+        expect.objectContaining({ apiKey: 'cmp_legacy_secret' }),
+      );
+      expect(mockedSaveConfig.mock.calls.at(-1)?.[0]).toMatchObject({
+        composio: {
+          apiKey: '',
+          apiKeyConfigured: true,
+          apiKeyTail: 'cret',
+        },
+      });
+    });
+  });
+
+  it('retains a legacy plaintext Composio key when migration fails', async () => {
+    mockedLoadConfig.mockReturnValue({
+      ...baseConfig,
+      composio: {
+        apiKey: 'cmp_retry_secret',
+        apiKeyConfigured: false,
+        apiKeyTail: '',
+      },
+    });
+    mockedSyncComposioConfigToDaemon.mockResolvedValueOnce(false);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mockedSyncComposioConfigToDaemon).toHaveBeenCalledWith(
+        expect.objectContaining({ apiKey: 'cmp_retry_secret' }),
+      );
+      expect(mockedSaveConfig.mock.calls.at(-1)?.[0]).toMatchObject({
+        composio: {
+          apiKey: 'cmp_retry_secret',
+          apiKeyConfigured: false,
+          apiKeyTail: '',
+        },
+      });
+    });
+  });
+
   it('does not show first-run privacy consent until daemon config hydration finishes', async () => {
     let resolveDaemonConfig: (value: Record<string, never>) => void = () => {};
     mockedFetchDaemonConfig.mockReturnValue(
@@ -273,9 +394,136 @@ describe('App connectors settings flows', () => {
     const banner = container.querySelector('.privacy-consent-banner');
     expect(banner?.querySelector('.seg-control')).toBeNull();
     expect(banner?.querySelector('.seg-btn.active')).toBeNull();
-    expect(screen.getByRole('button', { name: 'I get it' }).className).toContain(
+    expect(screen.getByRole('button', { name: 'Share' }).className)
+      .toContain('privacy-consent-action--primary');
+    expect(screen.getByRole('button', { name: "Don't share" }).className).toContain(
       'privacy-consent-action',
     );
+  });
+
+  it('keeps telemetry and content sharing enabled when the first-run banner share choice is clicked', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mockedSyncConfigToDaemon).toHaveBeenCalled();
+    });
+    mockedSyncConfigToDaemon.mockClear();
+    await clickCurrentPrivacyChoice('Share');
+
+    await waitFor(() => {
+      expect(mockedSyncConfigToDaemon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          installationId: expect.any(String),
+          privacyDecisionAt: expect.any(Number),
+          telemetry: { metrics: true, content: true },
+        }),
+        expect.objectContaining({ throwOnError: true }),
+      );
+    });
+  });
+
+  it('preserves an existing installation id when the first-run banner share choice is clicked', async () => {
+    const randomUUID = vi.fn(() => 'inst-new');
+    vi.stubGlobal('crypto', { randomUUID });
+    mockedLoadConfig.mockReturnValue({
+      ...baseConfig,
+      installationId: 'inst-existing',
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mockedSyncConfigToDaemon).toHaveBeenCalled();
+    });
+    mockedSyncConfigToDaemon.mockClear();
+    await clickCurrentPrivacyChoice('Share');
+
+    await waitFor(() => {
+      expect(mockedSyncConfigToDaemon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          installationId: 'inst-existing',
+          privacyDecisionAt: expect.any(Number),
+          telemetry: { metrics: true, content: true },
+        }),
+        expect.objectContaining({ throwOnError: true }),
+      );
+    });
+    expect(randomUUID).not.toHaveBeenCalled();
+  });
+
+  it('preserves the artifact manifest preference when the first-run banner share choice is clicked', async () => {
+    mockedLoadConfig.mockReturnValue({
+      ...baseConfig,
+      installationId: 'inst-existing',
+      telemetry: { metrics: false, content: false, artifactManifest: true },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mockedSyncConfigToDaemon).toHaveBeenCalled();
+    });
+    mockedSyncConfigToDaemon.mockClear();
+    await clickCurrentPrivacyChoice('Share');
+
+    await waitFor(() => {
+      expect(mockedSyncConfigToDaemon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          installationId: 'inst-existing',
+          privacyDecisionAt: expect.any(Number),
+          telemetry: { metrics: true, content: true, artifactManifest: true },
+        }),
+        expect.objectContaining({ throwOnError: true }),
+      );
+    });
+  });
+
+  it('turns telemetry off when the first-run banner decline choice is clicked', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mockedSyncConfigToDaemon).toHaveBeenCalled();
+    });
+    mockedSyncConfigToDaemon.mockClear();
+    await clickCurrentPrivacyChoice("Don't share");
+
+    await waitFor(() => {
+      expect(mockedSyncConfigToDaemon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          installationId: null,
+          privacyDecisionAt: expect.any(Number),
+          telemetry: { metrics: false, content: false },
+        }),
+        expect.objectContaining({ throwOnError: true }),
+      );
+    });
+  });
+
+  it('preserves the artifact manifest preference when the first-run banner decline choice is clicked', async () => {
+    mockedLoadConfig.mockReturnValue({
+      ...baseConfig,
+      installationId: 'inst-existing',
+      telemetry: { metrics: true, content: true, artifactManifest: true },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mockedSyncConfigToDaemon).toHaveBeenCalled();
+    });
+    mockedSyncConfigToDaemon.mockClear();
+    await clickCurrentPrivacyChoice("Don't share");
+
+    await waitFor(() => {
+      expect(mockedSyncConfigToDaemon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          installationId: null,
+          privacyDecisionAt: expect.any(Number),
+          telemetry: { metrics: false, content: false, artifactManifest: true },
+        }),
+        expect.objectContaining({ throwOnError: true }),
+      );
+    });
   });
 
   it('keeps the first-run privacy banner mounted while settings is open', async () => {
@@ -295,6 +543,36 @@ describe('App connectors settings flows', () => {
       expect(screen.getByRole('dialog', { name: 'Settings dialog' })).toBeTruthy();
     });
     expect(container.querySelector('.privacy-consent-banner')).toBeTruthy();
+  });
+
+  it('preserves an open settings draft when the first-run banner share choice is clicked before autosave', async () => {
+    const { container } = render(<App />);
+
+    await waitFor(() => {
+      expect(container.querySelector('.privacy-consent-banner')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open execution settings' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Settings dialog' })).toBeTruthy();
+    });
+
+    mockedSyncConfigToDaemon.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit settings draft' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }));
+
+    await waitFor(() => {
+      expect(mockedSyncConfigToDaemon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'claude-draft-before-autosave',
+          installationId: expect.any(String),
+          privacyDecisionAt: expect.any(Number),
+          telemetry: { metrics: true, content: true },
+        }),
+        expect.objectContaining({ throwOnError: true }),
+      );
+    });
   });
 
   it('withholds the privacy banner until onboarding completes', async () => {
