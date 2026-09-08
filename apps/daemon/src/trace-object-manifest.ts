@@ -9,6 +9,7 @@ import type {
   ObjectManifestCompleteness,
 } from './langfuse-trace.js';
 import { INPUT_MAX_BYTES } from './langfuse-trace.js';
+import { normalizeComposerDesignTelemetryRelayUrl } from './integrations/telemetry-relay.js';
 import { mimeFor, readProjectFile, resolveProjectFilePath } from './projects.js';
 
 const OBJECT_RELAY_MARKER_HEADER = 'X-Open-Design-Telemetry';
@@ -136,10 +137,10 @@ function storageRef(projectId: string, runId: string, objectClass: ObjectClass, 
 
 function inferRelayUrl(env: NodeJS.ProcessEnv): string | null {
   const explicit = env.OPEN_DESIGN_OBJECT_RELAY_URL?.trim();
-  if (explicit) return explicit.replace(/\/+$/, '');
+  if (explicit) return normalizeComposerDesignTelemetryRelayUrl(explicit);
   const rawTelemetryRelayUrl = env.OPEN_DESIGN_TELEMETRY_RELAY_URL?.trim();
   if (!rawTelemetryRelayUrl) return null;
-  const telemetryRelayUrl = rawTelemetryRelayUrl.replace(/\/+$/, '');
+  const telemetryRelayUrl = normalizeComposerDesignTelemetryRelayUrl(rawTelemetryRelayUrl);
   try {
     const url = new URL(telemetryRelayUrl);
     if (!/\/api\/langfuse\/?$/u.test(url.pathname)) return null;
@@ -216,15 +217,15 @@ function manifestBase(
     ...(extension ? { extension } : {}),
     redacted: false,
     truncated: source.truncated === true,
-    stored_in_open_design: false,
+    stored_in_composer_design: false,
     retention_policy: 'observability_90d' as const,
     access_scope: 'project' as const,
     sensitivity: 'private' as const,
     expires_at: new Date(now.getTime() + DEFAULT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString(),
     approved_by: null,
-    open_in_open_design_url: null,
+    open_in_composer_design_url: null,
     preview_status: 'not_available',
-    access_policy: 'open_design_auth_required' as const,
+    access_policy: 'composer_design_auth_required' as const,
     ...(source.reason ? { reason: source.reason } : {}),
   };
   if (source.objectClass === 'attachment') {
@@ -660,7 +661,7 @@ export async function buildTraceObjectManifests(
     return groupManifests(manifests.map((entry, index) => ({
       ...mergeSourceDigest(entry, sources[index]!),
       status: 'unavailable' as const,
-      stored_in_open_design: false,
+      stored_in_composer_design: false,
       ...(entry.reason ? { reason: entry.reason } : {}),
     })));
   }
@@ -688,7 +689,7 @@ export async function buildTraceObjectManifests(
     return {
       ...entry,
       status: result.status === 'available' ? 'ok' as const : 'unavailable' as const,
-      stored_in_open_design: result.status === 'available',
+      stored_in_composer_design: result.status === 'available',
       ...(result.reason ? { reason: result.reason } : {}),
       ...(result.size_bytes !== undefined ? { size_bytes: result.size_bytes } : {}),
       ...(result.sha256 ? { sha256: result.sha256 } : {}),

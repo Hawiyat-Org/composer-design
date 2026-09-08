@@ -11,8 +11,14 @@ import type {
   SkillSummary,
   TrustTier,
 } from '@open-design/contracts';
+
+vi.mock('../../src/components/home-hero/PlaceholderCarousel', () => ({
+  PlaceholderCarousel: () => null,
+}));
+
 import { HomeHero } from '../../src/components/HomeHero';
 import { I18nProvider } from '../../src/i18n';
+import { armCompletionFeedbackOnFirstGesture } from '../../src/utils/notifications';
 import {
   getHomeHeroEditor,
   setHomeHeroPrompt,
@@ -589,6 +595,16 @@ describe('HomeHero plugin picker', () => {
     // contract: a plain Enter through the editor command pipeline calls onSubmit
     // exactly once when the prompt has content.
     const onSubmit = vi.fn();
+    const onFeedbackActivation = vi.fn();
+    const disposeFeedbackActivation = armCompletionFeedbackOnFirstGesture(
+      {
+        soundEnabled: false,
+        successSoundId: 'ding',
+        failureSoundId: 'buzz',
+        desktopEnabled: false,
+      },
+      onFeedbackActivation,
+    );
     // `canSubmit` is derived from the `prompt` prop, so seed it via props (the
     // editor mirrors it through SeedingPlugin) rather than only the editor.
     render(
@@ -614,6 +630,8 @@ describe('HomeHero plugin picker', () => {
 
     pressEnterInHomeHero();
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onFeedbackActivation).toHaveBeenCalledWith({ desktopPermission: null });
+    disposeFeedbackActivation();
   });
 
   it('routes Enter to the open picker instead of picking before a query resolves', async () => {
@@ -743,13 +761,13 @@ describe('HomeHero plugin picker', () => {
     // chip shows the plugin's own title and must own its clear (×) button, just
     // like a Community pick — not hide it behind the footer task chip.
     const onClearActivePlugin = vi.fn();
-    const active = makePlugin('mythic-reverie', 'Mythic Naturecore — Reverie');
+    const active = makePlugin('cinematic-portal', 'Cinematic Portal');
     render(
       <HomeHero
-        prompt="A cinematic landing page"
+        prompt="A motion-heavy landing page"
         onPromptChange={() => undefined}
         onSubmit={() => undefined}
-        activePluginTitle="Mythic Naturecore — Reverie"
+        activePluginTitle="Cinematic Portal"
         activePluginRecord={active}
         activeChipId="prototype"
         activePluginIsExplicit

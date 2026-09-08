@@ -43,6 +43,39 @@ describe("updater fixture server", () => {
     }
   });
 
+  it("publishes the control.launcher.version block from fixture knobs", async () => {
+    const server = await startUpdaterFixtureServer({
+      artifactBody: "fixture artifact",
+      channel: "beta",
+      controlLauncherVersionMin: "1.5.0-beta.1",
+      controlLauncherVersionUrl: "https://example.com/reinstall-help",
+      version: "2.0.0-beta.1",
+    });
+    try {
+      const metadata = await (await fetch(server.info.metadataUrl)).json() as {
+        control?: { launcher?: { version?: { min?: string; url?: string } } };
+      };
+      expect(metadata.control?.launcher?.version?.min).toBe("1.5.0-beta.1");
+      expect(metadata.control?.launcher?.version?.url).toBe("https://example.com/reinstall-help");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("omits the control block when no control knobs are set", async () => {
+    const server = await startUpdaterFixtureServer({
+      artifactBody: "fixture artifact",
+      channel: "beta",
+      version: "2.0.0-beta.1",
+    });
+    try {
+      const metadata = await (await fetch(server.info.metadataUrl)).json() as { control?: unknown };
+      expect(metadata.control).toBeUndefined();
+    } finally {
+      await server.close();
+    }
+  });
+
   it("serves Windows installer metadata for the updater flow", async () => {
     const server = await startUpdaterFixtureServer({
       artifactBody: "fixture installer",
@@ -73,7 +106,7 @@ describe("updater fixture server", () => {
 
   it("serves a local artifact file as the updater installer", async () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-updater-fixture-"));
-    const artifactPath = join(root, "Open Design-release-beta-win-setup.exe");
+    const artifactPath = join(root, "Composer Design-release-beta-win-setup.exe");
     await writeFile(artifactPath, "real local installer bytes");
     const server = await startUpdaterFixtureServer({
       artifactPath,
@@ -88,7 +121,7 @@ describe("updater fixture server", () => {
         platforms?: { win?: { artifacts?: { installer?: { name?: string; sha256Url?: string; size?: number; url?: string } } } };
       };
       expect(server.info.artifactPath).toBe(artifactPath);
-      expect(metadata.platforms?.win?.artifacts?.installer?.name).toBe("Open Design-release-beta-win-setup.exe");
+      expect(metadata.platforms?.win?.artifacts?.installer?.name).toBe("Composer Design-release-beta-win-setup.exe");
       expect(metadata.platforms?.win?.artifacts?.installer?.size).toBe(26);
       expect(metadata.platforms?.win?.artifacts?.installer?.url).toBe(server.info.artifactUrl);
       expect(metadata.platforms?.win?.artifacts?.installer?.sha256Url).toBe(server.info.checksumUrl);
@@ -140,7 +173,7 @@ describe("updater fixture server", () => {
 
   it("serves launcher payload bytes from a real archive path", async () => {
     const root = await mkdtemp(join(tmpdir(), "od-tools-serve-payload-"));
-    const payloadPath = join(root, "Open Design-release-preview-payload.zip");
+    const payloadPath = join(root, "Composer Design-release-preview-payload.zip");
     await writeFile(payloadPath, "real payload bytes", "utf8");
     const server = await startUpdaterFixtureServer({
       channel: "preview",
@@ -159,7 +192,7 @@ describe("updater fixture server", () => {
           };
         };
       };
-      expect(metadata.platforms?.mac?.artifacts?.payload?.name).toBe("Open Design-release-preview-payload.zip");
+      expect(metadata.platforms?.mac?.artifacts?.payload?.name).toBe("Composer Design-release-preview-payload.zip");
       expect(metadata.platforms?.mac?.artifacts?.payload?.size).toBe("real payload bytes".length);
       expect(metadata.platforms?.mac?.artifacts?.payload?.url).toBe(server.info.payloadUrl);
       expect(metadata.platforms?.mac?.artifacts?.payload?.sha256Url).toBe(server.info.payloadChecksumUrl);
@@ -181,7 +214,7 @@ describe("updater fixture server", () => {
 
   it("serves a local launcher payload artifact file", async () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-updater-payload-fixture-"));
-    const payloadPath = join(root, "Open Design-release-beta-win-payload.7z");
+    const payloadPath = join(root, "Composer Design-release-beta-win-payload.7z");
     await writeFile(payloadPath, "real local payload bytes");
     const server = await startUpdaterFixtureServer({
       artifactBody: "fixture installer",

@@ -1,6 +1,6 @@
 import type http from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -32,10 +32,30 @@ type RunStatus = {
   error: string | null;
   errorCode: string | null;
   eventsLogPath: string;
+  cancelRequested?: boolean;
+  failureCategory?: string | null;
+  failureDetail?: string | null;
 };
 
 type RunListBody = {
   runs: RunStatus[];
+};
+
+type RunResultPackageBody = {
+  schema: string;
+  run: {
+    id: string;
+    status: string;
+    projectId: string;
+    error?: string | null;
+    errorCode?: string | null;
+    cancelRequested?: boolean;
+    signal?: string | null;
+  };
+  events: {
+    logPath: string | null;
+  };
+  artifacts: Array<unknown>;
 };
 
 describe('daemon startup route smoke', () => {
@@ -54,7 +74,7 @@ describe('daemon startup route smoke', () => {
   afterAll(async () => {
     await Promise.resolve(started.shutdown?.());
     await new Promise<void>((resolve) => started.server.close(() => resolve()));
-    await rm(dataDir, { recursive: true, force: true });
+    await rmRecursiveWithRetry(dataDir);
     if (originalDataDir === undefined) delete process.env.OD_DATA_DIR;
     else process.env.OD_DATA_DIR = originalDataDir;
     vi.resetModules();
@@ -359,6 +379,301 @@ describe('daemon startup route smoke', () => {
     }
   });
 
+  it('[P0] keeps a user-canceled Claude run canceled when a late error frame arrives', async () => {
+    const binDir = await mkdtemp(join(tmpdir(), 'od-startup-cancel-error-bin-'));
+    try {
+      const readyFile = join(binDir, 'ready');
+      const claudeBin = await writeCancelErrorClaudeBin(
+        binDir,
+        'claude-cancel-error',
+        readyFile,
+      );
+      await putAppConfig(started.url, {
+        agentId: 'claude',
+        agentCliEnv: { claude: { CLAUDE_BIN: claudeBin } },
+      });
+
+      const runId = await createRun(started.url, {
+        caseId: `cancel_error_run_${randomUUID()}`,
+        agentId: 'claude',
+        message: 'cancel a Claude run that emits a late error frame',
+      });
+      await waitForFile(readyFile);
+
+      const cancel = await fetch(`${started.url}/api/runs/${encodeURIComponent(runId)}/cancel`, {
+        method: 'POST',
+      });
+      expect(cancel.status).toBe(200);
+      await expect(cancel.json()).resolves.toMatchObject({
+        ok: true,
+        run: {
+          id: runId,
+          status: 'canceled',
+          cancelRequested: true,
+        },
+      });
+
+      const canceled = await waitForRun(started.url, runId);
+      expect(canceled).toMatchObject({
+        id: runId,
+        status: 'canceled',
+        cancelRequested: true,
+        error: null,
+        errorCode: null,
+        failureCategory: null,
+        failureDetail: null,
+      });
+
+      const events = await readRunSse(started.url, runId);
+      expect(events).not.toContain('event: error');
+      expect(events).not.toContain('event: run_retry_attempted');
+      expect(events.match(/^event: end$/gmu)).toHaveLength(1);
+      expect(events).toContain('"status":"canceled"');
+      expect(events).not.toContain('"failure_detail":"stream_error"');
+    } finally {
+      await clearAgentCliEnv(started.url);
+      await rm(binDir, { recursive: true, force: true });
+    }
+  });
+
+  it('[P0] keeps a Claude stream failure failed when cancellation follows the error', async () => {
+    const binDir = await mkdtemp(join(tmpdir(), 'od-startup-error-cancel-bin-'));
+    try {
+      const readyFile = join(binDir, 'ready');
+      const claudeBin = await writeCancelErrorClaudeBin(
+        binDir,
+        'claude-error-before-cancel',
+        readyFile,
+        'before-cancel',
+      );
+      await putAppConfig(started.url, {
+        agentId: 'claude',
+        agentCliEnv: { claude: { CLAUDE_BIN: claudeBin } },
+      });
+
+      const runId = await createRun(started.url, {
+        caseId: `error_cancel_run_${randomUUID()}`,
+        agentId: 'claude',
+        message: 'fail a Claude run before requesting cancellation',
+      });
+      await waitForFile(readyFile);
+      const errorEvents = await readRunSseUntil(started.url, runId, 'event: error');
+      expect(errorEvents).toContain('provider failed before cancellation');
+
+      const cancel = await fetch(`${started.url}/api/runs/${encodeURIComponent(runId)}/cancel`, {
+        method: 'POST',
+      });
+      expect(cancel.status).toBe(200);
+      await expect(cancel.json()).resolves.toMatchObject({
+        ok: true,
+        run: {
+          id: runId,
+          status: 'failed',
+          cancelRequested: true,
+        },
+      });
+
+      const failed = await waitForRun(started.url, runId);
+      expect(failed).toMatchObject({
+        id: runId,
+        status: 'failed',
+        cancelRequested: true,
+        failureDetail: 'stream_error',
+      });
+
+      const events = await readRunSse(started.url, runId);
+      expect(events).toContain('event: error');
+      expect(events).not.toContain('event: run_retry_attempted');
+      expect(events.match(/^event: end$/gmu)).toHaveLength(1);
+      expect(events).toContain('"status":"failed"');
+      expect(events).toContain('"failure_detail":"stream_error"');
+    } finally {
+      await clearAgentCliEnv(started.url);
+      await rm(binDir, { recursive: true, force: true });
+    }
+  });
+
+  it('[P1] result packages preserve failed and canceled terminal status without inventing artifacts', async () => {
+    const binDir = await mkdtemp(join(tmpdir(), 'od-startup-result-package-bin-'));
+    try {
+      const failingClaude = await writeFailingClaudeBin(
+        binDir,
+        'claude-result-package-fail',
+        'HTTP 429 Too Many Requests: result package failure smoke.',
+      );
+      await putAppConfig(started.url, {
+        agentId: 'claude',
+        agentCliEnv: { claude: { CLAUDE_BIN: failingClaude } },
+      });
+      const failedRun = await createAndWaitForRun(started.url, {
+        caseId: `result_package_failed_${randomUUID()}`,
+        agentId: 'claude',
+        message: 'result package failed run smoke',
+      });
+
+      const failedPackage = await fetchResultPackage(started.url, failedRun.id);
+      expect(failedPackage).toMatchObject({
+        schema: 'open-design.run-result-package.v1',
+        run: {
+          id: failedRun.id,
+          status: 'failed',
+          projectId: failedRun.projectId,
+          errorCode: 'RATE_LIMITED',
+        },
+        events: {
+          logPath: expect.any(String),
+        },
+      });
+      expect(failedPackage.run.error ?? '').toMatch(/rate limit|too many requests/i);
+      expect(failedPackage.artifacts).toEqual([]);
+
+      const hangingClaude = await writeHangingClaudeBin(binDir, 'claude-result-package-cancel');
+      await putAppConfig(started.url, {
+        agentId: 'claude',
+        agentCliEnv: { claude: { CLAUDE_BIN: hangingClaude } },
+      });
+      const canceledRunId = await createRun(started.url, {
+        caseId: `result_package_canceled_${randomUUID()}`,
+        agentId: 'claude',
+        message: 'result package canceled run smoke',
+      });
+      await waitForRunStatus(started.url, canceledRunId, (run) =>
+        run.status === 'running' || run.status === 'queued',
+      );
+      await cancelRun(started.url, canceledRunId);
+
+      const canceledPackage = await fetchResultPackage(started.url, canceledRunId);
+      expect(canceledPackage).toMatchObject({
+        schema: 'open-design.run-result-package.v1',
+        run: {
+          id: canceledRunId,
+          status: 'canceled',
+          cancelRequested: true,
+          signal: expect.any(String),
+        },
+        events: {
+          logPath: expect.any(String),
+        },
+      });
+      expect(canceledPackage.run.errorCode ?? null).toBeNull();
+      expect(canceledPackage.artifacts).toEqual([]);
+    } finally {
+      await clearAgentCliEnv(started.url);
+      await rm(binDir, { recursive: true, force: true });
+    }
+  });
+
+  it('[P1] filters runs by project, conversation, and lifecycle status together', async () => {
+    const binDir = await mkdtemp(join(tmpdir(), 'od-startup-run-filters-bin-'));
+    const activeRunIds: string[] = [];
+    try {
+      const failingClaude = await writeFailingClaudeBin(
+        binDir,
+        'claude-filter-fail',
+        'HTTP 429 Too Many Requests: filter failure smoke.',
+      );
+      await putAppConfig(started.url, {
+        agentId: 'claude',
+        agentCliEnv: { claude: { CLAUDE_BIN: failingClaude } },
+      });
+
+      const primaryProject = await createProject(started.url, `run_filters_primary_${randomUUID()}`);
+      const primaryFollowupConversationId = await createConversation(
+        started.url,
+        primaryProject.projectId,
+        'Run filter follow-up',
+      );
+      const secondaryProject = await createProject(started.url, `run_filters_secondary_${randomUUID()}`);
+
+      const failedRunId = await createRunForProject(started.url, {
+        caseId: `run_filter_failed_${randomUUID()}`,
+        projectId: primaryProject.projectId,
+        conversationId: primaryProject.conversationId,
+        agentId: 'claude',
+        message: 'run filter failed smoke',
+      });
+      const failedRun = await waitForRun(started.url, failedRunId);
+      expect(failedRun.status).toBe('failed');
+
+      const hangingClaude = await writeHangingClaudeBin(binDir, 'claude-filter-active');
+      await putAppConfig(started.url, {
+        agentId: 'claude',
+        agentCliEnv: { claude: { CLAUDE_BIN: hangingClaude } },
+      });
+      const primaryActiveRunId = await createRunForProject(started.url, {
+        caseId: `run_filter_primary_active_${randomUUID()}`,
+        projectId: primaryProject.projectId,
+        conversationId: primaryFollowupConversationId,
+        agentId: 'claude',
+        message: 'run filter active primary smoke',
+      });
+      activeRunIds.push(primaryActiveRunId);
+      const secondaryActiveRunId = await createRunForProject(started.url, {
+        caseId: `run_filter_secondary_active_${randomUUID()}`,
+        projectId: secondaryProject.projectId,
+        conversationId: secondaryProject.conversationId,
+        agentId: 'claude',
+        message: 'run filter active secondary smoke',
+      });
+      activeRunIds.push(secondaryActiveRunId);
+
+      await waitForRunStatus(started.url, primaryActiveRunId, (run) =>
+        run.status === 'running' || run.status === 'queued',
+      );
+      await waitForRunStatus(started.url, secondaryActiveRunId, (run) =>
+        run.status === 'running' || run.status === 'queued',
+      );
+
+      await expectRunIds(
+        started.url,
+        {
+          projectId: primaryProject.projectId,
+          conversationId: primaryProject.conversationId,
+          status: 'failed',
+        },
+        [failedRunId],
+      );
+      await expectRunIds(
+        started.url,
+        {
+          projectId: primaryProject.projectId,
+          conversationId: primaryFollowupConversationId,
+          status: 'active',
+        },
+        [primaryActiveRunId],
+      );
+      await expectRunIds(
+        started.url,
+        {
+          projectId: primaryProject.projectId,
+          status: 'active',
+        },
+        [primaryActiveRunId],
+      );
+      await expectRunIds(
+        started.url,
+        {
+          projectId: secondaryProject.projectId,
+          status: 'active',
+        },
+        [secondaryActiveRunId],
+      );
+      await expectRunIds(
+        started.url,
+        {
+          projectId: primaryProject.projectId,
+          conversationId: primaryProject.conversationId,
+          status: 'active',
+        },
+        [],
+      );
+    } finally {
+      await Promise.all(activeRunIds.map((runId) => cancelRun(started.url, runId).catch(() => null)));
+      await clearAgentCliEnv(started.url);
+      await rm(binDir, { recursive: true, force: true });
+    }
+  });
+
   it('[P0] lists active runs and removes them from the active view after terminal states', async () => {
     const binDir = await mkdtemp(join(tmpdir(), 'od-startup-active-runs-bin-'));
     try {
@@ -463,31 +778,64 @@ async function createAndWaitForRun(url: string, input: {
   return await waitForRun(url, runId);
 }
 
-async function createRun(url: string, input: {
-  caseId: string;
-  agentId: string;
-  message: string;
-}): Promise<string> {
-  const projectId = `startup-run-${input.caseId}`;
+async function createProject(url: string, caseId: string): Promise<{
+  projectId: string;
+  conversationId: string;
+}> {
+  const projectId = `startup-run-${caseId}`;
   const projectResponse = await fetch(`${url}/api/projects`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       id: projectId,
-      name: `Startup run smoke ${input.caseId}`,
+      name: `Startup run smoke ${caseId}`,
       metadata: { kind: 'prototype' },
       skipDiscoveryBrief: true,
     }),
   });
   expect(projectResponse.status).toBe(200);
   const projectBody = await projectResponse.json() as { conversationId: string };
+  return { projectId, conversationId: projectBody.conversationId };
+}
+
+async function createConversation(url: string, projectId: string, title: string): Promise<string> {
+  const response = await fetch(`${url}/api/projects/${encodeURIComponent(projectId)}/conversations`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title, sessionMode: 'design' }),
+  });
+  expect(response.status).toBe(200);
+  const body = await response.json() as { conversation: { id: string } };
+  return body.conversation.id;
+}
+
+async function createRun(url: string, input: {
+  caseId: string;
+  agentId: string;
+  message: string;
+}): Promise<string> {
+  const project = await createProject(url, input.caseId);
+  return await createRunForProject(url, {
+    ...input,
+    projectId: project.projectId,
+    conversationId: project.conversationId,
+  });
+}
+
+async function createRunForProject(url: string, input: {
+  caseId: string;
+  projectId: string;
+  conversationId: string;
+  agentId: string;
+  message: string;
+}): Promise<string> {
   const assistantMessageId = `assistant-${input.caseId}`;
   const runResponse = await fetch(`${url}/api/runs`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      projectId,
-      conversationId: projectBody.conversationId,
+      projectId: input.projectId,
+      conversationId: input.conversationId,
       assistantMessageId,
       clientRequestId: `client-${input.caseId}`,
       agentId: input.agentId,
@@ -531,10 +879,42 @@ async function waitForRunStatus(
 }
 
 async function listRuns(url: string, status: string): Promise<RunStatus[]> {
-  const response = await fetch(`${url}/api/runs?status=${encodeURIComponent(status)}`);
+  return await listRunsWithFilters(url, { status });
+}
+
+async function listRunsWithFilters(url: string, filters: {
+  projectId?: string;
+  conversationId?: string;
+  status?: string;
+}): Promise<RunStatus[]> {
+  const params = new URLSearchParams();
+  if (filters.projectId) params.set('projectId', filters.projectId);
+  if (filters.conversationId) params.set('conversationId', filters.conversationId);
+  if (filters.status) params.set('status', filters.status);
+  const query = params.toString();
+  const response = await fetch(`${url}/api/runs${query ? `?${query}` : ''}`);
   expect(response.status).toBe(200);
   const body = await response.json() as RunListBody;
   return body.runs;
+}
+
+async function expectRunIds(
+  url: string,
+  filters: {
+    projectId?: string;
+    conversationId?: string;
+    status?: string;
+  },
+  expectedIds: string[],
+): Promise<void> {
+  const runs = await listRunsWithFilters(url, filters);
+  expect(runs.map((run) => run.id).sort()).toEqual([...expectedIds].sort());
+}
+
+async function fetchResultPackage(url: string, runId: string): Promise<RunResultPackageBody> {
+  const response = await fetch(`${url}/api/runs/${encodeURIComponent(runId)}/result-package`);
+  expect(response.status).toBe(200);
+  return await response.json() as RunResultPackageBody;
 }
 
 async function cancelRun(url: string, runId: string): Promise<RunStatus> {
@@ -581,6 +961,61 @@ setInterval(() => {}, 1000);
   return bin;
 }
 
+async function writeCancelErrorClaudeBin(
+  dir: string,
+  name: string,
+  readyFile: string,
+  errorTiming: 'before-cancel' | 'after-cancel' = 'after-cancel',
+): Promise<string> {
+  const bin = join(dir, name);
+  await writeFile(bin, `#!/usr/bin/env node
+const fs = require('node:fs');
+function writeFrame(frame) {
+  fs.writeSync(1, JSON.stringify(frame) + '\\n');
+}
+function writeErrorFrames(message) {
+  writeFrame({
+    type: 'assistant',
+    parent_tool_use_id: null,
+    error: message,
+    message: {
+      id: 'msg-cancel-error',
+      content: [],
+      stop_reason: null,
+    },
+  });
+  writeFrame({
+    type: 'result',
+    subtype: 'error_during_execution',
+    is_error: true,
+    result: message,
+    stop_reason: null,
+  });
+}
+if (process.argv.includes('--version')) {
+  console.log('claude 0.0.0-cancel-error-smoke');
+  process.exit(0);
+}
+if (process.argv.includes('--help')) {
+  console.log('Usage: claude -p [--include-partial-messages] [--add-dir DIR]');
+  process.exit(0);
+}
+process.on('SIGTERM', () => {
+  if (${JSON.stringify(errorTiming)} === 'after-cancel') {
+    writeErrorFrames('Canceled by user');
+  }
+  setTimeout(() => process.exit(1), 20);
+});
+if (${JSON.stringify(errorTiming)} === 'before-cancel') {
+  writeErrorFrames('provider failed before cancellation');
+}
+fs.writeFileSync(${JSON.stringify(readyFile)}, 'ready');
+setInterval(() => {}, 1000);
+`, 'utf8');
+  await chmod(bin, 0o755);
+  return bin;
+}
+
 async function writeSuccessfulClaudeBin(dir: string, name: string): Promise<string> {
   const bin = join(dir, name);
   await writeFile(bin, `#!/usr/bin/env node
@@ -615,6 +1050,31 @@ async function readRunSse(url: string, runId: string, lastEventId?: number): Pro
   return await response.text();
 }
 
+async function readRunSseUntil(url: string, runId: string, marker: string): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  try {
+    const response = await fetch(`${url}/api/runs/${encodeURIComponent(runId)}/events`, {
+      signal: controller.signal,
+    });
+    expect(response.status).toBe(200);
+    reader = response.body?.getReader();
+    if (!reader) throw new Error('run SSE response had no body');
+    const decoder = new TextDecoder();
+    let body = '';
+    while (!body.includes(marker)) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      body += decoder.decode(value, { stream: true });
+    }
+    return body;
+  } finally {
+    clearTimeout(timeout);
+    await reader?.cancel().catch(() => undefined);
+  }
+}
+
 function sseIds(body: string): number[] {
   return body
     .split(/\r?\n/u)
@@ -635,4 +1095,31 @@ function sseEventId(body: string, eventName: string): number {
 
 async function delay(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForFile(filePath: string): Promise<void> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 10_000) {
+    try {
+      await access(filePath);
+      return;
+    } catch {
+      await delay(25);
+    }
+  }
+  throw new Error(`file did not appear: ${filePath}`);
+}
+
+async function rmRecursiveWithRetry(target: string): Promise<void> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await rm(target, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOTEMPTY' || attempt === 4) {
+        throw error;
+      }
+      await delay(100 * (attempt + 1));
+    }
+  }
 }

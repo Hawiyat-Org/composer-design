@@ -23,10 +23,6 @@ const AGENT_INSTALL_LINKS: Record<
     installUrl: 'https://cli.devin.ai/docs',
     docsUrl: 'https://docs.devin.ai',
   },
-  gemini: {
-    installUrl: 'https://github.com/google-gemini/gemini-cli',
-    docsUrl: 'https://github.com/google-gemini/gemini-cli/blob/main/README.md',
-  },
   opencode: {
     installUrl: 'https://opencode.ai/docs',
     docsUrl: 'https://github.com/sst/opencode',
@@ -83,9 +79,17 @@ const AGENT_INSTALL_LINKS: Record<
     installUrl: 'https://github.com/Hmbown/CodeWhale',
     docsUrl: 'https://github.com/Hmbown/CodeWhale/blob/main/README.md',
   },
+  'deepseek-harness': {
+    installUrl: 'https://www.deepseek.com/harness/en/',
+    docsUrl: 'https://github.com/deepseek-ai/deepseek-harness',
+  },
   codebuddy: {
     installUrl: 'https://www.codebuddy.cn',
     docsUrl: 'https://www.codebuddy.cn/docs/workbuddy/Overview',
+  },
+  atomcode: {
+    installUrl: 'https://atomcode.atomgit.com/docs/en/quickstart.html',
+    docsUrl: 'https://atomcode.atomgit.com/docs/en/index.html',
   },
 };
 

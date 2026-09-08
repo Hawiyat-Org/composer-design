@@ -80,8 +80,15 @@ describe('AgentIcon', () => {
     const markup = renderToStaticMarkup(<AgentIcon id="amr" size={24} />);
 
     expect(amrSvg).toMatch(/^<svg\b/);
-    expect(amrSvg).toContain('fill="#87EA5C"');
+    expect(amrSvg).toContain('fill="#202020"');
     expect(markup).toContain('src="/agent-icons/amr.svg"');
+    expect(markup).not.toContain('agent-icon-fallback');
+  });
+
+  it('reuses the DeepSeek brand asset for the DeepSeek Harness runtime', () => {
+    const markup = renderToStaticMarkup(<AgentIcon id="deepseek-harness" size={24} />);
+
+    expect(markup).toContain('src="/agent-icons/deepseek.svg"');
     expect(markup).not.toContain('agent-icon-fallback');
   });
 

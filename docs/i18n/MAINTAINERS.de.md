@@ -1,7 +1,7 @@
 <!-- Machine-translated draft. Native-speaker review and corrections welcome via PR. -->
 # Maintainer
 
-<p align="center"><a href="../../MAINTAINERS.md">English</a> · <a href="MAINTAINERS.pt-BR.md">Português (Brasil)</a> · <b>Deutsch</b> · <a href="MAINTAINERS.fr.md">Français</a> · <a href="MAINTAINERS.zh-CN.md">简体中文</a> · <a href="MAINTAINERS.ja-JP.md">日本語</a></p>
+<p align="center"><a href="../../MAINTAINERS.md">English</a> · <a href="MAINTAINERS.pt-BR.md">Português (Brasil)</a> · <b>Deutsch</b> · <a href="MAINTAINERS.fr.md">Français</a> · <a href="MAINTAINERS.zh-CN.md">简体中文</a> · <a href="MAINTAINERS.ja-JP.md">日本語</a> · <a href="MAINTAINERS.ko.md">한국어</a> · <a href="MAINTAINERS.th.md">ภาษาไทย</a></p>
 
 Dieses Dokument legt die Regeln dafür fest, wie man Maintainer von `nexu-io/open-design` wird, diese Rolle ausübt und sich aus ihr zurückzieht. Die individuelle Zusammensetzung des Core Teams wird intern verwaltet und ist hier nicht aufgeführt — was öffentlich zählt, sind die Regeln, an die sich alle halten.
 
@@ -15,7 +15,7 @@ Dieses Dokument legt die Regeln dafür fest, wie man Maintainer von `nexu-io/ope
 |---|---|
 | **Contributor** | Jede Person mit mindestens 1 merged PR. Keine besonderen Berechtigungen. |
 | **External Maintainer** | Ein Community-Beitragender, der nach den unten aufgeführten Regeln befördert wurde. Kann Reviews durchführen, approven, issues schließen/wiedereröffnen und sich issues selbst zuweisen. **Kann den merge button nicht klicken** — dies bleibt dem Core Team vorbehalten. |
-| **Core Team** | Das interne Team von Open Design. Verfügt über vollen Schreibzugriff auf das Repository und ist die letzte Instanz bei Governance-Entscheidungen. Die Zusammensetzung wird intern verwaltet. |
+| **Core Team** | Das interne Team von OpenDesign. Verfügt über vollen Schreibzugriff auf das Repository und ist die letzte Instanz bei Governance-Entscheidungen. Die Zusammensetzung wird intern verwaltet. |
 
 Der Rest dieses Dokuments bezieht sich auf **External Maintainers**, sofern nicht anders angegeben.
 

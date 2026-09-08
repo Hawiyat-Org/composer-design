@@ -1,25 +1,33 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 import type {
-  OpenDesignHostBridge,
-  OpenDesignHostActionResult,
-  OpenDesignHostBrowserClearDataOptions,
-  OpenDesignHostCaptureOptions,
-  OpenDesignHostCaptureResult,
-  OpenDesignHostFailure,
-  OpenDesignHostProjectImportResult,
-  OpenDesignHostProjectReplaceWorkingDirResult,
-  OpenDesignHostPickWorkingDirResult,
-  OpenDesignHostUpdaterActionOptions,
-  OpenDesignHostUpdaterStatusListener,
-  OpenDesignHostUpdaterStatusSnapshot,
+  ComposerDesignHostBridge,
+  ComposerDesignHostActionResult,
+  ComposerDesignHostBrowserClearDataOptions,
+  ComposerDesignHostCaptureOptions,
+  ComposerDesignHostCaptureResult,
+  ComposerDesignHostFailure,
+  ComposerDesignHostProjectImportResult,
+  ComposerDesignHostProjectImportInit,
+  ComposerDesignHostProjectReplaceWorkingDirResult,
+  ComposerDesignHostPickWorkingDirResult,
+  ComposerDesignHostPreviewNavigationFailure,
+  ComposerDesignHostPreviewNavigationFailureListener,
+  ComposerDesignHostUpdaterActionOptions,
+  ComposerDesignHostUpdaterMenuLabels,
+  ComposerDesignHostUpdaterOpenDialogListener,
+  ComposerDesignHostUpdaterOpenDialogRequest,
+  ComposerDesignHostUpdaterStatusListener,
+  ComposerDesignHostUpdaterStatusSnapshot,
 } from '@open-design/host';
 
 const OPEN_DESIGN_HOST_GLOBAL: typeof import('@open-design/host').OPEN_DESIGN_HOST_GLOBAL = '__od__';
 const OPEN_DESIGN_HOST_VERSION: typeof import('@open-design/host').OPEN_DESIGN_HOST_VERSION = 2;
 const UPDATER_STATUS_EVENT = 'od:update:status-changed';
+const UPDATER_OPEN_DIALOG_EVENT = 'od:update:open-dialog';
 const APP_CONFIG_CHANGED_IPC_CHANNEL = 'od:app-config-changed';
 const APP_CONFIG_CHANGED_EVENT = 'open-design:app-config-changed';
+const PREVIEW_NAVIGATION_FAILURE_IPC_CHANNEL = 'od:preview-navigation-failed';
 
 // Mirror of the argv prefix used by main's `applyOsLocaleSwitch` and
 // runtime's `additionalArguments`. Duplicated literal on purpose: the
@@ -55,7 +63,7 @@ function reasonFromError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function failure(reason: string, details?: unknown): OpenDesignHostFailure {
+function failure(reason: string, details?: unknown): ComposerDesignHostFailure {
   return {
     ...(details === undefined ? {} : { details }),
     ok: false,
@@ -63,19 +71,19 @@ function failure(reason: string, details?: unknown): OpenDesignHostFailure {
   };
 }
 
-function actionFailure(reason: string, details?: unknown): OpenDesignHostActionResult {
+function actionFailure(reason: string, details?: unknown): ComposerDesignHostActionResult {
   return failure(reason, details);
 }
 
-function importFailure(reason: string): OpenDesignHostProjectImportResult {
+function importFailure(reason: string): ComposerDesignHostProjectImportResult {
   return failure(reason);
 }
 
-function replaceWorkingDirFailure(reason: string): OpenDesignHostProjectReplaceWorkingDirResult {
+function replaceWorkingDirFailure(reason: string): ComposerDesignHostProjectReplaceWorkingDirResult {
   return failure(reason);
 }
 
-function normalizeProjectReplaceWorkingDirResult(input: unknown): OpenDesignHostProjectReplaceWorkingDirResult {
+function normalizeProjectReplaceWorkingDirResult(input: unknown): ComposerDesignHostProjectReplaceWorkingDirResult {
   if (!isRecord(input)) return failure('desktop working-dir replace returned an invalid response', input);
   if (input.ok !== true) {
     if (input.canceled === true) return { canceled: true, ok: false };
@@ -97,11 +105,11 @@ function normalizeProjectReplaceWorkingDirResult(input: unknown): OpenDesignHost
   return { baseDir, entryFile, ok: true };
 }
 
-function pickWorkingDirFailure(reason: string): OpenDesignHostPickWorkingDirResult {
+function pickWorkingDirFailure(reason: string): ComposerDesignHostPickWorkingDirResult {
   return failure(reason);
 }
 
-function normalizePickWorkingDirResult(input: unknown): OpenDesignHostPickWorkingDirResult {
+function normalizePickWorkingDirResult(input: unknown): ComposerDesignHostPickWorkingDirResult {
   if (!isRecord(input)) return failure('desktop working-dir pick returned an invalid response', input);
   if (input.ok !== true) {
     if (input.canceled === true) return { canceled: true, ok: false };
@@ -118,7 +126,7 @@ function normalizePickWorkingDirResult(input: unknown): OpenDesignHostPickWorkin
   return { baseDir, ok: true, token };
 }
 
-function normalizeProjectImportResult(input: unknown): OpenDesignHostProjectImportResult {
+function normalizeProjectImportResult(input: unknown): ComposerDesignHostProjectImportResult {
   if (!isRecord(input)) return failure('desktop import returned an invalid response', input);
   if (input.ok !== true) {
     if (input.canceled === true) return { canceled: true, ok: false };
@@ -174,23 +182,23 @@ type DesktopDiagnosticsExportResult =
 
 const project = {
   pickAndImport: (
-    init?: { name?: string; skillId?: string | null; designSystemId?: string | null },
-  ): Promise<OpenDesignHostProjectImportResult> =>
+    init?: ComposerDesignHostProjectImportInit,
+  ): Promise<ComposerDesignHostProjectImportResult> =>
     ipcRenderer.invoke('dialog:pick-and-import', init ?? null)
       .then(normalizeProjectImportResult)
       .catch((error: unknown) => importFailure(reasonFromError(error))),
-  pickAndReplaceWorkingDir: (projectId: string): Promise<OpenDesignHostProjectReplaceWorkingDirResult> =>
+  pickAndReplaceWorkingDir: (projectId: string): Promise<ComposerDesignHostProjectReplaceWorkingDirResult> =>
     ipcRenderer.invoke('dialog:pick-and-replace-working-dir', { projectId })
       .then(normalizeProjectReplaceWorkingDirResult)
       .catch((error: unknown) => replaceWorkingDirFailure(reasonFromError(error))),
-  pickWorkingDir: (): Promise<OpenDesignHostPickWorkingDirResult> =>
+  pickWorkingDir: (): Promise<ComposerDesignHostPickWorkingDirResult> =>
     ipcRenderer.invoke('dialog:pick-working-dir')
       .then(normalizePickWorkingDirResult)
       .catch((error: unknown) => pickWorkingDirFailure(reasonFromError(error))),
 };
 
 const shell = {
-  openExternal: async (url: string): Promise<OpenDesignHostActionResult> => {
+  openExternal: async (url: string): Promise<ComposerDesignHostActionResult> => {
     try {
       const opened = await ipcRenderer.invoke('shell:open-external', url);
       return opened === true
@@ -208,7 +216,7 @@ const shell = {
   // to be true (set by the HMAC-gated import flow), so renderer code
   // cannot ask the bridge to open arbitrary local paths even
   // indirectly through legacy or future project-creation routes.
-  openPath: async (projectId: string): Promise<OpenDesignHostActionResult> => {
+  openPath: async (projectId: string): Promise<ComposerDesignHostActionResult> => {
     try {
       const result = await ipcRenderer.invoke('shell:open-path', projectId);
       if (typeof result === 'string' && result.length > 0) return actionFailure(result);
@@ -220,7 +228,7 @@ const shell = {
 };
 
 const browser = {
-  clearData: async (options?: OpenDesignHostBrowserClearDataOptions): Promise<OpenDesignHostActionResult> => {
+  clearData: async (options?: ComposerDesignHostBrowserClearDataOptions): Promise<ComposerDesignHostActionResult> => {
     try {
       return await ipcRenderer.invoke('browser:clear-data', options ?? null);
     } catch (error) {
@@ -230,7 +238,7 @@ const browser = {
 };
 
 const capture = {
-  page: async (options?: OpenDesignHostCaptureOptions): Promise<OpenDesignHostCaptureResult> => {
+  page: async (options?: ComposerDesignHostCaptureOptions): Promise<ComposerDesignHostCaptureResult> => {
     try {
       return await ipcRenderer.invoke('od:capture-page', options ?? null);
     } catch (error) {
@@ -239,36 +247,95 @@ const capture = {
   },
 };
 
+let latestPreviewNavigationFailure: ComposerDesignHostPreviewNavigationFailure | null = null;
+const previewNavigationFailureListeners = new Set<ComposerDesignHostPreviewNavigationFailureListener>();
+
+ipcRenderer.on(PREVIEW_NAVIGATION_FAILURE_IPC_CHANNEL, (
+  _event: unknown,
+  failure: ComposerDesignHostPreviewNavigationFailure,
+): void => {
+  if (
+    failure == null
+    || typeof failure !== 'object'
+    || !Number.isSafeInteger(failure.eventId)
+    || typeof failure.errorCode !== 'number'
+    || !Number.isFinite(failure.occurredAtMs)
+    || typeof failure.validatedUrl !== 'string'
+    || (failure.frameName !== undefined && typeof failure.frameName !== 'string')
+  ) return;
+  latestPreviewNavigationFailure = failure;
+  for (const listener of previewNavigationFailureListeners) {
+    try {
+      listener(failure);
+    } catch {
+      // A renderer listener must not prevent other active viewers from
+      // receiving the same host-owned failure signal.
+    }
+  }
+});
+
+const preview = {
+  getLatestNavigationFailure: (): ComposerDesignHostPreviewNavigationFailure | null =>
+    latestPreviewNavigationFailure,
+  subscribeNavigationFailure: (
+    listener: ComposerDesignHostPreviewNavigationFailureListener,
+  ): (() => void) => {
+    previewNavigationFailureListeners.add(listener);
+    return () => {
+      previewNavigationFailureListeners.delete(listener);
+    };
+  },
+};
+
 function invokeUpdater(
-  action: 'check' | 'download' | 'install' | 'status',
-  options?: OpenDesignHostUpdaterActionOptions,
-): Promise<OpenDesignHostUpdaterStatusSnapshot> {
+  action: 'check' | 'clear-cache' | 'download' | 'install' | 'status',
+  options?: ComposerDesignHostUpdaterActionOptions,
+): Promise<ComposerDesignHostUpdaterStatusSnapshot> {
   return ipcRenderer.invoke(`od:update:${action}`, options ?? null);
 }
 
 const updater = {
-  check: (options?: OpenDesignHostUpdaterActionOptions): Promise<OpenDesignHostUpdaterStatusSnapshot> =>
+  check: (options?: ComposerDesignHostUpdaterActionOptions): Promise<ComposerDesignHostUpdaterStatusSnapshot> =>
     invokeUpdater('check', options),
-  download: (options?: OpenDesignHostUpdaterActionOptions): Promise<OpenDesignHostUpdaterStatusSnapshot> =>
+  'clear-cache': (options?: ComposerDesignHostUpdaterActionOptions): Promise<ComposerDesignHostUpdaterStatusSnapshot> =>
+    invokeUpdater('clear-cache', options),
+  download: (options?: ComposerDesignHostUpdaterActionOptions): Promise<ComposerDesignHostUpdaterStatusSnapshot> =>
     invokeUpdater('download', options),
-  install: (options?: OpenDesignHostUpdaterActionOptions): Promise<OpenDesignHostUpdaterStatusSnapshot> =>
+  install: (options?: ComposerDesignHostUpdaterActionOptions): Promise<ComposerDesignHostUpdaterStatusSnapshot> =>
     invokeUpdater('install', options),
-  quit: async (options?: OpenDesignHostUpdaterActionOptions): Promise<OpenDesignHostActionResult> => {
+  quit: async (options?: ComposerDesignHostUpdaterActionOptions): Promise<ComposerDesignHostActionResult> => {
     try {
       return await ipcRenderer.invoke('od:update:quit', options ?? null);
     } catch (error) {
       return actionFailure(reasonFromError(error));
     }
   },
-  status: (options?: OpenDesignHostUpdaterActionOptions): Promise<OpenDesignHostUpdaterStatusSnapshot> =>
+  setMenuLabels: async (labels: ComposerDesignHostUpdaterMenuLabels): Promise<ComposerDesignHostActionResult> => {
+    try {
+      return await ipcRenderer.invoke('od:update:set-menu-labels', labels);
+    } catch (error) {
+      return actionFailure(reasonFromError(error));
+    }
+  },
+  status: (options?: ComposerDesignHostUpdaterActionOptions): Promise<ComposerDesignHostUpdaterStatusSnapshot> =>
     invokeUpdater('status', options),
-  subscribe: (listener: OpenDesignHostUpdaterStatusListener): (() => void) => {
-    const handler = (_event: unknown, status: OpenDesignHostUpdaterStatusSnapshot): void => {
+  subscribe: (listener: ComposerDesignHostUpdaterStatusListener): (() => void) => {
+    const handler = (_event: unknown, status: ComposerDesignHostUpdaterStatusSnapshot): void => {
       listener(status);
     };
     ipcRenderer.on(UPDATER_STATUS_EVENT, handler);
     return () => {
       ipcRenderer.removeListener(UPDATER_STATUS_EVENT, handler);
+    };
+  },
+  subscribeOpenDialog: (listener: ComposerDesignHostUpdaterOpenDialogListener): (() => void) => {
+    const handler = (_event: unknown, request: ComposerDesignHostUpdaterOpenDialogRequest): void => {
+      if (request == null || typeof request !== 'object' || typeof request.source !== 'string') return;
+      listener({ source: request.source });
+    };
+    ipcRenderer.on(UPDATER_OPEN_DIALOG_EVENT, handler);
+    return () => {
+      ipcRenderer.removeListener(UPDATER_OPEN_DIALOG_EVENT, handler);
     };
   },
 };
@@ -286,12 +353,19 @@ const hostBridge = {
     platform: process.platform,
     ...(osLocale !== undefined ? { osLocale } : {}),
   },
+  appearance: {
+    // Pin the native window appearance (macOS vibrancy glass material) to the
+    // app theme. Fire-and-forget: the main process validates the value.
+    setTheme: (theme: 'light' | 'dark' | 'system'): void =>
+      ipcRenderer.send('od:appearance:set-theme', theme),
+  },
   shell,
   browser,
   capture,
+  preview,
   project,
   pdf: {
-    print: async (html: string, nonce?: string, options?: PrintPdfOptions): Promise<OpenDesignHostActionResult> => {
+    print: async (html: string, nonce?: string, options?: PrintPdfOptions): Promise<ComposerDesignHostActionResult> => {
       try {
         await ipcRenderer.invoke('od:print-pdf', html, nonce, options ?? null);
         return { ok: true };
@@ -305,11 +379,11 @@ const hostBridge = {
       ipcRenderer.send('desktop-pet:set-visible', Boolean(visible)),
   },
   updater,
-} satisfies OpenDesignHostBridge;
+} satisfies ComposerDesignHostBridge;
 
 contextBridge.exposeInMainWorld(OPEN_DESIGN_HOST_GLOBAL, hostBridge);
 
-contextBridge.exposeInMainWorld('openDesignDesktop', {
+contextBridge.exposeInMainWorld('composerDesignDesktop', {
   exportDiagnostics: (): Promise<DesktopDiagnosticsExportResult> =>
     ipcRenderer.invoke(DESKTOP_DIAGNOSTICS_IPC_CHANNEL) as Promise<DesktopDiagnosticsExportResult>,
 });

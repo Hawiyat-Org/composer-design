@@ -331,7 +331,7 @@ function deriveCandidateDescription(ref: SkillPluginCandidateSourceRef): string 
 
 function synthesizeSkill(candidate: SkillPluginCandidate): string {
   const source = candidate.sourceRefs.find((ref) => ref.content)?.content?.trim();
-  if (source) return `${source}\n\n## Provenance\n\nFormalized by Composer Design from candidate ${candidate.id}.\n`;
+  if (source) return `${source}\n\n## Provenance\n\nFormalized by ComposerDesign from candidate ${candidate.id}.\n`;
   return [
     `# ${candidate.title}`,
     '',
@@ -339,7 +339,7 @@ function synthesizeSkill(candidate: SkillPluginCandidate): string {
     '',
     '## When to use',
     '',
-    'Use this skill when the workflow described by the source material should be repeated inside Composer Design.',
+    'Use this skill when the workflow described by the source material should be repeated inside ComposerDesign.',
     '',
     '## Workflow',
     '',
@@ -349,7 +349,7 @@ function synthesizeSkill(candidate: SkillPluginCandidate): string {
     '',
     '## Provenance',
     '',
-    `Formalized by Composer Design from candidate ${candidate.id}.`,
+    `Formalized by ComposerDesign from candidate ${candidate.id}.`,
     '',
   ].join('\n');
 }

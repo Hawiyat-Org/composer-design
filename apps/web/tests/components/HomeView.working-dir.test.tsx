@@ -3,15 +3,19 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../src/components/home-hero/PlaceholderCarousel', () => ({
+  PlaceholderCarousel: () => null,
+}));
+
 import { HomeView } from '../../src/components/HomeView';
-import { isOpenDesignHostAvailable, pickHostWorkingDir } from '@open-design/host';
+import { isComposerDesignHostAvailable, pickHostWorkingDir } from '@open-design/host';
 import { openFolderDialog } from '../../src/providers/registry';
 
 vi.mock('@open-design/host', async () => {
   const actual = await vi.importActual<typeof import('@open-design/host')>('@open-design/host');
   return {
     ...actual,
-    isOpenDesignHostAvailable: vi.fn(),
+    isComposerDesignHostAvailable: vi.fn(),
     pickHostWorkingDir: vi.fn(),
   };
 });
@@ -27,7 +31,7 @@ vi.mock('../../src/providers/registry', async () => {
   };
 });
 
-const mockedIsHostAvailable = vi.mocked(isOpenDesignHostAvailable);
+const mockedIsHostAvailable = vi.mocked(isComposerDesignHostAvailable);
 const mockedPickHostWorkingDir = vi.mocked(pickHostWorkingDir);
 const mockedOpenFolderDialog = vi.mocked(openFolderDialog);
 

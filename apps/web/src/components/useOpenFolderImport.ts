@@ -1,16 +1,18 @@
 import { useCallback, useState } from 'react';
 import {
-  isOpenDesignHostAvailable,
+  isComposerDesignHostAvailable,
   pickAndImportHostProject,
-  type OpenDesignHostProjectImportSuccess,
+  type ComposerDesignHostProjectImportSuccess,
 } from '@open-design/host';
 import { pickLocalFolderPath } from '../state/projects';
+import { resolvedWorkspaceContextForWrite } from '../state/projects';
+import { useWorkspaceContext } from '../collab/useWorkspaceContext';
 import { formatPickAndImportFailure } from '../utils/pickAndImportError';
 
 interface UseOpenFolderImportArgs {
   skillId?: string | null;
   onImportFolder?: (baseDir: string) => Promise<void> | void;
-  onImportFolderResponse?: (response: OpenDesignHostProjectImportSuccess) => Promise<void> | void;
+  onImportFolderResponse?: (response: ComposerDesignHostProjectImportSuccess) => Promise<void> | void;
 }
 
 export function useOpenFolderImport({
@@ -18,9 +20,10 @@ export function useOpenFolderImport({
   onImportFolder,
   onImportFolderResponse,
 }: UseOpenFolderImportArgs) {
+  const workspaceContextState = useWorkspaceContext();
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<{ message: string; details?: string } | null>(null);
-  const hasHostPickAndImport = isOpenDesignHostAvailable();
+  const hasHostPickAndImport = isComposerDesignHostAvailable();
   const available = hasHostPickAndImport ? Boolean(onImportFolderResponse) : Boolean(onImportFolder);
 
   const openFolder = useCallback(async () => {
@@ -31,6 +34,7 @@ export function useOpenFolderImport({
       try {
         const result = await pickAndImportHostProject({
           skillId: skillId ?? null,
+          workspaceContext: resolvedWorkspaceContextForWrite(workspaceContextState),
         });
         if (!result) return;
         if (result.ok === true) {
@@ -39,6 +43,10 @@ export function useOpenFolderImport({
         }
         if ('canceled' in result && result.canceled === true) return;
         setError(formatPickAndImportFailure(result));
+      } catch (err) {
+        setError({
+          message: err instanceof Error ? err.message : 'Failed to import folder',
+        });
       } finally {
         setImporting(false);
       }
@@ -59,7 +67,13 @@ export function useOpenFolderImport({
     } finally {
       setImporting(false);
     }
-  }, [hasHostPickAndImport, onImportFolder, onImportFolderResponse, skillId]);
+  }, [
+    hasHostPickAndImport,
+    onImportFolder,
+    onImportFolderResponse,
+    skillId,
+    workspaceContextState,
+  ]);
 
   return {
     available,

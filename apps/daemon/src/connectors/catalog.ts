@@ -30,7 +30,7 @@ export interface ConnectorToolDetail {
 export interface ConnectorCatalogToolDefinition extends ConnectorToolDetail {
   /** Provider scopes required for this tool. Empty for local/read-only providers. */
   requiredScopes: string[];
-  /** Provider-native tool identifier, when different from the Composer Design tool name. */
+  /** Provider-native tool identifier, when different from the ComposerDesign tool name. */
   providerToolId?: string;
 }
 

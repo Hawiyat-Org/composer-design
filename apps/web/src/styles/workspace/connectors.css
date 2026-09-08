@@ -45,7 +45,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 1.2;
   color: var(--text);
@@ -54,7 +54,7 @@
   white-space: nowrap;
 }
 .ds-picker-extra-pill {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   padding: 1px 6px;
@@ -63,7 +63,7 @@
   border-radius: var(--radius-pill);
 }
 .ds-picker-sub {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.2;
   color: var(--text-muted);
   overflow: hidden;
@@ -103,7 +103,7 @@
   position: absolute;
   right: -2px;
   bottom: -2px;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
   padding: 1px 5px;
@@ -126,8 +126,10 @@
   z-index: 30;
   display: flex;
   flex-direction: column;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
+  background: var(--glass-regular);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  backdrop-filter: var(--glass-backdrop);
+  border: 1px solid var(--material-separator);
   border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
@@ -137,30 +139,24 @@
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-/* Portalled variant (New Project design-system picker). Rendered into
-   document.body and positioned from the trigger's viewport rect, so it escapes
-   the modal's `.newproj-body { overflow-y: auto }` clip box that truncated the
-   list (issue #4303). `position: fixed` + the inline top/bottom/left/width/
-   max-height drive placement; the list flexes inside the bounded height and
-   scrolls instead of overflowing past the modal edge. z-index clears the New
-   Project modal backdrop (920). */
 .ds-picker-popover-portal {
   position: fixed;
   right: auto;
   z-index: 1000;
 }
-.ds-picker-popover-portal > .ds-picker-popover {
-  position: relative;
-  top: auto;
-  left: auto;
-  right: auto;
-  width: 100%;
-  max-height: inherit;
-}
 .ds-picker-popover-portal .ds-picker-list {
   max-height: none;
   flex: 1 1 auto;
   min-height: 0;
+}
+/* Portaled brand flyout: fixed to the viewport beside the popover (JS supplies
+   top/bottom/left), overriding the inline `absolute` offsets it uses when the
+   picker is not portaled. */
+.ds-picker-brand-flyout-portal {
+  position: fixed;
+  top: auto;
+  left: auto;
+  z-index: 1000;
 }
 /* Rich brand preview flyout — a side panel anchored to the popover that shows
    the compact Brand Kit card for the hovered / selected brand. It sits OUTSIDE
@@ -168,7 +164,7 @@
    the right of the popover via the wrapper's relative positioning. */
 .ds-picker-brand-flyout {
   position: absolute;
-  top: 0;
+  top: calc(100% + 6px);
   left: calc(100% + 8px);
   z-index: 31;
   width: 320px;
@@ -192,7 +188,7 @@
 .ds-picker-search {
   flex: 1;
   padding: 6px 10px !important;
-  font-size: 12.5px;
+  font-size: 13px;
   background: var(--bg-panel);
   border: 1px solid var(--border) !important;
   border-radius: var(--radius-sm) !important;
@@ -212,7 +208,7 @@
 }
 .ds-picker-mode-btn {
   padding: 3px 12px !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 500;
   border: none !important;
   background: transparent !important;
@@ -271,7 +267,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 1.2;
   color: var(--text);
@@ -280,7 +276,7 @@
   white-space: nowrap;
 }
 .ds-picker-item-badge {
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.06em;
   padding: 2px 5px;
@@ -290,7 +286,7 @@
   border-radius: var(--radius-xs);
 }
 .ds-picker-item-sub {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.2;
   color: var(--text-muted);
   overflow: hidden;
@@ -307,7 +303,7 @@
   justify-content: center;
   width: 18px;
   height: 18px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: transparent;
 }
@@ -346,7 +342,7 @@
   padding: 8px 10px;
   border-top: 1px solid var(--border);
   background: var(--bg-subtle);
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-muted);
   line-height: 1.4;
 }
@@ -355,7 +351,7 @@
 .ds-picker-clear {
   flex: none;
   padding: 4px 10px !important;
-  font-size: 11px !important;
+  font-size: 12px !important;
   background: var(--bg-panel) !important;
   color: var(--text) !important;
   border: 1px solid var(--border) !important;
@@ -386,7 +382,7 @@
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--text-muted);
   align-self: flex-start;
   cursor: pointer;
@@ -442,12 +438,15 @@
 }
 .lang-menu-popover {
   position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
   z-index: 50;
   min-width: 180px;
   width: max-content;
   max-width: min(280px, calc(100vw - 48px));
+  /* Cap the visible list at 8 languages (30px row + container padding);
+     the rest scrolls instead of pushing the popover off-screen. */
+  max-height: 248px;
+  overflow-y: auto;
+  scrollbar-width: thin;
   display: flex;
   flex-direction: column;
   padding: 4px;
@@ -456,13 +455,16 @@
   border-radius: var(--radius-md);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
 }
-/* Compact placement (cloud-landing top bar): the pill sits top-right, so the
-   menu drops DOWN and aligns to the pill's right edge, opening toward the
-   lower-left instead of upward. */
-.lang-menu-popover--compact {
+.lang-menu-popover--up {
+  bottom: calc(100% + 6px);
+}
+.lang-menu-popover--down {
   top: calc(100% + 6px);
-  bottom: auto;
-  left: auto;
+}
+.lang-menu-popover--align-start {
+  left: 0;
+}
+.lang-menu-popover--align-end {
   right: 0;
 }
 .lang-menu-item {
@@ -470,11 +472,12 @@
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
+  min-height: 30px;
   padding: 7px 10px;
   background: transparent;
   border: 0;
   border-radius: var(--radius);
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text);
   text-align: left;
   cursor: pointer;
@@ -487,7 +490,7 @@
 .lang-menu-item.active { background: var(--bg-subtle); }
 .lang-menu-item .lang-menu-code {
   color: var(--text-faint);
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
 }
@@ -809,7 +812,7 @@
 }
 .connector-card-title {
   margin: 0;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.25;
   letter-spacing: -0.005em;
@@ -927,7 +930,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: transparent;
@@ -1050,7 +1053,7 @@
   padding: 3px;
 }
 .connectors-panel-embedded .connector-logo.size-sm .connector-logo-fallback {
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .connector-meta {
@@ -1077,7 +1080,7 @@
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   line-height: 1.3;
   white-space: nowrap;
@@ -1144,7 +1147,7 @@
   background: var(--bg-subtle);
   color: var(--text-muted);
   border: 1px solid var(--border);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: 0.01em;
@@ -1507,7 +1510,7 @@ button.connector-action.is-loading {
   flex-direction: column;
   align-items: flex-start;
   flex-wrap: nowrap;
-  font-size: 11px;
+  font-size: 12px;
   gap: 4px;
   width: 100%;
   min-width: 0;
@@ -1559,7 +1562,7 @@ button.connector-action.is-loading {
 }
 .connectors-panel-embedded .connector-tools-badge {
   padding: 1px 6px;
-  font-size: 10px;
+  font-size: 12px;
   border-radius: var(--radius-pill);
 }
 /* Anchor the action column to the top now that the meta block can be
@@ -1742,7 +1745,7 @@ button.connector-action.is-loading {
 }
 /* Error/disabled pills inside the compact card stay legible but small. */
 .connectors-panel-embedded .connector-card .connector-status-pill {
-  font-size: 10px;
+  font-size: 12px;
   padding: 1px 6px;
 }
 
@@ -1767,8 +1770,8 @@ button.connector-action.is-loading {
   background:
     radial-gradient(ellipse at top, color-mix(in srgb, var(--bg-panel) 78%, transparent) 0%, color-mix(in srgb, var(--bg) 72%, transparent) 65%),
     color-mix(in srgb, var(--bg) 45%, transparent);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: var(--material-thin-backdrop);
+  backdrop-filter: var(--material-thin-backdrop);
   border-radius: var(--radius);
   animation: connector-gate-fade 220ms ease-out;
   pointer-events: auto;
@@ -1807,7 +1810,7 @@ button.connector-action.is-loading {
 }
 .connector-gate-title {
   margin: 2px 0 0;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text);
   letter-spacing: 0.01em;

@@ -28,15 +28,15 @@ import {
 afterEach(() => __resetCritiqueMetricsForTests());
 
 const EXPECTED_SERIES = [
-  { name: 'open_design_critique_runs_total', type: 'counter' as const },
-  { name: 'open_design_critique_rounds_total', type: 'counter' as const },
-  { name: 'open_design_critique_round_duration_ms', type: 'histogram' as const },
-  { name: 'open_design_critique_composite_score', type: 'histogram' as const },
-  { name: 'open_design_critique_must_fix_total', type: 'counter' as const },
-  { name: 'open_design_critique_degraded_total', type: 'counter' as const },
-  { name: 'open_design_critique_interrupted_total', type: 'counter' as const },
-  { name: 'open_design_critique_parser_errors_total', type: 'counter' as const },
-  { name: 'open_design_critique_protocol_version', type: 'gauge' as const },
+  { name: 'composer_design_critique_runs_total', type: 'counter' as const },
+  { name: 'composer_design_critique_rounds_total', type: 'counter' as const },
+  { name: 'composer_design_critique_round_duration_ms', type: 'histogram' as const },
+  { name: 'composer_design_critique_composite_score', type: 'histogram' as const },
+  { name: 'composer_design_critique_must_fix_total', type: 'counter' as const },
+  { name: 'composer_design_critique_degraded_total', type: 'counter' as const },
+  { name: 'composer_design_critique_interrupted_total', type: 'counter' as const },
+  { name: 'composer_design_critique_parser_errors_total', type: 'counter' as const },
+  { name: 'composer_design_critique_protocol_version', type: 'gauge' as const },
 ];
 
 describe('critique metrics registry (Phase 12)', () => {
@@ -68,22 +68,22 @@ describe('critique metrics registry (Phase 12)', () => {
     critiqueProtocolVersion.set({ version: '1' }, 1);
 
     const text = await getCritiqueMetrics();
-    expect(text).toContain('open_design_critique_runs_total{status="shipped",adapter="mock",skill="unit-test"} 1');
-    expect(text).toContain('open_design_critique_rounds_total{adapter="mock",skill="unit-test"} 1');
-    expect(text).toContain('open_design_critique_must_fix_total{panelist="critic",dim="hierarchy",adapter="mock",skill="unit-test"} 1');
-    expect(text).toContain('open_design_critique_degraded_total{reason="malformed_block",adapter="mock"} 1');
-    expect(text).toContain('open_design_critique_interrupted_total{adapter="mock"} 1');
-    expect(text).toContain('open_design_critique_parser_errors_total{kind="composite_mismatch",adapter="mock"} 1');
-    expect(text).toContain('open_design_critique_protocol_version{version="1"} 1');
+    expect(text).toContain('composer_design_critique_runs_total{status="shipped",adapter="mock",skill="unit-test"} 1');
+    expect(text).toContain('composer_design_critique_rounds_total{adapter="mock",skill="unit-test"} 1');
+    expect(text).toContain('composer_design_critique_must_fix_total{panelist="critic",dim="hierarchy",adapter="mock",skill="unit-test"} 1');
+    expect(text).toContain('composer_design_critique_degraded_total{reason="malformed_block",adapter="mock"} 1');
+    expect(text).toContain('composer_design_critique_interrupted_total{adapter="mock"} 1');
+    expect(text).toContain('composer_design_critique_parser_errors_total{kind="composite_mismatch",adapter="mock"} 1');
+    expect(text).toContain('composer_design_critique_protocol_version{version="1"} 1');
     // Histogram exposes _bucket / _sum / _count lines instead of a flat value.
-    expect(text).toContain('open_design_critique_round_duration_ms_bucket{');
-    expect(text).toContain('open_design_critique_composite_score_bucket{');
+    expect(text).toContain('composer_design_critique_round_duration_ms_bucket{');
+    expect(text).toContain('composer_design_critique_composite_score_bucket{');
   });
 
   it('resets the registry between tests so cases stay isolated', async () => {
     critiqueRunsTotal.inc({ status: 'shipped', adapter: 'a', skill: 's' }, 5);
     __resetCritiqueMetricsForTests();
     const text = await getCritiqueMetrics();
-    expect(text).not.toContain('open_design_critique_runs_total{status="shipped",adapter="a",skill="s"} 5');
+    expect(text).not.toContain('composer_design_critique_runs_total{status="shipped",adapter="a",skill="s"} 5');
   });
 });
