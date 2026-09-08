@@ -158,7 +158,7 @@ async function createHermeticTagRepoEnv(stableTags: string[]): Promise<Record<st
     { cwd: gitRoot },
   );
   for (const tag of stableTags) {
-    await execFileAsync("git", ["tag", tag], { cwd: gitRoot });
+    await execFileAsync("git", ["tag", "-a", tag, "-m", tag], { cwd: gitRoot });
   }
   return { GIT_DIR: join(gitRoot, ".git") };
 }
@@ -268,7 +268,7 @@ describe("tools-release local channel prepare validation", () => {
         OPEN_DESIGN_STABLE_VERSION: packagedVersion,
         // Matches the stable fixture metadata above and keeps the tag-derived
         // latest-stable floor below any real packaged version.
-        ...(await createHermeticTagRepoEnv(["open-design-v0.9.0"])),
+        ...(await createHermeticTagRepoEnv(["composer-design-v0.9.0"])),
       };
 
       const beta = await runPrepare("beta", {
@@ -407,7 +407,7 @@ describe("tools-release local channel prepare validation", () => {
       const fakeGh = await writeFakeGhScript(ghRoot);
       const stable = await runPrepare("stable", {
         GITHUB_REF_NAME: `release/v${packagedVersion}`,
-        GITHUB_REPOSITORY: "nexu-io/open-design",
+        GITHUB_REPOSITORY: "nexu-io/composer-design",
         GITHUB_SHA: "0123456789abcdef0123456789abcdef01234567",
         OPEN_DESIGN_GH_NODE_SCRIPT: fakeGh,
         OPEN_DESIGN_RELEASE_DRY_RUN: "false",

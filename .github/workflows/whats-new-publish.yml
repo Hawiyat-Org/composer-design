@@ -88,11 +88,15 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          if [ "$REPOSITORY" != "nexu-io/open-design" ]; then
-            echo "This workflow publishes the nexu-io/open-design card only; got $REPOSITORY" >&2
+          if [ "$REPOSITORY" != "nexu-io/open-design" ] && [ "$REPOSITORY" != "Hawiyat-Org/composer-design" ]; then
+            echo "This workflow publishes the whats-new card only for nexu-io/open-design or Hawiyat-Org/composer-design; got $REPOSITORY" >&2
             exit 1
           fi
           publish=true
+          # Fork does not have R2 publish credentials; validate only.
+          if [ "$REPOSITORY" = "Hawiyat-Org/composer-design" ]; then
+            publish=false
+          fi
           if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$DRY_RUN" = "true" ]; then
             publish=false
           fi

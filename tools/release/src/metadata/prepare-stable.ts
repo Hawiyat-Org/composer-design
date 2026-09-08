@@ -19,7 +19,7 @@ import {
 const execFile = promisify(execFileCallback);
 
 const stableReleaseBranchPattern = /^release\/v(\d+\.\d+\.\d+)$/;
-const stableTagPattern = /^open-design-v(\d+\.\d+\.\d+)$/;
+const stableTagPattern = /^composer-design-v(\d+\.\d+\.\d+)$/;
 
 type GitHubRelease = {
   draft?: boolean;
@@ -566,7 +566,7 @@ if (stableBaseVersion.value !== packagedVersion) {
 }
 
 const releases = await fetchReleases(repository);
-const versionTag = `open-design-v${packagedVersion}`;
+const versionTag = `composer-design-v${packagedVersion}`;
 
 let latestStable: ParsedStableVersion | null = null;
 for (const release of releases) {
